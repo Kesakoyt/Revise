@@ -218,11 +218,27 @@
             Timestamp,
             setLogLevel
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
-        // --- DÉBUT DE LA CONFIGURATION (NE PAS MODIFIER) ---
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
+        // --- DÉBUT DE LA CONFIGURATION (Mise à jour pour déploiement) ---
+        
+        // Configuration Firebase collée depuis votre console
+        const firebaseConfig = {
+          apiKey: "AIzaSyA102dFxJqH9b16CsETTw9aVq3F5qjgDXw",
+          authDomain: "revise-49500.firebaseapp.com",
+          projectId: "revise-49500",
+          storageBucket: "revise-49500.firebasestorage.app",
+          messagingSenderId: "535837483111",
+          appId: "1:535837483111:web:678016b8fec414b4aaf4c2",
+          measurementId: "G-SSQMR2W036"
+        };
+
+        // On définit appId manuellement car __app_id n'existe plus
+        const appId = firebaseConfig.appId || 'default-app-id'; 
+        
+        // initialAuthToken n'est pas utilisé en dehors de l'environnement de test
+        const initialAuthToken = undefined; 
+        
         // --- FIN DE LA CONFIGURATION ---
 
         // Variables globales
@@ -277,6 +293,7 @@
             }
             try {
                 app = initializeApp(firebaseConfig);
+                const analytics = getAnalytics(app); // Ajout de l'initialisation d'Analytics
                 auth = getAuth(app);
                 db = getFirestore(app);
                 setLogLevel('Debug');
