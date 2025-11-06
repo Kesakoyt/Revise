@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-gray-50">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
+    <title>révise</title>
+    <!-- Chargement de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Utilisation de la police Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        ::placeholder {
+            color: #9ca3af;
+        }
+        /* Style pour les onglets d'authentification */
+        .auth-tab {
+            @apply w-1/2 py-2 text-center font-medium text-gray-500 border-b-2 border-transparent cursor-pointer hover:border-gray-300 hover:text-gray-700;
+        }
+        .auth-tab.active {
+            @apply border-indigo-500 text-indigo-600;
+        }
+    </style>
+</head>
+
+<body class="h-full">
+    <div id="app" class="flex flex-col min-h-screen bg-gray-100">
+
+        <!-- En-tête -->
+        <header class="bg-white shadow-md sticky top-0 z-50">
+            <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center h-16">
+                    <div class="flex-shrink-0 flex items-center">
+                        <h1 class="text-2xl font-bold text-indigo-600">révise</h1>
+                    </div>
+                    <!-- Connexion / Infos utilisateur -->
+                    <div class="flex items-center">
+                        <span id="user-info" class="hidden text-sm font-medium text-gray-700 mr-4"></span>
+                        <button id="logout-button"
+                            class="hidden px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Déconnexion
+                        </button>
+                    </div>
+                </div>
+            </nav>
+        </header>
+
+        <!-- Contenu principal -->
+        <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
+
+            <!-- Vue de Connexion / Inscription -->
+            <div id="auth-view" class="hidden max-w-md mx-auto mt-12">
+                <div class="bg-white p-8 rounded-lg shadow-lg">
+                    
+                    <!-- Onglets -->
+                    <div class="flex mb-6 border-b border-gray-200">
+                        <div id="tab-login" class="auth-tab active">Connexion</div>
+                        <div id="tab-register" class="auth-tab">Inscription</div>
+                    </div>
+
+                    <!-- Formulaire de Connexion -->
+                    <div id="login-form-container">
+                        <form id="login-form" class="space-y-4">
+                            <div>
+                                <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
+                                <input id="login-email" type="email" required autocomplete="email"
+                                    class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                    placeholder="vous@exemple.com">
+                            </div>
+                            <div>
+                                <label for="login-password" class="block text-sm font-medium text-gray-700">Mot de passe</label>
+                                <input id="login-password" type="password" required autocomplete="current-password"
+                                    class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                    placeholder="Votre mot de passe">
+                            </div>
+                            <button type="submit"
+                                class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                Se connecter
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Formulaire d'Inscription -->
+                    <div id="register-form-container" class="hidden">
+                        <form id="register-form" class="space-y-4">
+                            <div>
+                                <label for="register-email" class="block text-sm font-medium text-gray-700">Email</label>
+                                <input id="register-email" type="email" required autocomplete="email"
+                                    class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                    placeholder="vous@exemple.com">
+                            </div>
+                            <div>
+                                <label for="register-password" class="block text-sm font-medium text-gray-700">Mot de passe</label>
+                                <input id="register-password" type="password" required autocomplete="new-password"
+                                    class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                    placeholder="Minimum 6 caractères">
+                            </div>
+                            <button type="submit"
+                                class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                Créer un compte
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Séparateur "OU" -->
+                    <div class="relative my-6">
+                        <div class="absolute inset-0 flex items-center">
+                            <div class="w-full border-t border-gray-300"></div>
+                        </div>
+                        <div class="relative flex justify-center text-sm">
+                            <span class="px-2 bg-white text-gray-500">OU</span>
+                        </div>
+                    </div>
+
+                    <!-- Bouton Google -->
+                    <button id="google-login-button"
+                        class="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <!-- SVG pour Google sera inséré par JS -->
+                        <span id="google-button-text">Se connecter avec Google</span>
+                    </button>
+                    
+                    <!-- Zone de chargement et d'erreur -->
+                    <div id="auth-loading" class="hidden mt-4 text-center">
+                        <div class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
+                    </div>
+                    <p id="auth-error" class="hidden mt-4 text-red-600 text-sm text-center"></p>
+
+                </div>
+            </div>
+
+            <!-- Vue principale de l'application (cachée par défaut) -->
+            <div id="app-view" class="hidden">
+                 <!-- ... Le contenu de app-view (formulaire de post et fil) reste identique ... -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    
+                    <!-- Colonne de gauche : Créer un post -->
+                    <div class="lg:col-span-1">
+                        <div class="bg-white p-6 rounded-lg shadow-lg sticky top-24">
+                            <h3 class="text-xl font-semibold text-gray-900 mb-4">Partager une ressource</h3>
+                            <form id="resource-form" class="space-y-4">
+                                <div>
+                                    <label for="res-title" class="block text-sm font-medium text-gray-700">Titre</label>
+                                    <input id="res-title" type="text" required
+                                        class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                        placeholder="Titre de votre ressource">
+                                </div>
+                                <div>
+                                    <label for="res-text" class="block text-sm font-medium text-gray-700">Texte</label>
+                                    <textarea id="res-text" rows="4" required
+                                        class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                        placeholder="Écrivez votre note, explication, ou question..."></textarea>
+                                </div>
+                                <div>
+                                    <label for="res-image" class="block text-sm font-medium text-gray-700">URL de l'image (optionnel)</label>
+                                    <input id="res-image" type="url"
+                                        class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                        placeholder="https://.../image.png">
+                                </div>
+                                
+                                <div id="post-error" class="hidden text-red-600 text-sm p-3 bg-red-100 rounded-md"></div>
+                                <div id="post-loading" class="hidden text-center">
+                                    <div class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
+                                </div>
+
+                                <button type="submit"
+                                    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                    Publier
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Colonne de droite : Fil des ressources -->
+                    <div class="lg:col-span-2">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-6">Ressources récentes</h2>
+                        <div id="resources-feed" class="space-y-6">
+                            <!-- Les ressources seront injectées ici par JS -->
+                            <div id="feed-loading" class="text-center text-gray-500">
+                                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                                <p class="mt-2">Chargement des ressources...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Configuration et scripts Firebase -->
+    <script type="module">
+        // Importations des modules Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import {
+            getAuth,
+            onAuthStateChanged,
+            setPersistence,
+            browserLocalPersistence,
+            signInWithCustomToken,
+            signInAnonymously,
+            GoogleAuthProvider,
+            signInWithPopup,
+            signOut,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import {
+            getFirestore,
+            collection,
+            addDoc,
+            query,
+            onSnapshot,
+            Timestamp,
+            setLogLevel
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- DÉBUT DE LA CONFIGURATION (NE PAS MODIFIER) ---
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
+        // --- FIN DE LA CONFIGURATION ---
+
+        // Variables globales
+        let app, auth, db, userId, userEmail;
+        let unsubscribeFromResources = null; // Pour stopper l'écouteur onSnapshot
+
+        // Éléments du DOM (Auth)
+        const appView = document.getElementById('app-view');
+        const authView = document.getElementById('auth-view');
+        const tabLogin = document.getElementById('tab-login');
+        const tabRegister = document.getElementById('tab-register');
+        const loginFormContainer = document.getElementById('login-form-container');
+        const registerFormContainer = document.getElementById('register-form-container');
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const googleLoginButton = document.getElementById('google-login-button');
+        const authLoading = document.getElementById('auth-loading');
+        const authError = document.getElementById('auth-error');
+        
+        // Éléments du DOM (App)
+        const userInfoSpan = document.getElementById('user-info');
+        const logoutButton = document.getElementById('logout-button');
+        const resourceForm = document.getElementById('resource-form');
+        const resTitleInput = document.getElementById('res-title');
+        const resTextInput = document.getElementById('res-text');
+        const resImageInput = document.getElementById('res-image');
+        const postError = document.getElementById('post-error');
+        const postLoading = document.getElementById('post-loading');
+        const resourcesFeed = document.getElementById('resources-feed');
+        const feedLoading = document.getElementById('feed-loading');
+
+        // SVG de Google
+        const googleSvg = `
+        <svg class="w-5 h-5 mr-3" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.84 0-5.22-1.92-6.08-4.47H2.05v2.84C3.89 20.9 7.62 23 12 23z" fill="#34A853"/>
+            <path d="M5.92 14.01c-.21-.66-.33-1.36-.33-2.07s.12-1.41.33-2.07V7.03H2.05C1.34 8.41.83 10.13.83 12s.51 3.59 1.22 4.97l3.87-2.96z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.69l3.15-3.15C17.45 2.09 14.97 1 12 1 7.62 1 3.89 3.1.2 5.96l3.87 2.96c.86-2.55 3.24-4.47 6.08-4.47z" fill="#EA4335"/>
+        </svg>`;
+        googleLoginButton.innerHTML = googleSvg + '<span id="google-button-text">Se connecter avec Google</span>';
+
+
+        /**
+         * Initialise l'application Firebase
+         */
+        function initializeFirebase() {
+            if (Object.keys(firebaseConfig).length === 0) {
+                console.error("Configuration Firebase manquante !");
+                authView.innerHTML = `<div class="p-8 text-center text-red-600 bg-red-100 rounded-lg">Erreur de configuration. L'application ne peut pas démarrer.</div>`;
+                authView.classList.remove('hidden');
+                return;
+            }
+            try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                setLogLevel('Debug');
+                console.log("Firebase initialisé.");
+                setupAuthListener();
+            } catch (error) {
+                console.error("Erreur d'initialisation Firebase:", error);
+                authView.innerHTML = `<div class="p-8 text-center text-red-600 bg-red-100 rounded-lg">Erreur d'initialisation de l'application.</div>`;
+                authView.classList.remove('hidden');
+            }
+        }
+
+        /**
+         * Met en place l'écouteur d'état d'authentification
+         */
+        async function setupAuthListener() {
+            try {
+                await setPersistence(auth, browserLocalPersistence);
+            } catch (error) {
+                console.warn("Impossible de définir la persistance locale:", error.message);
+            }
+
+            // Gérer l'authentification initiale
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else if (!auth.currentUser) { // Ne pas connecter anonymement si on a déjà un utilisateur
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Erreur lors de la connexion initiale:", error);
+                showAuthError(`Erreur de connexion initiale: ${error.message}`);
+            }
+
+            // Écouteur principal
+            onAuthStateChanged(auth, (user) => {
+                if (user && !user.isAnonymous) {
+                    // L'utilisateur est connecté
+                    userId = user.uid;
+                    userEmail = user.email;
+                    const userName = user.displayName || userEmail; // Utilise le nom d'affichage ou l'email
+
+                    userInfoSpan.textContent = `Connecté: ${userName}`;
+                    userInfoSpan.classList.remove('hidden');
+                    logoutButton.classList.remove('hidden');
+
+                    authView.classList.add('hidden');
+                    appView.classList.remove('hidden');
+
+                    if (!unsubscribeFromResources) {
+                        fetchResources();
+                    }
+
+                } else {
+                    // L'utilisateur est déconnecté ou anonyme
+                    userId = user ? user.uid : crypto.randomUUID();
+                    userEmail = "Utilisateur Anonyme";
+
+                    userInfoSpan.classList.add('hidden');
+                    logoutButton.classList.add('hidden');
+
+                    authView.classList.remove('hidden');
+                    appView.classList.add('hidden');
+
+                    if (unsubscribeFromResources) {
+                        unsubscribeFromResources();
+                        unsubscribeFromResources = null;
+                    }
+                }
+            });
+        }
+
+        /**
+         * Gère la connexion avec Google
+         */
+        async function handleGoogleLogin() {
+            setAuthLoading(true);
+            const provider = new GoogleAuthProvider();
+
+            try {
+                await signInWithPopup(auth, provider);
+                // onAuthStateChanged s'occupera du reste
+            } catch (error) {
+                console.error("Erreur de connexion Google:", error);
+                showAuthError(translateFirebaseError(error.code));
+            } finally {
+                setAuthLoading(false);
+            }
+        }
+        
+        /**
+         * Gère la connexion par Email
+         */
+        async function handleEmailLogin(e) {
+            e.preventDefault();
+            setAuthLoading(true);
+            const email = loginForm['login-email'].value;
+            const password = loginForm['login-password'].value;
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                // onAuthStateChanged s'occupera du reste
+            } catch (error) {
+                console.error("Erreur de connexion Email:", error);
+                showAuthError(translateFirebaseError(error.code));
+            } finally {
+                setAuthLoading(false);
+            }
+        }
+
+        /**
+         * Gère l'inscription par Email
+         */
+        async function handleEmailRegister(e) {
+            e.preventDefault();
+            setAuthLoading(true);
+            const email = registerForm['register-email'].value;
+            const password = registerForm['register-password'].value;
+
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                // onAuthStateChanged s'occupera du reste
+            } catch (error) {
+                console.error("Erreur d'inscription Email:", error);
+                showAuthError(translateFirebaseError(error.code));
+            } finally {
+                setAuthLoading(false);
+            }
+        }
+
+        /**
+         * Gère la déconnexion
+         */
+        async function handleLogout() {
+            try {
+                await signOut(auth);
+                // Re-connexion anonyme pour que l'ID ne soit pas nul
+                await signInAnonymously(auth);
+            } catch (error) {
+                console.error("Erreur de déconnexion:", error);
+            }
+        }
+
+        /**
+         * Gère la soumission du formulaire de nouvelle ressource
+         */
+        async function handleResourceSubmit(e) {
+            e.preventDefault();
+            if (!auth.currentUser || auth.currentUser.isAnonymous) {
+                showPostError("Vous devez être connecté pour publier.");
+                return;
+            }
+            // ... (le reste de la fonction est identique à V3) ...
+            const title = resTitleInput.value.trim();
+            const text = resTextInput.value.trim();
+            const imageUrl = resImageInput.value.trim();
+
+            if (!title || !text) {
+                showPostError("Le titre et le texte sont obligatoires.");
+                return;
+            }
+
+            setPostLoading(true);
+
+            try {
+                const collectionPath = `artifacts/${appId}/public/data/resources`;
+                const resourcesCol = collection(db, collectionPath);
+
+                await addDoc(resourcesCol, {
+                    title: title,
+                    text: text,
+                    imageUrl: imageUrl || null,
+                    userId: auth.currentUser.uid,
+                    userEmail: auth.currentUser.email,
+                    userName: auth.currentUser.displayName || auth.currentUser.email, // Ajout du nom
+                    createdAt: Timestamp.now()
+                });
+
+                resourceForm.reset();
+                postError.classList.add('hidden');
+
+            } catch (error) {
+                console.error("Erreur lors de l'ajout de la ressource:", error);
+                showPostError("Impossible de publier la ressource.");
+            } finally {
+                setPostLoading(false);
+            }
+        }
+
+        /**
+         * Récupère et écoute les changements sur les ressources
+         */
+        function fetchResources() {
+            // ... (identique à V3) ...
+            if (unsubscribeFromResources) {
+                unsubscribeFromResources();
+            }
+
+            feedLoading.classList.remove('hidden');
+            
+            const collectionPath = `artifacts/${appId}/public/data/resources`;
+            const resourcesCol = collection(db, collectionPath);
+            
+            const q = query(resourcesCol);
+
+            unsubscribeFromResources = onSnapshot(q, (snapshot) => {
+                feedLoading.classList.add('hidden');
+                
+                if (snapshot.empty) {
+                    resourcesFeed.innerHTML = '<p class="text-gray-500 text-center">Aucune ressource partagée pour le moment. Soyez le premier !</p>';
+                    return;
+                }
+
+                const resources = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                resources.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+
+                renderResources(resources);
+
+            }, (error) => {
+                console.error("Erreur de lecture des ressources:", error);
+                feedLoading.classList.add('hidden');
+                resourcesFeed.innerHTML = '<p class="text-red-500 text-center">Erreur lors du chargement des ressources.</p>';
+            });
+        }
+
+        /**
+         * Affiche les ressources dans le DOM
+         */
+        function renderResources(resources) {
+            // ... (identique à V3) ...
+            let loadingEl = document.getElementById('feed-loading');
+            resourcesFeed.innerHTML = ''; 
+            if(loadingEl) {
+                resourcesFeed.appendChild(loadingEl); 
+                loadingEl.classList.add('hidden');
+            }
+
+            if (resources.length === 0) {
+                 resourcesFeed.innerHTML = '<p class="text-gray-500 text-center">Aucune ressource partagée pour le moment. Soyez le premier !</p>';
+                 return;
+            }
+
+            resources.forEach(res => {
+                const postEl = document.createElement('div');
+                postEl.className = 'bg-white p-6 rounded-lg shadow-lg animate-fade-in';
+                
+                const date = res.createdAt.toDate().toLocaleString('fr-FR', {
+                    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                });
+
+                const safeText = escapeHTML(res.text).replace(/\n/g, '<br>');
+                const safeTitle = escapeHTML(res.title);
+                const safeAuthor = escapeHTML(res.userName || res.userEmail || "Utilisateur"); 
+                
+                let imageHtml = '';
+                if (res.imageUrl) {
+                    const placeholder = `https://placehold.co/600x400/e0e0e0/7f7f7f?text=Image+non+disponible`;
+                    imageHtml = `
+                        <img src="${escapeHTML(res.imageUrl)}" 
+                             alt="Image pour ${safeTitle}" 
+                             class="mt-4 rounded-md max-h-96 w-auto bg-gray-200"
+                             onerror="this.onerror=null;this.src='${placeholder}';this.classList.add('opacity-50');">
+                    `;
+                }
+
+                postEl.innerHTML = `
+                    <h4 class="text-lg font-semibold text-indigo-700 break-words">${safeTitle}</h4>
+                    <p class="text-xs text-gray-500 mb-2">Par <span class="font-medium">${safeAuthor}</span> le ${date}</p>
+                    <p class="text-gray-800 mt-2 mb-4 break-words whitespace-pre-wrap">${safeText}</p>
+                    ${imageHtml}
+                `;
+                resourcesFeed.appendChild(postEl);
+            });
+        }
+
+
+        // --- Fonctions utilitaires ---
+
+        function setAuthLoading(isLoading) {
+            const buttons = [googleLoginButton, ...loginForm.elements, ...registerForm.elements];
+            if (isLoading) {
+                authLoading.classList.remove('hidden');
+                authError.classList.add('hidden');
+                buttons.forEach(btn => btn.disabled = true);
+                googleLoginButton.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                authLoading.classList.add('hidden');
+                buttons.forEach(btn => btn.disabled = false);
+                googleLoginButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        function showAuthError(message) {
+            authError.textContent = message;
+            authError.classList.remove('hidden');
+        }
+
+        function setPostLoading(isLoading) {
+             if (isLoading) {
+                postLoading.classList.remove('hidden');
+                resourceForm.querySelector('button[type="submit"]').disabled = true;
+                resourceForm.querySelector('button[type="submit"]').classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                postLoading.classList.add('hidden');
+                resourceForm.querySelector('button[type="submit"]').disabled = false;
+                resourceForm.querySelector('button[type="submit"]').classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        function showPostError(message) {
+            postError.textContent = message;
+            postError.classList.remove('hidden');
+        }
+
+        function escapeHTML(str) {
+            if (typeof str !== 'string') return '';
+            return str.replace(/[&<>"']/g, function(match) {
+                return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+                }[match];
+            });
+        }
+        
+        function translateFirebaseError(errorCode) {
+            switch (errorCode) {
+                case 'auth/invalid-email':
+                    return 'Format d\'email incorrect.';
+                case 'auth/user-not-found':
+                    return 'Aucun compte trouvé pour cet email.';
+                case 'auth/wrong-password':
+                    return 'Mot de passe incorrect.';
+                case 'auth/email-already-in-use':
+                    return 'Cet email est déjà utilisé par un autre compte.';
+                case 'auth/weak-password':
+                    return 'Le mot de passe doit comporter au moins 6 caractères.';
+                case 'auth/operation-not-allowed':
+                    return 'La connexion par email/mot de passe n\'est pas activée. (Voir guide)';
+                case 'auth/unauthorized-domain':
+                    return 'Ce domaine n\'est pas autorisé. (google-ide.com)';
+                case 'auth/popup-closed-by-user':
+                    return 'La fenêtre de connexion a été fermée.';
+                default:
+                    return `Erreur inconnue: ${errorCode}`;
+            }
+        }
+
+        // --- Ajout des écouteurs d'événements ---
+        
+        // Clics sur les onglets
+        tabLogin.addEventListener('click', () => {
+            tabLogin.classList.add('active');
+            tabRegister.classList.remove('active');
+            loginFormContainer.classList.remove('hidden');
+            registerFormContainer.classList.add('hidden');
+            authError.classList.add('hidden');
+        });
+
+        tabRegister.addEventListener('click', () => {
+            tabLogin.classList.remove('active');
+            tabRegister.classList.add('active');
+            loginFormContainer.classList.add('hidden');
+            registerFormContainer.classList.remove('hidden');
+            authError.classList.add('hidden');
+        });
+
+        // Soumission des formulaires
+        googleLoginButton.addEventListener('click', handleGoogleLogin);
+        loginForm.addEventListener('submit', handleEmailLogin);
+        registerForm.addEventListener('submit', handleEmailRegister);
+        
+        logoutButton.addEventListener('click', handleLogout);
+        resourceForm.addEventListener('submit', handleResourceSubmit);
+
+        // Initialisation au chargement de la page
+        document.addEventListener('DOMContentLoaded', initializeFirebase);
+
+    </script>
+</body>
+
+</html>
