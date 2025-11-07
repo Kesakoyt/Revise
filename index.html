@@ -1,684 +1,1212 @@
 <!DOCTYPE html>
-<html lang="fr" class="h-full bg-gray-50">
-
+<html lang="fr" class="h-full bg-gray-100">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale-1.0">
-    <title>révise</title>
-    <!-- Chargement de Tailwind CSS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Révise</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Utilisation de la police Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide-dev@0.395.0"></script>
+    
+    <!-- Quill Editor CSS -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <!-- KaTeX CSS (pour les formules de maths) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/katex.min.css">
+
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
+        /* Style pour l'éditeur Quill */
+        #editor-container { height: 400px; }
+        .page-content { display: none; }
+        .page-content.active { display: block; }
+
+        /* Style pour le Toast (notifications) */
+        #toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            transform: translateX(calc(100% + 20px));
+            transition: transform 0.3s ease-in-out;
         }
-        ::placeholder {
-            color: #9ca3af;
+        #toast.show {
+            transform: translateX(0);
         }
-        /* Style pour les onglets d'authentification */
-        .auth-tab {
-            @apply w-1/2 py-2 text-center font-medium text-gray-500 border-b-2 border-transparent cursor-pointer hover:border-gray-300 hover:text-gray-700;
-        }
-        .auth-tab.active {
-            @apply border-indigo-500 text-indigo-600;
-        }
+        #toast.bg-red-500 { background-color: #ef4444; }
+        #toast.bg-green-500 { background-color: #22c55e; }
+        #toast.bg-blue-500 { background-color: #3b82f6; }
     </style>
 </head>
-
-<body class="h-full">
-    <div id="app" class="flex flex-col min-h-screen bg-gray-100">
-
-        <!-- En-tête -->
-        <header class="bg-white shadow-md sticky top-0 z-50">
-            <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between items-center h-16">
-                    <div class="flex-shrink-0 flex items-center">
-                        <h1 class="text-2xl font-bold text-indigo-600">révise</h1>
-                    </div>
-                    <!-- Connexion / Infos utilisateur -->
-                    <div class="flex items-center">
-                        <span id="user-info" class="hidden text-sm font-medium text-gray-700 mr-4"></span>
-                        <button id="logout-button"
-                            class="hidden px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            Déconnexion
-                        </button>
-                    </div>
-                </div>
+<body class="h-full font-sans antialiased">
+    <div id="app-wrapper" class="relative flex h-full min-h-screen">
+        
+        <!-- Sidebar (Menu principal) -->
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 flex flex-col w-64 bg-gray-800 text-white transition-transform duration-300 ease-in-out -translate-x-full md:relative md:translate-x-0">
+            <!-- Logo -->
+            <div class="flex items-center justify-center h-16 px-4 bg-gray-900 shadow-md">
+                <i data-lucide="book-open-check" class="h-8 w-8 text-blue-400"></i>
+                <h1 class="ml-3 text-2xl font-bold">Révise</h1>
+            </div>
+            
+            <!-- Navigation principale -->
+            <nav id="sidebar-nav" class="flex-1 overflow-y-auto px-2 py-4 space-y-1">
+                <a href="#home" class="flex items-center px-3 py-2 text-gray-300 rounded-md hover:bg-gray-700 hover:text-white" data-page-id="home-page">
+                    <i data-lucide="home" class="h-5 w-5 mr-3"></i>
+                    Accueil
+                </a>
+                <a href="#create" class="flex items-center px-3 py-2 text-gray-300 rounded-md hover:bg-gray-700 hover:text-white" data-page-id="create-page">
+                    <i data-lucide="plus-circle" class="h-5 w-5 mr-3"></i>
+                    Partager un cours
+                </a>
+                <!-- Les catégories seront insérées ici par JS -->
             </nav>
-        </header>
+            
+            <!-- Zone d'authentification (bas de sidebar) -->
+            <div id="auth-info-sidebar" class="p-4 border-t border-gray-700">
+                <!-- Contenu mis à jour par JS (Bouton Connexion ou Infos utilisateur) -->
+            </div>
+        </aside>
 
         <!-- Contenu principal -->
-        <main class="flex-grow container mx-auto p-4 sm:p-6 lg:p-8">
-
-            <!-- Vue de Connexion / Inscription -->
-            <div id="auth-view" class="hidden max-w-md mx-auto mt-12">
-                <div class="bg-white p-8 rounded-lg shadow-lg">
-                    
-                    <!-- Onglets -->
-                    <div class="flex mb-6 border-b border-gray-200">
-                        <div id="tab-login" class="auth-tab active">Connexion</div>
-                        <div id="tab-register" class="auth-tab">Inscription</div>
+        <div class="flex-1 flex flex-col">
+            <!-- Header (barre du haut sur mobile) -->
+            <header class="sticky top-0 z-20 bg-white shadow-md md:hidden">
+                <div class="flex items-center justify-between px-4 h-16">
+                    <button id="mobile-menu-button" class="text-gray-600 hover:text-gray-900">
+                        <i data-lucide="menu" class="h-6 w-6"></i>
+                    </button>
+                    <div class="flex items-center">
+                        <i data-lucide="book-open-check" class="h-6 w-6 text-blue-600"></i>
+                        <h1 class="ml-2 text-xl font-bold text-gray-800">Révise</h1>
                     </div>
+                    <div class="w-6"></div> <!-- Espaceur -->
+                </div>
+            </header>
 
-                    <!-- Formulaire de Connexion -->
-                    <div id="login-form-container">
-                        <form id="login-form" class="space-y-4">
-                            <div>
-                                <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
-                                <input id="login-email" type="email" required autocomplete="email"
-                                    class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="vous@exemple.com">
+            <!-- Zone d'affichage des pages -->
+            <main id="main-content" class="flex-1 p-4 md:p-8 bg-gray-100 overflow-y-auto">
+                
+                <!-- Page de chargement -->
+                <section id="loading-page" class="page-content active">
+                    <div class="flex items-center justify-center h-full">
+                        <svg class="animate-spin -ml-1 mr-3 h-10 w-10 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span class="text-xl text-gray-700">Chargement...</span>
+                    </div>
+                </section>
+
+                <!-- Page d'accueil -->
+                <section id="home-page" class="page-content">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                        <h2 class="text-3xl font-bold text-gray-900">Ressources Récentes</h2>
+                        <!-- NOUVEAU: Barre de recherche Accueil -->
+                        <div class="relative w-full md:w-72">
+                            <input type="search" id="home-search-input" placeholder="Rechercher une ressource..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"></i>
+                        </div>
+                    </div>
+                    <div id="home-resources-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- Les cartes de ressources seront insérées ici -->
+                    </div>
+                </section>
+                
+                <!-- Page de Catégorie -->
+                <section id="category-page" class="page-content">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                        <h2 class="text-3xl font-bold text-gray-900" id="category-title">Catégorie</h2>
+                        <!-- NOUVEAU: Barre de recherche Catégorie -->
+                        <div class="relative w-full md:w-72">
+                            <input type="search" id="category-search-input" placeholder="Rechercher dans cette catégorie..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"></i>
+                        </div>
+                    </div>
+                    <div id="category-resources-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- Les cartes de ressources filtrées -->
+                    </div>
+                </section>
+
+                <!-- Page de Profil -->
+                <section id="profile-page" class="page-content">
+                    <div id="profile-container" class="bg-white p-8 rounded-lg shadow-lg max-w-4xl mx-auto">
+                        <!-- Le contenu du profil sera inséré ici -->
+                    </div>
+                </section>
+
+                <!-- Page d'Authentification -->
+                <section id="auth-page" class="page-content max-w-md mx-auto mt-10">
+                    <!-- Formulaire de Connexion (visible par défaut) -->
+                    <div id="login-view">
+                        <form id="login-form" class="bg-white p-8 rounded-lg shadow-lg">
+                            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Connexion</h2>
+                            
+                            <div class="mb-4">
+                                <label for="login-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                <input type="email" id="login-email" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
                             </div>
-                            <div>
-                                <label for="login-password" class="block text-sm font-medium text-gray-700">Mot de passe</label>
-                                <input id="login-password" type="password" required autocomplete="current-password"
-                                    class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="Votre mot de passe">
+                            <div class="mb-6">
+                                <label for="login-password" class="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+                                <input type="password" id="login-password" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
                             </div>
-                            <button type="submit"
-                                class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            
+                            <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-150 ease-in-out">
                                 Se connecter
                             </button>
+                            
+                            <p class="text-center text-sm text-gray-600 my-4">OU</p>
+                            
+                            <button type="button" id="google-auth-btn" class="w-full flex items-center justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691c-1.646 3.403-2.656 7.21-2.656 11.31s1.01 7.907 2.656 11.31l-5.657 5.657C1.135 38.824 0 34.046 0 29c0-5.046 1.135-9.824 3.039-14.309l5.657 5.657z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.341l-5.657-5.657C30.046 34.66 27.268 36 24 36c-5.223 0-9.657-3.343-11.303-8H7.047v8H24v-8z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.23 4.14-4.082 5.571l5.657 5.657C40.012 36.438 44 31.026 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+                                Continuer avec Google
+                            </button>
+                            
+                            <p class="text-center text-sm text-gray-600 mt-6">
+                                Pas encore de compte ? 
+                                <button type="button" id="show-signup-btn" class="font-medium text-blue-600 hover:text-blue-500">
+                                    Inscrivez-vous
+                                </button>
+                            </p>
                         </form>
                     </div>
 
-                    <!-- Formulaire d'Inscription -->
-                    <div id="register-form-container" class="hidden">
-                        <form id="register-form" class="space-y-4">
-                            <div>
-                                <label for="register-email" class="block text-sm font-medium text-gray-700">Email</label>
-                                <input id="register-email" type="email" required autocomplete="email"
-                                    class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="vous@exemple.com">
+                    <!-- Formulaire d'Inscription (caché par défaut) -->
+                    <div id="signup-view" class="hidden">
+                        <form id="signup-form" class="bg-white p-8 rounded-lg shadow-lg">
+                            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Inscription</h2>
+                            
+                            <div class="mb-4">
+                                <label for="signup-username" class="block text-sm font-medium text-gray-700 mb-1">Nom d'utilisateur</label>
+                                <input type="text" id="signup-username" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
                             </div>
-                            <div>
-                                <label for="register-password" class="block text-sm font-medium text-gray-700">Mot de passe</label>
-                                <input id="register-password" type="password" required autocomplete="new-password"
-                                    class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="Minimum 6 caractères">
+                            <div class="mb-4">
+                                <label for="signup-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                <input type="email" id="signup-email" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
                             </div>
-                            <button type="submit"
-                                class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <div class="mb-6">
+                                <label for="signup-password" class="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+                                <input type="password" id="signup-password" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            
+                            <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-150 ease-in-out">
                                 Créer un compte
                             </button>
+                            
+                            <p class="text-center text-sm text-gray-600 mt-6">
+                                Déjà un compte ? 
+                                <button type="button" id="show-login-btn" class="font-medium text-blue-600 hover:text-blue-500">
+                                    Connectez-vous
+                                </button>
+                            </p>
                         </form>
                     </div>
-
-                    <!-- Séparateur "OU" -->
-                    <div class="relative my-6">
-                        <div class="absolute inset-0 flex items-center">
-                            <div class="w-full border-t border-gray-300"></div>
-                        </div>
-                        <div class="relative flex justify-center text-sm">
-                            <span class="px-2 bg-white text-gray-500">OU</span>
-                        </div>
+                </section>
+                
+                <!-- Page de Création (Éditeur) -->
+                <section id="create-page" class="page-content">
+                    <div class="bg-white p-6 rounded-lg shadow-lg">
+                        <h2 class="text-3xl font-bold text-gray-900 mb-6">Partager un cours</h2>
+                        <!-- Conteneur de l'éditeur Quill -->
+                        <div id="editor-container"></div>
+                        <button id="open-metadata-modal-btn" class="mt-6 w-full md:w-auto bg-blue-600 text-white py-2 px-6 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-150 ease-in-out">
+                            Suivant
+                        </button>
                     </div>
+                </section>
 
-                    <!-- Bouton Google -->
-                    <button id="google-login-button"
-                        class="w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        <!-- SVG pour Google sera inséré par JS -->
-                        <span id="google-button-text">Se connecter avec Google</span>
+            </main>
+        </div>
+    </div>
+    
+    <!-- Modal (Pop-up) pour les métadonnées de la ressource (caché par défaut) -->
+    <div id="metadata-modal" class="fixed inset-0 z-40 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden">
+        <div class="bg-white p-8 rounded-lg shadow-xl max-w-lg w-full m-4">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Finaliser la ressource</h2>
+            <form id="create-resource-form">
+                <!-- Titre -->
+                <div class="mb-4">
+                    <label for="resource-title" class="block text-sm font-medium text-gray-700 mb-1">Titre</label>
+                    <input type="text" id="resource-title" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                
+                <!-- Catégorie (Menu déroulant) -->
+                <div class="mb-4">
+                    <label for="resource-category" class="block text-sm font-medium text-gray-700 mb-1">Catégorie</d-iv>
+                    <select id="resource-category" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <!-- Options de catégories chargées par JS -->
+                    </select>
+                </div>
+                
+                <!-- Sous-catégorie (Menu déroulant) -->
+                <div class="mb-4">
+                    <label for="resource-subcategory" class="block text-sm font-medium text-gray-700 mb-1">Sous-catégorie</label>
+                    <select id="resource-subcategory" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <!-- Options de sous-catégories chargées par JS -->
+                    </select>
+                </div>
+
+                <!-- Téléversement d'image (conditionnel) -->
+                <div id="image-upload-container" class="mb-6 hidden">
+                    <label for="resource-image" class="block text-sm font-medium text-gray-700 mb-1">Image de couverture (optionnel)</label>
+                    <input type="file" id="resource-image" accept="image/*" class="w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-md file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-blue-50 file:text-blue-700
+                        hover:file:bg-blue-100
+                    ">
+                    <p class="text-xs text-gray-500 mt-1">Seuls les utilisateurs certifiés peuvent ajouter des images.</p>
+                </div>
+                
+                <!-- Boutons d'action -->
+                <div class="flex justify-end space-x-4">
+                    <button type="button" id="close-metadata-modal-btn" class="bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">
+                        Annuler
                     </button>
-                    
-                    <!-- Zone de chargement et d'erreur -->
-                    <div id="auth-loading" class="hidden mt-4 text-center">
-                        <div class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
-                    </div>
-                    <p id="auth-error" class="hidden mt-4 text-red-600 text-sm text-center"></p>
-
+                    <button type="submit" id="submit-resource-btn" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
+                        Publier
+                    </button>
                 </div>
-            </div>
-
-            <!-- Vue principale de l'application (cachée par défaut) -->
-            <div id="app-view" class="hidden">
-                 <!-- ... Le contenu de app-view (formulaire de post et fil) reste identique ... -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    
-                    <!-- Colonne de gauche : Créer un post -->
-                    <div class="lg:col-span-1">
-                        <div class="bg-white p-6 rounded-lg shadow-lg sticky top-24">
-                            <h3 class="text-xl font-semibold text-gray-900 mb-4">Partager une ressource</h3>
-                            <form id="resource-form" class="space-y-4">
-                                <div>
-                                    <label for="res-title" class="block text-sm font-medium text-gray-700">Titre</label>
-                                    <input id="res-title" type="text" required
-                                        class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                        placeholder="Titre de votre ressource">
-                                </div>
-                                <div>
-                                    <label for="res-text" class="block text-sm font-medium text-gray-700">Texte</label>
-                                    <textarea id="res-text" rows="4" required
-                                        class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                        placeholder="Écrivez votre note, explication, ou question..."></textarea>
-                                </div>
-                                <div>
-                                    <label for="res-image" class="block text-sm font-medium text-gray-700">URL de l'image (optionnel)</label>
-                                    <input id="res-image" type="url"
-                                        class="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                        placeholder="https://.../image.png">
-                                </div>
-                                
-                                <div id="post-error" class="hidden text-red-600 text-sm p-3 bg-red-100 rounded-md"></div>
-                                <div id="post-loading" class="hidden text-center">
-                                    <div class="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
-                                </div>
-
-                                <button type="submit"
-                                    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                    Publier
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-
-                    <!-- Colonne de droite : Fil des ressources -->
-                    <div class="lg:col-span-2">
-                        <h2 class="text-2xl font-bold text-gray-900 mb-6">Ressources récentes</h2>
-                        <div id="resources-feed" class="space-y-6">
-                            <!-- Les ressources seront injectées ici par JS -->
-                            <div id="feed-loading" class="text-center text-gray-500">
-                                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                                <p class="mt-2">Chargement des ressources...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        </main>
+            </form>
+        </div>
     </div>
 
-    <!-- Configuration et scripts Firebase -->
-    <script type="module">
-        // Importations des modules Firebase
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import {
-            getAuth,
-            onAuthStateChanged,
-            setPersistence,
-            browserLocalPersistence,
-            signInWithCustomToken,
-            signInAnonymously,
-            GoogleAuthProvider,
-            signInWithPopup,
-            signOut,
-            createUserWithEmailAndPassword,
-            signInWithEmailAndPassword
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import {
-            getFirestore,
-            collection,
-            addDoc,
-            query,
-            onSnapshot,
-            Timestamp,
-            setLogLevel
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
-        // --- DÉBUT DE LA CONFIGURATION (Mise à jour pour déploiement) ---
+    <!-- Toast (Notification) -->
+    <div id="toast"></div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Importations Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInWithEmailAndPassword, 
+            createUserWithEmailAndPassword, 
+            onAuthStateChanged, 
+            signOut, 
+            GoogleAuthProvider, 
+            signInWithPopup 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            getDoc, 
+            setDoc, 
+            addDoc, 
+            collection, 
+            getDocs, 
+            query, 
+            where,
+            Timestamp,
+            updateDoc,
+            arrayUnion,
+            arrayRemove
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { 
+            getStorage, 
+            ref, 
+            uploadBytes, 
+            getDownloadURL 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
         
-        // Configuration Firebase collée depuis votre console
+        // --- Configuration Firebase ---
         const firebaseConfig = {
-          apiKey: "AIzaSyA102dFxJqH9b16CsETTw9aVq3F5qjgDXw",
-          authDomain: "revise-49500.firebaseapp.com",
-          projectId: "revise-49500",
-          storageBucket: "revise-49500.firebasestorage.app",
-          messagingSenderId: "535837483111",
-          appId: "1:535837483111:web:678016b8fec414b4aaf4c2",
-          measurementId: "G-SSQMR2W036"
+            apiKey: "AIzaSyA102dFxJqH9b16CsETTw9aVq3F5qjgDXw",
+            authDomain: "revise-49500.firebaseapp.com",
+            projectId: "revise-49500",
+            storageBucket: "revise-49500.appspot.com", // Utiliser appspot.com pour le SDK
+            messagingSenderId: "535837483111",
+            appId: "1:535837483111:web:678016b8fec414b4aaf4c2",
+            measurementId: "G-SSQMR2W036"
         };
 
-        // On définit appId manuellement car __app_id n'existe plus
-        const appId = firebaseConfig.appId || 'default-app-id'; 
+        // Initialisation Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
         
-        // initialAuthToken n'est pas utilisé en dehors de l'environnement de test
-        const initialAuthToken = undefined; 
+        console.log("Configuration Firebase utilisée :", firebaseConfig);
+
+        // --- Chemins Firestore ---
+        const appId = firebaseConfig.projectId; // Utiliser le projectId comme appId
+        const usersCollectionPath = `artifacts/${appId}/public/data/users`;
+        const resourcesCollectionPath = `artifacts/${appId}/public/data/resources`;
+
+        // --- Éléments DOM ---
+        const sidebar = document.getElementById('sidebar');
+        const authInfoSidebar = document.getElementById('auth-info-sidebar');
+        const sidebarNav = document.getElementById('sidebar-nav');
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
         
-        // --- FIN DE LA CONFIGURATION ---
+        // Pages
+        const homePage = document.getElementById('home-page');
+        const authPage = document.getElementById('auth-page');
+        const categoryPage = document.getElementById('category-page');
+        const profilePage = document.getElementById('profile-page');
+        const createPage = document.getElementById('create-page');
+        const loadingPage = document.getElementById('loading-page');
 
-        // Variables globales
-        let app, auth, db, userId, userEmail;
-        let unsubscribeFromResources = null; // Pour stopper l'écouteur onSnapshot
-
-        // Éléments du DOM (Auth)
-        const appView = document.getElementById('app-view');
-        const authView = document.getElementById('auth-view');
-        const tabLogin = document.getElementById('tab-login');
-        const tabRegister = document.getElementById('tab-register');
-        const loginFormContainer = document.getElementById('login-form-container');
-        const registerFormContainer = document.getElementById('register-form-container');
+        // Conteneurs de page
+        const homeResourcesContainer = document.getElementById('home-resources-container');
+        const categoryResourcesContainer = document.getElementById('category-resources-container');
+        const categoryTitle = document.getElementById('category-title');
+        const profileContainer = document.getElementById('profile-container');
+        
+        // NOUVEAU: Barres de recherche
+        const homeSearchInput = document.getElementById('home-search-input');
+        const categorySearchInput = document.getElementById('category-search-input');
+        
+        // Formulaires Auth
         const loginForm = document.getElementById('login-form');
-        const registerForm = document.getElementById('register-form');
-        const googleLoginButton = document.getElementById('google-login-button');
-        const authLoading = document.getElementById('auth-loading');
-        const authError = document.getElementById('auth-error');
+        const signupForm = document.getElementById('signup-form');
+        const logoutBtn = document.getElementById('logout-btn'); // Note: ce bouton est créé dynamiquement
+        const googleAuthBtn = document.getElementById('google-auth-btn');
+        const showSignupBtn = document.getElementById('show-signup-btn');
+        const showLoginBtn = document.getElementById('show-login-btn');
         
-        // Éléments du DOM (App)
-        const userInfoSpan = document.getElementById('user-info');
-        const logoutButton = document.getElementById('logout-button');
-        const resourceForm = document.getElementById('resource-form');
-        const resTitleInput = document.getElementById('res-title');
-        const resTextInput = document.getElementById('res-text');
-        const resImageInput = document.getElementById('res-image');
-        const postError = document.getElementById('post-error');
-        const postLoading = document.getElementById('post-loading');
-        const resourcesFeed = document.getElementById('resources-feed');
-        const feedLoading = document.getElementById('feed-loading');
+        // Éléments DOM pour le Modal
+        const metadataModal = document.getElementById('metadata-modal');
+        const openModalBtn = document.getElementById('open-metadata-modal-btn');
+        const closeModalBtn = document.getElementById('close-metadata-modal-btn');
+        const createForm = document.getElementById('create-resource-form');
+        const titleInput = document.getElementById('resource-title');
+        const categoryInput = document.getElementById('resource-category');
+        const subcategoryInput = document.getElementById('resource-subcategory');
+        const imageInput = document.getElementById('resource-image');
+        const imageUploadContainer = document.getElementById('image-upload-container');
+        const submitResourceBtn = document.getElementById('submit-resource-btn');
 
-        // SVG de Google
-        const googleSvg = `
-        <svg class="w-5 h-5 mr-3" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.84 0-5.22-1.92-6.08-4.47H2.05v2.84C3.89 20.9 7.62 23 12 23z" fill="#34A853"/>
-            <path d="M5.92 14.01c-.21-.66-.33-1.36-.33-2.07s.12-1.41.33-2.07V7.03H2.05C1.34 8.41.83 10.13.83 12s.51 3.59 1.22 4.97l3.87-2.96z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.69l3.15-3.15C17.45 2.09 14.97 1 12 1 7.62 1 3.89 3.1.2 5.96l3.87 2.96c.86-2.55 3.24-4.47 6.08-4.47z" fill="#EA4335"/>
-        </svg>`;
-        googleLoginButton.innerHTML = googleSvg + '<span id="google-button-text">Se connecter avec Google</span>';
+        // Toast
+        const toast = document.getElementById('toast');
 
-
-        /**
-         * Initialise l'application Firebase
-         */
-        function initializeFirebase() {
-            if (Object.keys(firebaseConfig).length === 0) {
-                console.error("Configuration Firebase manquante !");
-                authView.innerHTML = `<div class="p-8 text-center text-red-600 bg-red-100 rounded-lg">Erreur de configuration. L'application ne peut pas démarrer.</div>`;
-                authView.classList.remove('hidden');
-                return;
-            }
-            try {
-                app = initializeApp(firebaseConfig);
-                const analytics = getAnalytics(app); // Ajout de l'initialisation d'Analytics
-                auth = getAuth(app);
-                db = getFirestore(app);
-                setLogLevel('Debug');
-                console.log("Firebase initialisé.");
-                setupAuthListener();
-            } catch (error) {
-                console.error("Erreur d'initialisation Firebase:", error);
-                authView.innerHTML = `<div class="p-8 text-center text-red-600 bg-red-100 rounded-lg">Erreur d'initialisation de l'application.</div>`;
-                authView.classList.remove('hidden');
-            }
-        }
-
-        /**
-         * Met en place l'écouteur d'état d'authentification
-         */
-        async function setupAuthListener() {
-            try {
-                await setPersistence(auth, browserLocalPersistence);
-            } catch (error) {
-                console.warn("Impossible de définir la persistance locale:", error.message);
-            }
-
-            // Gérer l'authentification initiale
-            try {
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else if (!auth.currentUser) { // Ne pas connecter anonymement si on a déjà un utilisateur
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Erreur lors de la connexion initiale:", error);
-                showAuthError(`Erreur de connexion initiale: ${error.message}`);
-            }
-
-            // Écouteur principal
-            onAuthStateChanged(auth, (user) => {
-                if (user && !user.isAnonymous) {
-                    // L'utilisateur est connecté
-                    userId = user.uid;
-                    userEmail = user.email;
-                    const userName = user.displayName || userEmail; // Utilise le nom d'affichage ou l'email
-
-                    userInfoSpan.textContent = `Connecté: ${userName}`;
-                    userInfoSpan.classList.remove('hidden');
-                    logoutButton.classList.remove('hidden');
-
-                    authView.classList.add('hidden');
-                    appView.classList.remove('hidden');
-
-                    if (!unsubscribeFromResources) {
-                        fetchResources();
-                    }
-
-                } else {
-                    // L'utilisateur est déconnecté ou anonyme
-                    userId = user ? user.uid : crypto.randomUUID();
-                    userEmail = "Utilisateur Anonyme";
-
-                    userInfoSpan.classList.add('hidden');
-                    logoutButton.classList.add('hidden');
-
-                    authView.classList.remove('hidden');
-                    appView.classList.add('hidden');
-
-                    if (unsubscribeFromResources) {
-                        unsubscribeFromResources();
-                        unsubscribeFromResources = null;
-                    }
-                }
-            });
-        }
-
-        /**
-         * Gère la connexion avec Google
-         */
-        async function handleGoogleLogin() {
-            setAuthLoading(true);
-            const provider = new GoogleAuthProvider();
-
-            try {
-                await signInWithPopup(auth, provider);
-                // onAuthStateChanged s'occupera du reste
-            } catch (error) {
-                console.error("Erreur de connexion Google:", error);
-                showAuthError(translateFirebaseError(error.code));
-            } finally {
-                setAuthLoading(false);
-            }
-        }
+        // --- État de l'application ---
+        let currentUserId = null;
+        let currentUserProfile = null;
+        let categoriesData = []; // Stocke les données de categories.json
+        let quillEditor = null; // Instance de l'éditeur Quill
         
-        /**
-         * Gère la connexion par Email
-         */
-        async function handleEmailLogin(e) {
-            e.preventDefault();
-            setAuthLoading(true);
-            const email = loginForm['login-email'].value;
-            const password = loginForm['login-password'].value;
+        // NOUVEAU: Cache pour les ressources et les utilisateurs
+        let allResources = [];
+        let allUsersData = {};
 
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-                // onAuthStateChanged s'occupera du reste
-            } catch (error) {
-                console.error("Erreur de connexion Email:", error);
-                showAuthError(translateFirebaseError(error.code));
-            } finally {
-                setAuthLoading(false);
-            }
-        }
-
-        /**
-         * Gère l'inscription par Email
-         */
-        async function handleEmailRegister(e) {
-            e.preventDefault();
-            setAuthLoading(true);
-            const email = registerForm['register-email'].value;
-            const password = registerForm['register-password'].value;
-
-            try {
-                await createUserWithEmailAndPassword(auth, email, password);
-                // onAuthStateChanged s'occupera du reste
-            } catch (error) {
-                console.error("Erreur d'inscription Email:", error);
-                showAuthError(translateFirebaseError(error.code));
-            } finally {
-                setAuthLoading(false);
-            }
-        }
-
-        /**
-         * Gère la déconnexion
-         */
-        async function handleLogout() {
-            try {
-                await signOut(auth);
-                // Re-connexion anonyme pour que l'ID ne soit pas nul
-                await signInAnonymously(auth);
-            } catch (error) {
-                console.error("Erreur de déconnexion:", error);
-            }
-        }
-
-        /**
-         * Gère la soumission du formulaire de nouvelle ressource
-         */
-        async function handleResourceSubmit(e) {
-            e.preventDefault();
-            if (!auth.currentUser || auth.currentUser.isAnonymous) {
-                showPostError("Vous devez être connecté pour publier.");
-                return;
-            }
-            // ... (le reste de la fonction est identique à V3) ...
-            const title = resTitleInput.value.trim();
-            const text = resTextInput.value.trim();
-            const imageUrl = resImageInput.value.trim();
-
-            if (!title || !text) {
-                showPostError("Le titre et le texte sont obligatoires.");
-                return;
-            }
-
-            setPostLoading(true);
-
-            try {
-                const collectionPath = `artifacts/${appId}/public/data/resources`;
-                const resourcesCol = collection(db, collectionPath);
-
-                await addDoc(resourcesCol, {
-                    title: title,
-                    text: text,
-                    imageUrl: imageUrl || null,
-                    userId: auth.currentUser.uid,
-                    userEmail: auth.currentUser.email,
-                    userName: auth.currentUser.displayName || auth.currentUser.email, // Ajout du nom
-                    createdAt: Timestamp.now()
-                });
-
-                resourceForm.reset();
-                postError.classList.add('hidden');
-
-            } catch (error) {
-                console.error("Erreur lors de l'ajout de la ressource:", error);
-                showPostError("Impossible de publier la ressource.");
-            } finally {
-                setPostLoading(false);
-            }
-        }
-
-        /**
-         * Récupère et écoute les changements sur les ressources
-         */
-        function fetchResources() {
-            // ... (identique à V3) ...
-            if (unsubscribeFromResources) {
-                unsubscribeFromResources();
-            }
-
-            feedLoading.classList.remove('hidden');
-            
-            const collectionPath = `artifacts/${appId}/public/data/resources`;
-            const resourcesCol = collection(db, collectionPath);
-            
-            const q = query(resourcesCol);
-
-            unsubscribeFromResources = onSnapshot(q, (snapshot) => {
-                feedLoading.classList.add('hidden');
-                
-                if (snapshot.empty) {
-                    resourcesFeed.innerHTML = '<p class="text-gray-500 text-center">Aucune ressource partagée pour le moment. Soyez le premier !</p>';
-                    return;
-                }
-
-                const resources = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                
-                resources.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
-
-                renderResources(resources);
-
-            }, (error) => {
-                console.error("Erreur de lecture des ressources:", error);
-                feedLoading.classList.add('hidden');
-                resourcesFeed.innerHTML = '<p class="text-red-500 text-center">Erreur lors du chargement des ressources.</p>';
-            });
-        }
-
-        /**
-         * Affiche les ressources dans le DOM
-         */
-        function renderResources(resources) {
-            // ... (identique à V3) ...
-            let loadingEl = document.getElementById('feed-loading');
-            resourcesFeed.innerHTML = ''; 
-            if(loadingEl) {
-                resourcesFeed.appendChild(loadingEl); 
-                loadingEl.classList.add('hidden');
-            }
-
-            if (resources.length === 0) {
-                 resourcesFeed.innerHTML = '<p class="text-gray-500 text-center">Aucune ressource partagée pour le moment. Soyez le premier !</p>';
-                 return;
-            }
-
-            resources.forEach(res => {
-                const postEl = document.createElement('div');
-                postEl.className = 'bg-white p-6 rounded-lg shadow-lg animate-fade-in';
-                
-                const date = res.createdAt.toDate().toLocaleString('fr-FR', {
-                    day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                });
-
-                const safeText = escapeHTML(res.text).replace(/\n/g, '<br>');
-                const safeTitle = escapeHTML(res.title);
-                const safeAuthor = escapeHTML(res.userName || res.userEmail || "Utilisateur"); 
-                
-                let imageHtml = '';
-                if (res.imageUrl) {
-                    const placeholder = `https://placehold.co/600x400/e0e0e0/7f7f7f?text=Image+non+disponible`;
-                    imageHtml = `
-                        <img src="${escapeHTML(res.imageUrl)}" 
-                             alt="Image pour ${safeTitle}" 
-                             class="mt-4 rounded-md max-h-96 w-auto bg-gray-200"
-                             onerror="this.onerror=null;this.src='${placeholder}';this.classList.add('opacity-50');">
-                    `;
-                }
-
-                postEl.innerHTML = `
-                    <h4 class="text-lg font-semibold text-indigo-700 break-words">${safeTitle}</h4>
-                    <p class="text-xs text-gray-500 mb-2">Par <span class="font-medium">${safeAuthor}</span> le ${date}</p>
-                    <p class="text-gray-800 mt-2 mb-4 break-words whitespace-pre-wrap">${safeText}</p>
-                    ${imageHtml}
-                `;
-                resourcesFeed.appendChild(postEl);
-            });
-        }
-
+        // --- Données des catégories (déplacées depuis categories.json) ---
+        categoriesData = [
+          { "name": "Mathématiques", "icon": "calculator", "subcategories": ["Algèbre", "Géométrie", "Analyse", "Probabilités", "Statistiques"] },
+          { "name": "Sciences Physiques", "icon": "atom", "subcategories": ["Mécanique", "Électricité", "Optique", "Chimie Organique", "Chimie Inorganique"] },
+          { "name": "Histoire", "icon": "scroll", "subcategories": ["Antiquité", "Moyen Âge", "Temps Modernes", "Époque Contemporaine"] },
+          { "name": "Langues", "icon": "languages", "subcategories": ["Anglais", "Espagnol", "Allemand", "Français (FLE)", "Grammaire"] },
+          { "name": "Programmation", "icon": "code-2", "subcategories": ["JavaScript", "Python", "HTML/CSS", "Java", "Algorithmes"] },
+          { "name": "Philosophie", "icon": "brain", "subcategories": ["Métaphysique", "Éthique", "Philosophie Politique", "Auteurs"] }
+        ];
 
         // --- Fonctions utilitaires ---
 
-        function setAuthLoading(isLoading) {
-            const buttons = [googleLoginButton, ...loginForm.elements, ...registerForm.elements];
-            if (isLoading) {
-                authLoading.classList.remove('hidden');
-                authError.classList.add('hidden');
-                buttons.forEach(btn => btn.disabled = true);
-                googleLoginButton.classList.add('opacity-50', 'cursor-not-allowed');
-            } else {
-                authLoading.classList.add('hidden');
-                buttons.forEach(btn => btn.disabled = false);
-                googleLoginButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        /**
+         * Affiche une "page" et cache les autres
+         */
+        function showPage(pageId) {
+            document.querySelectorAll('.page-content').forEach(page => {
+                page.classList.remove('active');
+            });
+            const newPage = document.getElementById(pageId);
+            if (newPage) {
+                newPage.classList.add('active');
+            }
+            
+            if (pageId === 'create-page') {
+                initializeQuill();
+            }
+            
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
             }
         }
 
-        function showAuthError(message) {
-            authError.textContent = message;
-            authError.classList.remove('hidden');
+        /**
+         * Affiche un message toast (notification)
+         */
+        function showToast(message, type = 'info') {
+            let bgColor = 'bg-blue-500'; // info
+            if (type === 'error') bgColor = 'bg-red-500';
+            if (type === 'success') bgColor = 'bg-green-500';
+            
+            toast.textContent = message;
+            toast.className = ''; // Reset classes
+            toast.classList.add(bgColor, 'show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
         }
 
-        function setPostLoading(isLoading) {
-             if (isLoading) {
-                postLoading.classList.remove('hidden');
-                resourceForm.querySelector('button[type="submit"]').disabled = true;
-                resourceForm.querySelector('button[type="submit"]').classList.add('opacity-50', 'cursor-not-allowed');
-            } else {
-                postLoading.classList.add('hidden');
-                resourceForm.querySelector('button[type="submit"]').disabled = false;
-                resourceForm.querySelector('button[type="submit"]').classList.remove('opacity-50', 'cursor-not-allowed');
+        // --- Routeur simple (basé sur le hash) ---
+        async function router() {
+            const hash = location.hash || '#home';
+            const [page, param] = hash.split('?id=');
+            
+            if (sidebar.classList.contains('translate-x-0')) {
+                sidebar.classList.add('-translate-x-full');
+            }
+
+            // NOUVEAU: Réinitialiser les barres de recherche
+            homeSearchInput.value = '';
+            categorySearchInput.value = '';
+
+            switch (page) {
+                case '#home':
+                    showPage('home-page');
+                    await loadAndDisplayResources(homeResourcesContainer);
+                    break;
+                case '#auth':
+                    if (currentUserId) {
+                        location.hash = '#home'; 
+                    } else {
+                        showPage('auth-page');
+                    }
+                    break;
+                case '#category':
+                    showPage('category-page');
+                    const categoryName = decodeURIComponent(param || '');
+                    categoryTitle.textContent = categoryName || 'Catégorie';
+                    await loadAndDisplayResources(categoryResourcesContainer, { category: categoryName });
+                    break;
+                case '#profile':
+                    showPage('profile-page');
+                    renderProfile(param || currentUserId);
+                    break;
+                case '#create':
+                    if (!currentUserId) {
+                        location.hash = '#auth'; 
+                    } else {
+                        showPage('create-page');
+                    }
+                    break;
+                default:
+                    location.hash = '#home';
+                    break;
             }
         }
 
-        function showPostError(message) {
-            postError.textContent = message;
-            postError.classList.remove('hidden');
+        // --- RENDU DES RESSOURCES ---
+
+        /**
+         * NOUVEAU: Charge les ressources depuis Firestore et les met en cache
+         * @returns {boolean} true si de nouvelles données ont été chargées
+         */
+        async function fetchAllResourcesOnce() {
+            // Ne re-fetcher que si le cache est vide
+            if (allResources.length > 0) {
+                return false; 
+            }
+            
+            try {
+                // 1. Récupérer toutes les ressources
+                const resourcesRef = collection(db, resourcesCollectionPath);
+                const querySnapshot = await getDocs(resourcesRef);
+                
+                let resources = [];
+                querySnapshot.forEach((doc) => {
+                    resources.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // 2. Récupérer tous les profils des auteurs
+                const userIds = [...new Set(resources.map(r => r.authorId))];
+                if (userIds.length > 0) {
+                    const usersQuery = query(collection(db, usersCollectionPath), where("uid", "in", userIds));
+                    const usersSnapshot = await getDocs(usersQuery);
+                    usersSnapshot.forEach(doc => {
+                        allUsersData[doc.data().uid] = doc.data();
+                    });
+                }
+                
+                // 3. Trier (en JS)
+                resources.sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
+                
+                // 4. Mettre en cache
+                allResources = resources;
+                return true;
+
+            } catch (error) {
+                console.error("Erreur fetchAllResourcesOnce:", error);
+                throw error; // Propage l'erreur
+            }
         }
 
-        function escapeHTML(str) {
-            if (typeof str !== 'string') return '';
-            return str.replace(/[&<>"']/g, function(match) {
-                return {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#39;'
-                }[match];
+        /**
+         * NOUVEAU: Fonction principale pour charger ET afficher les ressources
+         * @param {HTMLElement} container - L'élément DOM où insérer les cartes.
+         * @param {object} [filters={}] - Options de filtrage (ex: { category: 'Maths' }).
+         */
+        async function loadAndDisplayResources(container, filters = {}) {
+            if (!container) return;
+            container.innerHTML = '<p class="text-gray-500">Chargement des ressources...</p>';
+            
+            try {
+                await fetchAllResourcesOnce();
+                
+                // Maintenant, on affiche simplement depuis le cache
+                renderResources(container, filters, '');
+                
+            } catch (error) {
+                console.error("Erreur loadAndDisplayResources:", error);
+                container.innerHTML = `<p class="text-red-500">Erreur lors du chargement des ressources: ${error.message}</p>`;
+            }
+        }
+        
+        /**
+         * NOUVEAU: Affiche les ressources depuis le cache, en appliquant filtres et recherche.
+         * @param {HTMLElement} container - L'élément DOM où insérer les cartes.
+         * @param {object} [filters={}] - Options de filtrage (ex: { category: 'Maths' }).
+         * @param {string} searchTerm - Le terme de recherche.
+         */
+        function renderResources(container, filters = {}, searchTerm = '') {
+            if (!container) return;
+            
+            let resourcesToDisplay = [...allResources];
+            
+            // 1. Appliquer les filtres (ex: catégorie)
+            if (filters.category) {
+                resourcesToDisplay = resourcesToDisplay.filter(
+                    res => res.category === filters.category
+                );
+            }
+            
+            // 2. Appliquer la recherche (si searchTerm n'est pas vide)
+            const search = searchTerm.toLowerCase().trim();
+            if (search) {
+                resourcesToDisplay = resourcesToDisplay.filter(res => {
+                    const author = allUsersData[res.authorId];
+                    return (
+                        res.title.toLowerCase().includes(search) ||
+                        res.category.toLowerCase().includes(search) ||
+                        res.subcategory.toLowerCase().includes(search) ||
+                        (author && author.username.toLowerCase().includes(search)) ||
+                        res.textContent.toLowerCase().includes(search)
+                    );
+                });
+            }
+
+            // 3. Afficher le résultat
+            if (resourcesToDisplay.length === 0) {
+                if (search) {
+                    container.innerHTML = `<p class="text-gray-500">Aucune ressource ne correspond à "${searchTerm}".</p>`;
+                } else if (filters.category) {
+                    container.innerHTML = '<p class="text-gray-500">Aucune ressource trouvée dans cette catégorie.</p>';
+                } else {
+                    container.innerHTML = '<p class="text-gray-500">Aucune ressource publiée pour le moment.</p>';
+                }
+                return;
+            }
+
+            container.innerHTML = '';
+            resourcesToDisplay.forEach(resource => {
+                const author = allUsersData[resource.authorId];
+                const card = createResourceCard(resource, author);
+                container.appendChild(card);
+            });
+            
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
+
+        /**
+         * Crée un élément DOM de carte pour une ressource.
+         */
+        function createResourceCard(resource, author) {
+            const card = document.createElement('div');
+            card.className = 'bg-white rounded-lg shadow-lg overflow-hidden transition-shadow duration-300 hover:shadow-xl';
+            
+            let imageHtml = '';
+            if (resource.imageUrl) {
+                imageHtml = `<img src="${resource.imageUrl}" alt="${resource.title}" class="h-48 w-full object-cover">`;
+            }
+
+            card.innerHTML = `
+                ${imageHtml}
+                <div class="p-6">
+                    <span class="text-xs font-semibold text-blue-600 uppercase">${resource.category} > ${resource.subcategory}</span>
+                    <h3 class="text-2xl font-bold text-gray-900 mt-2 mb-3">${resource.title}</h3>
+                    
+                    <div class="text-gray-700 mb-4 h-20 overflow-hidden relative">
+                         <div class="ql-snow"><div class="ql-editor p-0">${resource.textContentHtml || ''}</div></div>
+                         <div class="absolute bottom-0 left-0 w-full h-8 bg-gradient-to-t from-white to-transparent"></div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between mt-4">
+                        <a href="#profile?id=${resource.authorId}" class="text-sm font-medium text-gray-800 hover:text-blue-600">
+                            Par ${author ? author.username : 'Anonyme'}
+                        </a>
+                        <button class="like-btn flex items-center space-x-1 text-gray-500 hover:text-red-500" data-resource-id="${resource.id}">
+                            <i data-lucide="heart" class="h-5 w-5 ${resource.likes?.includes(currentUserId) ? 'fill-current text-red-500' : ''}"></i>
+                            <span>${resource.likes?.length || 0}</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            card.querySelector('.like-btn').addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (!currentUserId) {
+                    showToast("Vous devez être connecté pour aimer une ressource.", "error");
+                    location.hash = '#auth';
+                    return;
+                }
+                await toggleLike(resource.id, e.currentTarget, resource);
+            });
+
+            return card;
+        }
+
+        // --- GESTION LIKE / ABONNEMENT ---
+
+        /**
+         * Gère le clic sur le bouton "like".
+         */
+        async function toggleLike(resourceId, buttonElement, resource) {
+            const resourceRef = doc(db, resourcesCollectionPath, resourceId);
+            const icon = buttonElement.querySelector('i');
+            const countSpan = buttonElement.querySelector('span');
+            
+            // Logique optimiste (met à jour l'UI d'abord)
+            const isLiked = resource.likes?.includes(currentUserId);
+            
+            try {
+                if (isLiked) {
+                    // Un-like
+                    icon.classList.remove('fill-current', 'text-red-500');
+                    resource.likes = resource.likes.filter(id => id !== currentUserId);
+                    countSpan.textContent = resource.likes.length;
+                    await updateDoc(resourceRef, {
+                        likes: arrayRemove(currentUserId)
+                    });
+                } else {
+                    // Like
+                    icon.classList.add('fill-current', 'text-red-500');
+                    if (!resource.likes) resource.likes = [];
+                    resource.likes.push(currentUserId);
+                    countSpan.textContent = resource.likes.length;
+                    await updateDoc(resourceRef, {
+                        likes: arrayUnion(currentUserId)
+                    });
+                }
+            } catch (error) {
+                console.error("Erreur toggleLike:", error);
+                showToast("Erreur lors de l'action.", "error");
+                // Annuler la modification optimiste (non implémenté pour la simplicité)
+            }
+        }
+        
+        /**
+         * Gère le clic sur le bouton "s'abonner".
+         */
+        async function toggleSubscription(targetUserId, buttonElement) {
+            if (!currentUserId) {
+                showToast("Vous devez être connecté.", "error");
+                return;
+            }
+            if (currentUserId === targetUserId) {
+                showToast("Vous ne pouvez pas vous abonner à vous-même.", "info");
+                return;
+            }
+
+            const currentUserRef = doc(db, usersCollectionPath, currentUserId);
+            const isSubscribed = currentUserProfile.following?.includes(targetUserId);
+
+            try {
+                if (isSubscribed) {
+                    // Se désabonner
+                    await updateDoc(currentUserRef, {
+                        following: arrayRemove(targetUserId)
+                    });
+                    currentUserProfile.following = currentUserProfile.following.filter(id => id !== targetUserId);
+                    buttonElement.textContent = "S'abonner";
+                    buttonElement.classList.replace('bg-gray-500', 'bg-blue-600');
+                    buttonElement.classList.replace('hover:bg-gray-600', 'hover:bg-blue-700');
+                } else {
+                    // S'abonner
+                    await updateDoc(currentUserRef, {
+                        following: arrayUnion(targetUserId)
+                    });
+                    currentUserProfile.following = [...(currentUserProfile.following || []), targetUserId];
+                    buttonElement.textContent = "Abonné";
+                    buttonElement.classList.replace('bg-blue-600', 'bg-gray-500');
+                    buttonElement.classList.replace('hover:bg-blue-700', 'hover:bg-gray-600');
+                }
+                
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            } catch (error) {
+                console.error("Erreur toggleSubscription:", error);
+                showToast("Erreur lors de l'abonnement.", "error");
+            }
+        }
+
+
+        // --- RENDU PROFIL ---
+        
+        /**
+         * Affiche le profil d'un utilisateur.
+         */
+        async function renderProfile(userId) {
+            if (!userId) {
+                profileContainer.innerHTML = '<p class="text-red-500">Aucun utilisateur spécifié.</p>';
+                return;
+            }
+            profileContainer.innerHTML = '<p class="text-gray-500">Chargement du profil...</p>';
+
+            try {
+                // 1. Récupérer le profil
+                const userRef = doc(db, usersCollectionPath, userId);
+                const userSnap = await getDoc(userRef);
+
+                if (!userSnap.exists()) {
+                    profileContainer.innerHTML = '<p class="text-red-500">Profil introuvable.</p>';
+                    return;
+                }
+                
+                const profile = userSnap.data();
+
+                // 2. Vérifier l'état d'abonnement
+                let subscribeButtonHtml = '';
+                if (currentUserId && currentUserId !== userId) {
+                    const isSubscribed = currentUserProfile.following?.includes(userId);
+                    subscribeButtonHtml = `
+                        <button id="subscribe-btn" class="ml-4 px-4 py-2 rounded-md text-white ${isSubscribed ? 'bg-gray-500 hover:bg-gray-600' : 'bg-blue-600 hover:bg-blue-700'}">
+                            ${isSubscribed ? 'Abonné' : "S'abonner"}
+                        </button>
+                    `;
+                }
+
+                // 3. Afficher les infos du profil
+                profileContainer.innerHTML = `
+                    <div class="flex flex-col md:flex-row items-center mb-6">
+                        <div class="flex-shrink-0 w-24 h-24 bg-gray-300 rounded-full flex items-center justify-center mb-4 md:mb-0">
+                            <i data-lucide="user" class="w-12 h-12 text-gray-600"></i>
+                        </div>
+                        <div class="md:ml-6 text-center md:text-left">
+                            <h2 class="text-3xl font-bold text-gray-900">${profile.username}</h2>
+                            <p class="text-gray-600">Membre depuis ${profile.createdAt?.toDate().toLocaleDateString('fr-FR') || 'Date inconnue'}</p>
+                            <p class="text-sm text-gray-500">UserID: ${profile.uid}</p>
+                            ${profile.certification ? '<span class="mt-2 inline-block bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full"><i data-lucide="check-circle" class="w-4 h-4 inline-block mr-1"></i>Certifié</span>' : ''}
+                        </div>
+                        <div class="mt-4 md:mt-0 md:ml-auto">
+                            ${subscribeButtonHtml}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-3">Badges</h3>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="bg-gray-200 text-gray-700 text-sm px-3 py-1 rounded-full">Bientôt disponible...</span>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">Ressources publiées</h3>
+                        <div id="profile-resources-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Les ressources du profil seront chargées ici -->
+                        </div>
+                    </div>
+                `;
+                
+                // 4. Écouteur pour le bouton d'abonnement
+                const subBtn = document.getElementById('subscribe-btn');
+                if (subBtn) {
+                    subBtn.addEventListener('click', () => toggleSubscription(userId, subBtn));
+                }
+
+                // 5. Charger les ressources de cet utilisateur
+                const userResourcesContainer = document.getElementById('profile-resources-container');
+                // NOUVEAU: Utiliser le cache
+                await fetchAllResourcesOnce();
+                const userResources = allResources.filter(r => r.authorId === userId);
+                
+                if (userResources.length === 0) {
+                    userResourcesContainer.innerHTML = '<p class="text-gray-500">Cet utilisateur n\'a pas encore publié de ressources.</p>';
+                } else {
+                    userResourcesContainer.innerHTML = '';
+                    userResources.forEach(resource => {
+                        const card = createResourceCard(resource, profile);
+                        userResourcesContainer.appendChild(card);
+                    });
+                }
+                
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+
+            } catch (error) {
+                console.error("Erreur renderProfile:", error);
+                profileContainer.innerHTML = '<p class="text-red-500">Erreur lors du chargement du profil.</p>';
+            }
+        }
+        
+
+        // --- AUTHENTIFICATION ---
+
+        /**
+         * Met à jour l'interface utilisateur en fonction de l'état de connexion.
+         */
+        function updateAuthUI(user) {
+            if (user) {
+                authInfoSidebar.innerHTML = `
+                    <a href="#profile?id=${user.uid}" class="block text-center font-medium text-gray-200 hover:text-white mb-4">
+                        ${currentUserProfile ? currentUserProfile.username : 'Chargement...'}
+                    </a>
+                    <button id="logout-btn" class="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700">
+                        Déconnexion
+                    </button>
+                `;
+                document.getElementById('logout-btn').addEventListener('click', async () => {
+                    await signOut(auth);
+                    showToast("Déconnexion réussie.", "success");
+                    location.hash = '#home';
+                    // NOUVEAU: Vider le cache au logout
+                    allResources = [];
+                    allUsersData = {};
+                });
+                
+                if (currentUserProfile && currentUserProfile.certification) {
+                    imageUploadContainer.classList.remove('hidden');
+                } else {
+                    imageUploadContainer.classList.add('hidden');
+                }
+                
+            } else {
+                authInfoSidebar.innerHTML = `
+                    <a href="#auth" class="w-full text-center block bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
+                        Connexion / Inscription
+                    </a>
+                `;
+                imageUploadContainer.classList.add('hidden');
+            }
+            
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
+        /**
+         * Crée un profil utilisateur dans Firestore après l'inscription.
+         */
+        async function createUserProfile(uid, email, username) {
+            const userRef = doc(db, usersCollectionPath, uid);
+            try {
+                await setDoc(userRef, {
+                    uid: uid,
+                    email: email,
+                    username: username,
+                    createdAt: Timestamp.now(),
+                    certification: false,
+                    badges: [],
+                    following: []
+                });
+            } catch (error) {
+                console.error("Erreur création profil:", error);
+                showToast("Erreur lors de la création du profil.", "error");
+            }
+        }
+
+        // Écouteur principal de l'état d'authentification
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUserId = user.uid;
+                const userRef = doc(db, usersCollectionPath, user.uid);
+                const docSnap = await getDoc(userRef);
+                
+                if (docSnap.exists()) {
+                    currentUserProfile = docSnap.data();
+                } else {
+                    const username = user.displayName || user.email.split('@')[0];
+                    await createUserProfile(user.uid, user.email, username);
+                    currentUserProfile = { uid: user.uid, email: user.email, username: username, certification: false };
+                }
+                
+                updateAuthUI(user);
+                
+                if (location.hash === '#auth') {
+                    location.hash = '#home';
+                }
+            } else {
+                currentUserId = null;
+                currentUserProfile = null;
+                updateAuthUI(null);
+            }
+            router();
+            
+            // NOUVEAU: Mettre à jour les "likes" sur la page actuelle
+            if (location.hash === '#home') {
+                renderResources(homeResourcesContainer, {}, homeSearchInput.value);
+            } else if (location.hash.startsWith('#category')) {
+                const categoryName = decodeURIComponent(location.hash.split('?id=')[1] || '');
+                renderResources(categoryResourcesContainer, { category: categoryName }, categorySearchInput.value);
+            }
+        });
+
+
+        // --- ÉCOUTEURS D'ÉVÉNEMENTS (LISTENERS) ---
+        
+        // Bascule entre Connexion et Inscription
+        showSignupBtn.addEventListener('click', () => {
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('signup-view').classList.remove('hidden');
+        });
+        showLoginBtn.addEventListener('click', () => {
+            document.getElementById('login-view').classList.remove('hidden');
+            document.getElementById('signup-view').classList.add('hidden');
+        });
+        
+        // Soumission Formulaire Inscription
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('signup-username').value;
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                await createUserProfile(userCredential.user.uid, email, username);
+                showToast("Inscription réussie !", "success");
+            } catch (error) {
+                console.error("Erreur Inscription:", error);
+                showToast(`Erreur: ${error.message}`, "error");
+            }
+        });
+        
+        // Soumission Formulaire Connexion
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                showToast("Connexion réussie !", "success");
+            } catch (error) {
+                console.error("Erreur Connexion:", error);
+                showToast(`Erreur: ${error.message}`, "error");
+            }
+        });
+        
+        // Connexion Google
+        googleAuthBtn.addEventListener('click', async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+                await signInWithPopup(auth, provider);
+                showToast("Connexion Google réussie !", "success");
+            } catch (error) {
+                console.error("Erreur Google Auth:", error);
+                showToast(`Erreur: ${error.message}`, "error");
+            }
+        });
+
+        // Gestion menu mobile
+        mobileMenuButton.addEventListener('click', () => {
+            sidebar.classList.toggle('-translate-x-full');
+            sidebar.classList.toggle('translate-x-0');
+        });
+
+        // NOUVEAU: Écouteurs pour les barres de recherche
+        homeSearchInput.addEventListener('input', (e) => {
+            renderResources(homeResourcesContainer, {}, e.target.value);
+        });
+        
+        categorySearchInput.addEventListener('input', (e) => {
+            const categoryName = decodeURIComponent(location.hash.split('?id=')[1] || '');
+            renderResources(categoryResourcesContainer, { category: categoryName }, e.target.value);
+        });
+
+
+        // --- GESTION DE L'ÉDITEUR ET DU MODAL ---
+        
+        /**
+         * Initialise l'éditeur Quill
+         */
+        function initializeQuill() {
+            if (quillEditor || !document.getElementById('editor-container')) {
+                return;
+            }
+            
+            const toolbarOptions = [
+                [{ 'header': [1, 2, 3, false] }, { 'font': [] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                [{ 'script': 'sub'}, { 'script': 'super' }],
+                [{ 'indent': '-1'}, { 'indent': '+1' }],
+                [{ 'color': [] }, { 'background': [] }],
+                ['link', 'image', 'video'],
+                ['formula'],
+                ['clean']
+            ];
+
+            quillEditor = new Quill('#editor-container', {
+                modules: {
+                    toolbar: toolbarOptions,
+                    formula: true
+                },
+                theme: 'snow',
+                placeholder: 'Rédigez votre cours ici...'
             });
         }
         
-        function translateFirebaseError(errorCode) {
-            switch (errorCode) {
-                case 'auth/invalid-email':
-                    return 'Format d\'email incorrect.';
-                case 'auth/user-not-found':
-                    return 'Aucun compte trouvé pour cet email.';
-                case 'auth/wrong-password':
-                    return 'Mot de passe incorrect.';
-                case 'auth/email-already-in-use':
-                    return 'Cet email est déjà utilisé par un autre compte.';
-                case 'auth/weak-password':
-                    return 'Le mot de passe doit comporter au moins 6 caractères.';
-                case 'auth/operation-not-allowed':
-                    return 'La connexion par email/mot de passe n\'est pas activée. (Voir guide)';
-                case 'auth/unauthorized-domain':
-                    return 'Ce domaine n\'est pas autorisé. (google-ide.com)';
-                case 'auth/popup-closed-by-user':
-                    return 'La fenêtre de connexion a été fermée.';
-                default:
-                    return `Erreur inconnue: ${errorCode}`;
-            }
+        /**
+         * Charge les catégories dans les menus déroulants du modal.
+         */
+        function loadCategoriesIntoModal() {
+            if (!categoryInput || !subcategoryInput) return;
+            
+            categoryInput.innerHTML = '<option value="">Choisir une catégorie</option>';
+            subcategoryInput.innerHTML = '<option value="">Choisir une sous-catégorie</option>';
+            
+            categoriesData.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat.name;
+                option.textContent = cat.name;
+                categoryInput.appendChild(option);
+            });
+
+            categoryInput.addEventListener('change', () => {
+                const selectedCategoryName = categoryInput.value;
+                const selectedCategory = categoriesData.find(c => c.name === selectedCategoryName);
+                
+                subcategoryInput.innerHTML = '';
+                if (selectedCategory && selectedCategory.subcategories) {
+                    selectedCategory.subcategories.forEach(subcat => {
+                        const option = document.createElement('option');
+                        option.value = subcat;
+                        option.textContent = subcat;
+                        subcategoryInput.appendChild(option);
+                    });
+                } else {
+                    subcategoryInput.innerHTML = '<option value="">Aucune sous-catégorie</option>';
+                }
+            });
         }
 
-        // --- Ajout des écouteurs d'événements ---
-        
-        // Clics sur les onglets
-        tabLogin.addEventListener('click', () => {
-            tabLogin.classList.add('active');
-            tabRegister.classList.remove('active');
-            loginFormContainer.classList.remove('hidden');
-            registerFormContainer.classList.add('hidden');
-            authError.classList.add('hidden');
+        // Ouvrir le Modal
+        openModalBtn.addEventListener('click', () => {
+            if (!quillEditor || quillEditor.getLength() < 10) {
+                showToast("Veuillez écrire un peu de contenu avant de continuer.", "error");
+                return;
+            }
+            metadataModal.classList.remove('hidden');
+            loadCategoriesIntoModal();
         });
 
-        tabRegister.addEventListener('click', () => {
-            tabLogin.classList.remove('active');
-            tabRegister.classList.add('active');
-            loginFormContainer.classList.add('hidden');
-            registerFormContainer.classList.remove('hidden');
-            authError.classList.add('hidden');
+        // Fermer le Modal
+        closeModalBtn.addEventListener('click', () => {
+            metadataModal.classList.add('hidden');
         });
 
-        // Soumission des formulaires
-        googleLoginButton.addEventListener('click', handleGoogleLogin);
-        loginForm.addEventListener('submit', handleEmailLogin);
-        registerForm.addEventListener('submit', handleEmailRegister);
-        
-        logoutButton.addEventListener('click', handleLogout);
-        resourceForm.addEventListener('submit', handleResourceSubmit);
+        // Soumission finale de la ressource (depuis le modal)
+        createForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!currentUserId || !currentUserProfile || !quillEditor) {
+                showToast("Erreur : vous n'êtes pas connecté ou votre profil n'est pas chargé.", "error");
+                return;
+            }
+            
+            submitResourceBtn.disabled = true;
+            submitResourceBtn.textContent = "Publication...";
 
-        // Initialisation au chargement de la page
-        document.addEventListener('DOMContentLoaded', initializeFirebase);
+            try {
+                const title = titleInput.value;
+                const category = categoryInput.value;
+                const subcategory = subcategoryInput.value;
+                const imageFile = imageInput.files[0];
+                
+                const contentHtml = quillEditor.root.innerHTML;
+                const contentText = quillEditor.getText(0, 200).trim();
+
+                let imageUrl = null;
+                
+                if (imageFile && currentUserProfile && currentUserProfile.certification) {
+                    const imageRef = ref(storage, `resources/${currentUserId}_${Date.now()}_${imageFile.name}`);
+                    const snapshot = await uploadBytes(imageRef, imageFile);
+                    imageUrl = await getDownloadURL(snapshot.ref);
+                }
+                
+                const resourceData = {
+                    title: title,
+                    category: category,
+                    subcategory: subcategory,
+                    textContentHtml: contentHtml,
+                    textContent: contentText,
+                    imageUrl: imageUrl,
+                    authorId: currentUserId,
+                    authorName: currentUserProfile.username, 
+                    createdAt: Timestamp.now(),
+                    likes: [],
+                    comments: []
+                };
+
+                await addDoc(collection(db, resourcesCollectionPath), resourceData);
+
+                // NOUVEAU: Vider le cache pour forcer le rechargement
+                allResources = [];
+                allUsersData = {};
+
+                showToast("Ressource publiée avec succès !", "success");
+                metadataModal.classList.add('hidden');
+                quillEditor.setContents([]);
+                createForm.reset();
+                location.hash = '#home';
+                
+            } catch (error) {
+                console.error("Erreur publication ressource:", error);
+                showToast(`Erreur: ${error.message}`, "error");
+            } finally {
+                submitResourceBtn.disabled = false;
+                submitResourceBtn.textContent = "Publier";
+            }
+        });
+
+
+        // --- DÉMARRAGE DE L'APPLICATION ---
+        
+        /**
+         * Charge les catégories et construit la sidebar.
+         */
+        function loadCategories() {
+            try {
+                categoriesData.forEach(cat => {
+                    const link = document.createElement('a');
+                    link.href = `#category?id=${encodeURIComponent(cat.name)}`;
+                    link.className = 'flex items-center px-3 py-2 text-gray-300 rounded-md hover:bg-gray-700 hover:text-white';
+                    link.dataset.pageId = 'category-page';
+                    link.innerHTML = `
+                        <i data-lucide="${cat.icon || 'folder'}" class="h-5 w-5 mr-3"></i>
+                        ${cat.name}
+                    `;
+                    sidebarNav.appendChild(link);
+                });
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            } catch (error) {
+                console.error("Erreur chargement catégories:", error);
+            }
+        }
+        
+        // Point d'entrée principal
+        loadCategories();
+        router();
+        window.addEventListener('hashchange', router);
 
     </script>
+    
+    <!-- Scripts pour l'éditeur (chargés à la fin) -->
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/katex.min.js"></script>
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 </body>
-
 </html>
