@@ -39,6 +39,26 @@
         #toast.bg-red-500 { background-color: #ef4444; }
         #toast.bg-green-500 { background-color: #22c55e; }
         #toast.bg-blue-500 { background-color: #3b82f6; }
+        
+        /* Styles pour le contenu Quill en lecture seule (prose) */
+        .prose .ql-editor {
+            font-family: inherit;
+            line-height: inherit;
+            font-size: inherit;
+            padding: 0;
+            overflow-y: visible;
+        }
+        .prose .ql-editor h1 { font-size: 2.25em; }
+        .prose .ql-editor h2 { font-size: 1.875em; }
+        .prose .ql-editor h3 { font-size: 1.5em; }
+        .prose .ql-editor a { color: #2563eb; }
+        .prose .ql-editor pre.ql-syntax {
+            background-color: #2d2d2d;
+            color: #f8f8f2;
+            padding: 1em;
+            border-radius: 0.5em;
+            overflow-x: auto;
+        }
     </style>
 </head>
 <body class="h-full font-sans antialiased">
@@ -135,6 +155,13 @@
                 <section id="profile-page" class="page-content">
                     <div id="profile-container" class="bg-white p-8 rounded-lg shadow-lg max-w-4xl mx-auto">
                         <!-- Le contenu du profil sera inséré ici -->
+                    </div>
+                </section>
+
+                <!-- NOUVELLE PAGE: Détail de la Ressource -->
+                <section id="resource-detail-page" class="page-content">
+                    <div id="resource-detail-container" class="bg-white p-6 md:p-10 rounded-lg shadow-lg max-w-4xl mx-auto">
+                        <!-- Le contenu de la ressource sera injecté ici par JS -->
                     </div>
                 </section>
 
@@ -306,7 +333,7 @@
             updateDoc,
             arrayUnion,
             arrayRemove,
-            increment // NOUVEAU: Import pour le compteur
+            increment
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { 
             getStorage, 
@@ -352,12 +379,14 @@
         const profilePage = document.getElementById('profile-page');
         const createPage = document.getElementById('create-page');
         const loadingPage = document.getElementById('loading-page');
+        const resourceDetailPage = document.getElementById('resource-detail-page'); // NOUVEAU
 
         // Conteneurs de page
         const homeResourcesContainer = document.getElementById('home-resources-container');
         const categoryResourcesContainer = document.getElementById('category-resources-container');
         const categoryTitle = document.getElementById('category-title');
         const profileContainer = document.getElementById('profile-container');
+        const resourceDetailContainer = document.getElementById('resource-detail-container'); // NOUVEAU
         
         // Barres de recherche
         const homeSearchInput = document.getElementById('home-search-input');
@@ -409,7 +438,7 @@
         // --- Fonctions utilitaires ---
 
         /**
-         * NOUVEAU: Formate un nombre (ex: 1000 -> 1k, 3300 -> 3.3k)
+         * Formate un nombre (ex: 1000 -> 1k, 3300 -> 3.3k)
          */
         function formatNumber(num) {
             if (!num) return '0';
@@ -503,6 +532,11 @@
                     } else {
                         showPage('create-page');
                     }
+                    break;
+                // NOUVEAU CAS POUR LE ROUTEUR
+                case '#resource':
+                    showPage('resource-detail-page');
+                    await renderResourceDetail(param);
                     break;
                 default:
                     location.hash = '#home';
@@ -634,7 +668,10 @@
                 ${imageHtml}
                 <div class="p-6">
                     <span class="text-xs font-semibold text-blue-600 uppercase">${resource.category} > ${resource.subcategory}</span>
-                    <h3 class="text-2xl font-bold text-gray-900 mt-2 mb-3">${resource.title}</h3>
+                    <!-- TITRE CLiquable -->
+                    <a href="#resource?id=${resource.id}" class="block text-2xl font-bold text-gray-900 mt-2 mb-3 hover:text-blue-600 transition-colors">
+                        ${resource.title}
+                    </a>
                     
                     <div class="text-gray-700 mb-4 h-20 overflow-hidden relative">
                          <div class="ql-snow"><div class="ql-editor p-0">${resource.textContentHtml || ''}</div></div>
@@ -665,6 +702,93 @@
 
             return card;
         }
+
+        // --- NOUVELLE FONCTION: AFFICHAGE DÉTAILLÉ ---
+        
+        /**
+         * Affiche une ressource unique en plein écran
+         */
+        async function renderResourceDetail(resourceId) {
+            if (!resourceId) {
+                resourceDetailContainer.innerHTML = '<p class="text-red-500">Aucune ressource spécifiée.</p>';
+                return;
+            }
+            resourceDetailContainer.innerHTML = '<p class="text-gray-500">Chargement de la ressource...</p>';
+
+            try {
+                // 1. S'assurer que les données sont chargées
+                await fetchAllResourcesOnce();
+                
+                // 2. Trouver la ressource et l'auteur dans le cache
+                const resource = allResources.find(r => r.id === resourceId);
+                const author = resource ? allUsersData[resource.authorId] : null;
+
+                if (!resource || !author) {
+                    resourceDetailContainer.innerHTML = '<p class="text-red-500">Ressource ou auteur introuvable.</p>';
+                    return;
+                }
+
+                // 3. Construire le HTML
+                let imageHtml = '';
+                if (resource.imageUrl) {
+                    imageHtml = `<img src="${resource.imageUrl}" alt="${resource.title}" class="h-64 w-full object-cover rounded-lg mb-6">`;
+                }
+
+                resourceDetailContainer.innerHTML = `
+                    <!-- Bouton Retour -->
+                    <button onclick="window.history.back()" class="flex items-center text-sm font-medium text-blue-600 hover:text-blue-800 mb-6">
+                        <i data-lucide="arrow-left" class="h-4 w-4 mr-1"></i>
+                        Retour
+                    </button>
+                
+                    ${imageHtml}
+                    
+                    <!-- Titre -->
+                    <h1 class="text-4xl font-bold text-gray-900 mb-4">${resource.title}</h1>
+                    
+                    <!-- Métadonnées (Auteur, Catégorie, Likes) -->
+                    <div class="flex flex-wrap items-center justify-between text-gray-600 mb-6 border-y py-4">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="user" class="h-4 w-4"></i>
+                            <span>Par <a href="#profile?id=${author.uid}" class="font-medium hover:text-blue-600">${author.username}</a></span>
+                            <span class="text-gray-300">|</span>
+                            <i data-lucide="folder" class="h-4 w-4"></i>
+                            <span><a href="#category?id=${encodeURIComponent(resource.category)}" class="font-medium hover:text-blue-600">${resource.category}</a></span>
+                        </div>
+                        <button class="like-btn flex items-center space-x-1 text-gray-500 hover:text-red-500" data-resource-id="${resource.id}">
+                            <i data-lucide="heart" class="h-5 w-5 ${resource.likes?.includes(currentUserId) ? 'fill-current text-red-500' : ''}"></i>
+                            <span>${resource.likes?.length || 0}</span>
+                        </button>
+                    </div>
+
+                    <!-- Contenu complet (Quill) -->
+                    <div class="prose prose-lg max-w-none ql-snow">
+                        <div class="ql-editor">${resource.textContentHtml}</div>
+                    </div>
+                `;
+
+                // 4. Ajouter l'écouteur pour le bouton "Like"
+                resourceDetailContainer.querySelector('.like-btn').addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (!currentUserId) {
+                        showToast("Vous devez être connecté pour aimer une ressource.", "error");
+                        location.hash = '#auth';
+                        return;
+                    }
+                    await toggleLike(resource.id, e.currentTarget, resource);
+                });
+
+                // 5. Rafraîchir les icônes
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+
+            } catch (error) {
+                console.error("Erreur renderResourceDetail:", error);
+                resourceDetailContainer.innerHTML = '<p class="text-red-500">Erreur lors du chargement de la ressource.</p>';
+            }
+        }
+
 
         // --- GESTION LIKE / ABONNEMENT ---
 
@@ -704,7 +828,7 @@
         }
         
         /**
-         * NOUVEAU: Gère le clic sur le bouton "s'abonner" (avec compteur).
+         * Gère le clic sur le bouton "s'abonner" (avec compteur).
          */
         async function toggleSubscription(targetUserId, buttonElement) {
             if (!currentUserId) {
@@ -760,7 +884,7 @@
         // --- RENDU PROFIL ---
         
         /**
-         * NOUVEAU: Affiche le profil (avec compteur et badge image).
+         * Affiche le profil (avec compteur et badge image).
          */
         async function renderProfile(userId) {
             if (!userId) {
@@ -803,7 +927,7 @@
                             <div class="flex items-center justify-center md:justify-start">
                                 <h2 class="text-3xl font-bold text-gray-900">${profile.username}</h2>
                                 ${profile.certification ? `
-                                    <img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="w-5 h-5 ml-2 rounded-full" title="Utilisateur certifié">
+                                    <img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="w-5 h-5 ml-2" title="Utilisateur certifié">
                                 ` : ''}
                             </div>
                             <p class="text-gray-600">
@@ -910,7 +1034,7 @@
         }
 
         /**
-         * NOUVEAU: Crée un profil utilisateur (avec followerCount).
+         * Crée un profil utilisateur (avec followerCount).
          */
         async function createUserProfile(uid, email, username) {
             const userRef = doc(db, usersCollectionPath, uid);
