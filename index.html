@@ -105,7 +105,7 @@
                 <section id="home-page" class="page-content">
                     <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                         <h2 class="text-3xl font-bold text-gray-900">Ressources Récentes</h2>
-                        <!-- NOUVEAU: Barre de recherche Accueil -->
+                        <!-- Barre de recherche Accueil -->
                         <div class="relative w-full md:w-72">
                             <input type="search" id="home-search-input" placeholder="Rechercher une ressource..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"></i>
@@ -120,7 +120,7 @@
                 <section id="category-page" class="page-content">
                     <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                         <h2 class="text-3xl font-bold text-gray-900" id="category-title">Catégorie</h2>
-                        <!-- NOUVEAU: Barre de recherche Catégorie -->
+                        <!-- Barre de recherche Catégorie -->
                         <div class="relative w-full md:w-72">
                             <input type="search" id="category-search-input" placeholder="Rechercher dans cette catégorie..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"></i>
@@ -305,7 +305,8 @@
             Timestamp,
             updateDoc,
             arrayUnion,
-            arrayRemove
+            arrayRemove,
+            increment // NOUVEAU: Import pour le compteur
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { 
             getStorage, 
@@ -358,7 +359,7 @@
         const categoryTitle = document.getElementById('category-title');
         const profileContainer = document.getElementById('profile-container');
         
-        // NOUVEAU: Barres de recherche
+        // Barres de recherche
         const homeSearchInput = document.getElementById('home-search-input');
         const categorySearchInput = document.getElementById('category-search-input');
         
@@ -391,7 +392,7 @@
         let categoriesData = []; // Stocke les données de categories.json
         let quillEditor = null; // Instance de l'éditeur Quill
         
-        // NOUVEAU: Cache pour les ressources et les utilisateurs
+        // Cache pour les ressources et les utilisateurs
         let allResources = [];
         let allUsersData = {};
 
@@ -406,6 +407,22 @@
         ];
 
         // --- Fonctions utilitaires ---
+
+        /**
+         * NOUVEAU: Formate un nombre (ex: 1000 -> 1k, 3300 -> 3.3k)
+         */
+        function formatNumber(num) {
+            if (!num) return '0';
+            if (num < 1000) {
+                return num.toString();
+            }
+            if (num < 1000000) {
+                const result = (num / 1000).toFixed(1);
+                return result.endsWith('.0') ? (num / 1000).toFixed(0) + 'k' : result + 'k';
+            }
+            const result = (num / 1000000).toFixed(1);
+            return result.endsWith('.0') ? (num / 1000000).toFixed(0) + 'M' : result + 'M';
+        }
 
         /**
          * Affiche une "page" et cache les autres
@@ -454,7 +471,7 @@
                 sidebar.classList.add('-translate-x-full');
             }
 
-            // NOUVEAU: Réinitialiser les barres de recherche
+            // Réinitialiser les barres de recherche
             homeSearchInput.value = '';
             categorySearchInput.value = '';
 
@@ -496,17 +513,14 @@
         // --- RENDU DES RESSOURCES ---
 
         /**
-         * NOUVEAU: Charge les ressources depuis Firestore et les met en cache
-         * @returns {boolean} true si de nouvelles données ont été chargées
+         * Charge les ressources depuis Firestore et les met en cache
          */
         async function fetchAllResourcesOnce() {
-            // Ne re-fetcher que si le cache est vide
             if (allResources.length > 0) {
                 return false; 
             }
             
             try {
-                // 1. Récupérer toutes les ressources
                 const resourcesRef = collection(db, resourcesCollectionPath);
                 const querySnapshot = await getDocs(resourcesRef);
                 
@@ -515,7 +529,6 @@
                     resources.push({ id: doc.id, ...doc.data() });
                 });
                 
-                // 2. Récupérer tous les profils des auteurs
                 const userIds = [...new Set(resources.map(r => r.authorId))];
                 if (userIds.length > 0) {
                     const usersQuery = query(collection(db, usersCollectionPath), where("uid", "in", userIds));
@@ -525,23 +538,19 @@
                     });
                 }
                 
-                // 3. Trier (en JS)
                 resources.sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
                 
-                // 4. Mettre en cache
                 allResources = resources;
                 return true;
 
             } catch (error) {
                 console.error("Erreur fetchAllResourcesOnce:", error);
-                throw error; // Propage l'erreur
+                throw error;
             }
         }
 
         /**
-         * NOUVEAU: Fonction principale pour charger ET afficher les ressources
-         * @param {HTMLElement} container - L'élément DOM où insérer les cartes.
-         * @param {object} [filters={}] - Options de filtrage (ex: { category: 'Maths' }).
+         * Fonction principale pour charger ET afficher les ressources
          */
         async function loadAndDisplayResources(container, filters = {}) {
             if (!container) return;
@@ -549,8 +558,6 @@
             
             try {
                 await fetchAllResourcesOnce();
-                
-                // Maintenant, on affiche simplement depuis le cache
                 renderResources(container, filters, '');
                 
             } catch (error) {
@@ -560,24 +567,19 @@
         }
         
         /**
-         * NOUVEAU: Affiche les ressources depuis le cache, en appliquant filtres et recherche.
-         * @param {HTMLElement} container - L'élément DOM où insérer les cartes.
-         * @param {object} [filters={}] - Options de filtrage (ex: { category: 'Maths' }).
-         * @param {string} searchTerm - Le terme de recherche.
+         * Affiche les ressources depuis le cache, en appliquant filtres et recherche.
          */
         function renderResources(container, filters = {}, searchTerm = '') {
             if (!container) return;
             
             let resourcesToDisplay = [...allResources];
             
-            // 1. Appliquer les filtres (ex: catégorie)
             if (filters.category) {
                 resourcesToDisplay = resourcesToDisplay.filter(
                     res => res.category === filters.category
                 );
             }
             
-            // 2. Appliquer la recherche (si searchTerm n'est pas vide)
             const search = searchTerm.toLowerCase().trim();
             if (search) {
                 resourcesToDisplay = resourcesToDisplay.filter(res => {
@@ -592,7 +594,6 @@
                 });
             }
 
-            // 3. Afficher le résultat
             if (resourcesToDisplay.length === 0) {
                 if (search) {
                     container.innerHTML = `<p class="text-gray-500">Aucune ressource ne correspond à "${searchTerm}".</p>`;
@@ -675,7 +676,6 @@
             const icon = buttonElement.querySelector('i');
             const countSpan = buttonElement.querySelector('span');
             
-            // Logique optimiste (met à jour l'UI d'abord)
             const isLiked = resource.likes?.includes(currentUserId);
             
             try {
@@ -700,12 +700,11 @@
             } catch (error) {
                 console.error("Erreur toggleLike:", error);
                 showToast("Erreur lors de l'action.", "error");
-                // Annuler la modification optimiste (non implémenté pour la simplicité)
             }
         }
         
         /**
-         * Gère le clic sur le bouton "s'abonner".
+         * NOUVEAU: Gère le clic sur le bouton "s'abonner" (avec compteur).
          */
         async function toggleSubscription(targetUserId, buttonElement) {
             if (!currentUserId) {
@@ -718,29 +717,36 @@
             }
 
             const currentUserRef = doc(db, usersCollectionPath, currentUserId);
+            const targetUserRef = doc(db, usersCollectionPath, targetUserId); // Réf de l'utilisateur cible
             const isSubscribed = currentUserProfile.following?.includes(targetUserId);
 
             try {
                 if (isSubscribed) {
                     // Se désabonner
-                    await updateDoc(currentUserRef, {
-                        following: arrayRemove(targetUserId)
-                    });
+                    await updateDoc(currentUserRef, { following: arrayRemove(targetUserId) });
+                    await updateDoc(targetUserRef, { followerCount: increment(-1) }); // Décrémenter
+                    
                     currentUserProfile.following = currentUserProfile.following.filter(id => id !== targetUserId);
                     buttonElement.textContent = "S'abonner";
                     buttonElement.classList.replace('bg-gray-500', 'bg-blue-600');
                     buttonElement.classList.replace('hover:bg-gray-600', 'hover:bg-blue-700');
                 } else {
                     // S'abonner
-                    await updateDoc(currentUserRef, {
-                        following: arrayUnion(targetUserId)
-                    });
+                    await updateDoc(currentUserRef, { following: arrayUnion(targetUserId) });
+                    await updateDoc(targetUserRef, { followerCount: increment(1) }); // Incrémenter
+                    
                     currentUserProfile.following = [...(currentUserProfile.following || []), targetUserId];
                     buttonElement.textContent = "Abonné";
                     buttonElement.classList.replace('bg-blue-600', 'bg-gray-500');
                     buttonElement.classList.replace('hover:bg-blue-700', 'hover:bg-gray-600');
                 }
                 
+                // Mettre à jour localement le profil (pour le compteur)
+                const targetProfile = allUsersData[targetUserId];
+                if (targetProfile) {
+                    targetProfile.followerCount = (targetProfile.followerCount || 0) + (isSubscribed ? -1 : 1);
+                }
+
                 if (typeof lucide !== 'undefined') {
                     lucide.createIcons();
                 }
@@ -754,7 +760,7 @@
         // --- RENDU PROFIL ---
         
         /**
-         * Affiche le profil d'un utilisateur.
+         * NOUVEAU: Affiche le profil (avec compteur et badge image).
          */
         async function renderProfile(userId) {
             if (!userId) {
@@ -774,6 +780,7 @@
                 }
                 
                 const profile = userSnap.data();
+                allUsersData[userId] = profile; // Mettre à jour le cache
 
                 // 2. Vérifier l'état d'abonnement
                 let subscribeButtonHtml = '';
@@ -793,10 +800,19 @@
                             <i data-lucide="user" class="w-12 h-12 text-gray-600"></i>
                         </div>
                         <div class="md:ml-6 text-center md:text-left">
-                            <h2 class="text-3xl font-bold text-gray-900">${profile.username}</h2>
-                            <p class="text-gray-600">Membre depuis ${profile.createdAt?.toDate().toLocaleDateString('fr-FR') || 'Date inconnue'}</p>
+                            <div class="flex items-center justify-center md:justify-start">
+                                <h2 class="text-3xl font-bold text-gray-900">${profile.username}</h2>
+                                ${profile.certification ? `
+                                    <img src="https://placehold.co/24x24/3b82f6/ffffff?text=%E2%9C%93" alt="Certifié" class="w-5 h-5 ml-2 rounded-full" title="Utilisateur certifié">
+                                ` : ''}
+                            </div>
+                            <p class="text-gray-600">
+                                Membre depuis ${profile.createdAt?.toDate().toLocaleDateString('fr-FR') || 'Date inconnue'}
+                            </p>
+                            <p class="text-gray-500 font-semibold">
+                                ${formatNumber(profile.followerCount || 0)} Abonnés
+                            </p>
                             <p class="text-sm text-gray-500">UserID: ${profile.uid}</p>
-                            ${profile.certification ? '<span class="mt-2 inline-block bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full"><i data-lucide="check-circle" class="w-4 h-4 inline-block mr-1"></i>Certifié</span>' : ''}
                         </div>
                         <div class="mt-4 md:mt-0 md:ml-auto">
                             ${subscribeButtonHtml}
@@ -826,7 +842,6 @@
 
                 // 5. Charger les ressources de cet utilisateur
                 const userResourcesContainer = document.getElementById('profile-resources-container');
-                // NOUVEAU: Utiliser le cache
                 await fetchAllResourcesOnce();
                 const userResources = allResources.filter(r => r.authorId === userId);
                 
@@ -870,7 +885,6 @@
                     await signOut(auth);
                     showToast("Déconnexion réussie.", "success");
                     location.hash = '#home';
-                    // NOUVEAU: Vider le cache au logout
                     allResources = [];
                     allUsersData = {};
                 });
@@ -896,7 +910,7 @@
         }
 
         /**
-         * Crée un profil utilisateur dans Firestore après l'inscription.
+         * NOUVEAU: Crée un profil utilisateur (avec followerCount).
          */
         async function createUserProfile(uid, email, username) {
             const userRef = doc(db, usersCollectionPath, uid);
@@ -908,7 +922,8 @@
                     createdAt: Timestamp.now(),
                     certification: false,
                     badges: [],
-                    following: []
+                    following: [],
+                    followerCount: 0 // Initialisation du compteur
                 });
             } catch (error) {
                 console.error("Erreur création profil:", error);
@@ -928,7 +943,14 @@
                 } else {
                     const username = user.displayName || user.email.split('@')[0];
                     await createUserProfile(user.uid, user.email, username);
-                    currentUserProfile = { uid: user.uid, email: user.email, username: username, certification: false };
+                    currentUserProfile = { 
+                        uid: user.uid, 
+                        email: user.email, 
+                        username: username, 
+                        certification: false, 
+                        following: [], 
+                        followerCount: 0 
+                    };
                 }
                 
                 updateAuthUI(user);
@@ -943,7 +965,7 @@
             }
             router();
             
-            // NOUVEAU: Mettre à jour les "likes" sur la page actuelle
+            // Mettre à jour les "likes" sur la page actuelle
             if (location.hash === '#home') {
                 renderResources(homeResourcesContainer, {}, homeSearchInput.value);
             } else if (location.hash.startsWith('#category')) {
@@ -1015,7 +1037,7 @@
             sidebar.classList.toggle('translate-x-0');
         });
 
-        // NOUVEAU: Écouteurs pour les barres de recherche
+        // Écouteurs pour les barres de recherche
         homeSearchInput.addEventListener('input', (e) => {
             renderResources(homeResourcesContainer, {}, e.target.value);
         });
@@ -1152,7 +1174,6 @@
 
                 await addDoc(collection(db, resourcesCollectionPath), resourceData);
 
-                // NOUVEAU: Vider le cache pour forcer le rechargement
                 allResources = [];
                 allUsersData = {};
 
