@@ -202,8 +202,14 @@
                                 </select>
                             </div>
                             
+                            <!-- NOUVELLE SECTION CERTIFICATION -->
+                            <hr class="my-6">
+                            <div id="certification-request-section">
+                                <!-- Le contenu de cette section est chargé par loadProfileForEdit() -->
+                            </div>
+                            
                             <!-- Boutons d'action -->
-                            <div class="flex justify-end space-x-4">
+                            <div class="flex justify-end space-x-4 mt-6">
                                 <button type="button" id="cancel-edit-profile-btn" class="bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">
                                     Annuler
                                 </button>
@@ -215,11 +221,18 @@
                     </div>
                 </section>
                 
-                <!-- PAGE UTILISATEURS (RENOMMÉE) -->
+                <!-- PAGE UTILISATEURS (MISE À JOUR) -->
                 <section id="users-page" class="page-content">
                     <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                         <h2 class="text-3xl font-bold text-gray-900">Utilisateurs</h2>
-                        <!-- NOUVEAU FILTRE -->
+                        
+                        <!-- NOUVELLE BARRE DE RECHERCHE -->
+                        <div class="relative w-full md:w-72">
+                            <input type="search" id="users-search-input" placeholder="Rechercher un utilisateur..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"></i>
+                        </div>
+                        
+                        <!-- FILTRE -->
                         <div class="flex items-center space-x-2">
                             <label for="users-filter-toggle" class="text-sm font-medium text-gray-700">Afficher uniquement mes abonnements</label>
                             <input type="checkbox" id="users-filter-toggle" class="h-4 w-4 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500">
@@ -582,9 +595,10 @@
         // Barres de recherche
         const homeSearchInput = document.getElementById('home-search-input');
         const categorySearchInput = document.getElementById('category-search-input');
+        const usersSearchInput = document.getElementById('users-search-input'); // NOUVEAU
         
         // Filtres
-        const usersFilterToggle = document.getElementById('users-filter-toggle'); // NOUVEAU
+        const usersFilterToggle = document.getElementById('users-filter-toggle'); 
         
         // --- Éléments DOM Auth ---
         const loginForm = document.getElementById('login-form');
@@ -659,14 +673,14 @@
         
         let tempSignupData = {};
 
-        // --- Données des catégories ---
+        // --- Données des catégories (MISES À JOUR AVEC ICONS8) ---
         categoriesData = [
-          { "name": "Mathématiques", "icon": "calculator", "subcategories": ["Algèbre", "Géométrie", "Analyse", "Probabilités", "Statistiques"] },
-          { "name": "Sciences Physiques", "icon": "atom", "subcategories": ["Mécanique", "Électricité", "Optique", "Chimie Organique", "Chimie Inorganique"] },
-          { "name": "Histoire", "icon": "scroll", "subcategories": ["Antiquité", "Moyen Âge", "Temps Modernes", "Époque Contemporaine"] },
-          { "name": "Langues", "icon": "languages", "subcategories": ["Anglais", "Espagnol", "Allemand", "Français (FLE)", "Grammaire"] },
-          { "name": "Programmation", "icon": "code-2", "subcategories": ["JavaScript", "Python", "HTML/CSS", "Java", "Algorithmes"] },
-          { "name": "Philosophie", "icon": "brain", "subcategories": ["Métaphysique", "Éthique", "Philosophie Politique", "Auteurs"] }
+          { "name": "Mathématiques", "icon": "https://img.icons8.com/fluency/48/calculator.png", "subcategories": ["Algèbre", "Géométrie", "Analyse", "Probabilités", "Statistiques"] },
+          { "name": "Sciences Physiques", "icon": "https://img.icons8.com/fluency/48/atom-editor.png", "subcategories": ["Mécanique", "Électricité", "Optique", "Chimie Organique", "Chimie Inorganique"] },
+          { "name": "Histoire", "icon": "https://img.icons8.com/fluency/48/scroll.png", "subcategories": ["Antiquité", "Moyen Âge", "Temps Modernes", "Époque Contemporaine"] },
+          { "name": "Langues", "icon": "https://img.icons8.com/fluency/48/translation.png", "subcategories": ["Anglais", "Espagnol", "Allemand", "Français (FLE)", "Grammaire"] },
+          { "name": "Programmation", "icon": "https://img.icons8.com/fluency/48/coding.png", "subcategories": ["JavaScript", "Python", "HTML/CSS", "Java", "Algorithmes"] },
+          { "name": "Philosophie", "icon": "https://img.icons8.com/fluency/48/brain.png", "subcategories": ["Métaphysique", "Éthique", "Philosophie Politique", "Auteurs"] }
         ];
 
         // --- Fonctions utilitaires ---
@@ -738,6 +752,7 @@
 
             homeSearchInput.value = '';
             categorySearchInput.value = '';
+            usersSearchInput.value = ''; // NOUVEAU
 
             switch (page) {
                 case '#home':
@@ -984,7 +999,7 @@
             return card;
         }
 
-        // --- AFFICHAGE DÉTAILLÉ (MODIFIÉ) ---
+        // --- AFFICHAGE DÉTAILLÉ (CORRIGÉ) ---
         
         async function renderResourceDetail(resourceId) {
             if (!resourceId) {
@@ -1038,6 +1053,7 @@
                 const authorFollowerCount = author.followerCount || 0;
                 const authorFollowerText = (authorFollowerCount <= 1) ? 'Abonné' : 'Abonnés';
                 
+                // CORRECTION DE LA POSITION DE LA CERTIFICATION
                 resourceDetailContainer.innerHTML = `
                     <button onclick="window.history.back()" class="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800 mb-6">
                         <img src="${backIconSrc}" alt="Retour" class="h-5 w-5 mr-1">
@@ -1054,9 +1070,11 @@
                             <div class="flex items-center space-x-2">
                                 <img src="${authorAvatar}" alt="${author.username}" class="w-10 h-10 rounded-full object-cover">
                                 <div>
-                                    <a href="#profile?id=${author.uid}" class="font-medium hover:text-indigo-600 text-gray-900">${author.username}</a>
+                                    <div class="flex items-center">
+                                        <a href="#profile?id=${author.uid}" class="font-medium hover:text-indigo-600 text-gray-900">${author.username}</a>
+                                        ${author.certification ? `<img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="w-4 h-4 ml-1" title="Utilisateur certifié">` : ''}
+                                    </div>
                                     <div class="flex items-center text-xs text-gray-500">
-                                        ${author.certification ? `<img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="w-4 h-4 mr-1" title="Utilisateur certifié">` : ''}
                                         <span>${formatNumber(authorFollowerCount)} ${authorFollowerText}</span>
                                     </div>
                                 </div>
@@ -1243,7 +1261,7 @@
             }
         }
         
-        // --- PAGE UTILISATEURS (MODIFIÉE) ---
+        // --- PAGE UTILISATEURS (CORRIGÉE) ---
 
         async function renderUsersPage() {
             const container = usersContainer;
@@ -1252,22 +1270,30 @@
             container.innerHTML = '<p class="text-gray-500">Chargement des utilisateurs...</p>';
             
             try {
+                // CORRECTION: On charge TOUS les utilisateurs, pas seulement ceux du cache
                 const usersRef = collection(db, publicUsersCollectionPath);
-                const q = query(usersRef);
-                const querySnapshot = await getDocs(q);
+                const querySnapshot = await getDocs(usersRef);
                 
                 let allUsers = [];
                 querySnapshot.forEach(doc => {
                     const userData = doc.data();
-                    allUsersData[userData.uid] = userData; // Mettre à jour le cache
                     allUsers.push(userData);
+                    allUsersData[userData.uid] = userData; // Mettre à jour le cache global
                 });
                 
-                // NOUVELLE LOGIQUE DE FILTRE
+                // NOUVELLE LOGIQUE DE FILTRE ET RECHERCHE
                 const filterMySubscriptions = usersFilterToggle.checked;
+                const searchTerm = usersSearchInput.value.toLowerCase().trim();
+
                 if (filterMySubscriptions) {
                     const followingList = currentUserProfile.following || [];
                     allUsers = allUsers.filter(user => followingList.includes(user.uid));
+                }
+
+                if (searchTerm) {
+                    allUsers = allUsers.filter(user => 
+                        user.username.toLowerCase().includes(searchTerm)
+                    );
                 }
                 
                 // Tri par nombre d'abonnés (décroissant)
@@ -1275,8 +1301,13 @@
                 
                 container.innerHTML = '';
                 
+                // Messages "Aucun résultat" améliorés
                 if (allUsers.length === 0) {
-                    if (filterMySubscriptions) {
+                    if (filterMySubscriptions && searchTerm) {
+                        container.innerHTML = `<p class="text-gray-500">Aucun de vos abonnements ne correspond à "${searchTerm}".</p>`;
+                    } else if (searchTerm) {
+                        container.innerHTML = `<p class="text-gray-500">Aucun utilisateur ne correspond à "${searchTerm}".</p>`;
+                    } else if (filterMySubscriptions) {
                         container.innerHTML = '<p class="text-gray-500">Vous n\'êtes abonné à personne pour le moment.</p>';
                     } else {
                         container.innerHTML = '<p class="text-gray-500">Aucun utilisateur trouvé.</p>';
@@ -1459,7 +1490,7 @@
             }
         }
         
-        // --- GESTION ÉDITION PROFIL ---
+        // --- GESTION ÉDITION PROFIL (MISE À JOUR) ---
         async function loadProfileForEdit() {
             if (!currentUserId || !currentUserProfile) {
                 showToast("Vous devez être connecté.", "error");
@@ -1505,6 +1536,55 @@
                         populateClassesList(editClasse);
                     }
                     editClasse.value = privateData.classe || 'Non applicable';
+                }
+
+                // NOUVEAU: Gérer la section de demande de certification
+                const certSection = document.getElementById('certification-request-section');
+                if (currentUserProfile.certification) {
+                    certSection.innerHTML = `
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">Certification</h3>
+                        <div class="flex items-center space-x-2">
+                            <img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="w-6 h-6">
+                            <span class="font-medium text-green-600">Vous êtes un utilisateur certifié.</span>
+                        </div>
+                    `;
+                } else if (currentUserProfile.certificationPending) {
+                    certSection.innerHTML = `
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">Certification</h3>
+                        <span class="font-medium text-yellow-600">Votre demande de certification est en cours d'examen.</span>
+                    `;
+                } else {
+                    certSection.innerHTML = `
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">Certification</h3>
+                        <p class="text-sm text-gray-500 mb-3">Les utilisateurs certifiés peuvent poster des images et ont un badge de confiance.</p>
+                        <button type="button" id="request-certification-btn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
+                            Demander la certification
+                        </button>
+                    `;
+                }
+                
+                // Ajouter l'écouteur pour le nouveau bouton
+                const requestBtn = document.getElementById('request-certification-btn');
+                if (requestBtn) {
+                    requestBtn.addEventListener('click', async () => {
+                        requestBtn.disabled = true;
+                        requestBtn.textContent = "Envoi...";
+                        try {
+                            const publicRef = doc(db, publicUsersCollectionPath, currentUserId);
+                            await updateDoc(publicRef, {
+                                certificationPending: true
+                            });
+                            currentUserProfile.certificationPending = true; // Mettre à jour l'état local
+                            allUsersData[currentUserId].certificationPending = true; // Mettre à jour le cache
+                            showToast("Demande de certification envoyée !", "success");
+                            await loadProfileForEdit(); // Rafraîchir la section
+                        } catch (error) {
+                            console.error("Erreur demande certification:", error);
+                            showToast("Une erreur est survenue.", "error");
+                            requestBtn.disabled = false;
+                            requestBtn.textContent = "Demander la certification";
+                        }
+                    });
                 }
 
             } catch (error) {
@@ -1868,8 +1948,9 @@
             renderResources(categoryResourcesContainer, { category: categoryName }, e.target.value);
         });
         
-        // NOUVEL ÉCOUTEUR POUR LE FILTRE
+        // ÉCOUTEURS POUR LA PAGE UTILISATEURS
         usersFilterToggle.addEventListener('change', renderUsersPage);
+        usersSearchInput.addEventListener('input', renderUsersPage); // NOUVEAU
 
 
         // --- GESTION DE L'ÉDITEUR ET DU MODAL ---
@@ -2095,8 +2176,10 @@
                     link.href = `#category?id=${encodeURIComponent(cat.name)}`;
                     link.className = 'flex items-center px-3 py-2 text-slate-600 rounded-md hover:bg-indigo-50 hover:text-indigo-600';
                     link.dataset.pageId = 'category-page';
+                    
+                    // MODIFIÉ POUR UTILISER <img>
                     link.innerHTML = `
-                        <i data-lucide="${cat.icon || 'folder'}" class="h-5 w-5 mr-3"></i>
+                        <img src="${cat.icon || 'https://img.icons8.com/fluency/48/folder-invoices.png'}" alt="${cat.name}" class="h-5 w-5 mr-3">
                         ${cat.name}
                     `;
                     sidebarNav.appendChild(link);
