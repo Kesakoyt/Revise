@@ -515,7 +515,6 @@
             "Autre (Collège)", "Autre (Lycée)", "Études Supérieures", "Non applicable"
         ];
         
-        // NOUVEAU: Définitions des Badges
         const BADGE_DEFINITIONS = {
             "staff": {
                 name: "Staff",
@@ -528,6 +527,11 @@
             "moderateur": {
                 name: "Modérateur",
                 image: "https://img.icons8.com/fluency/70/discord-moderator-program-alumni-badge.png"
+            },
+            // Badge que je viens d'ajouter
+            "actif": {
+                name: "Membre Actif",
+                image: "https://img.icons8.com/fluency/48/star.png" 
             }
         };
         
@@ -1178,7 +1182,7 @@
         }
 
 
-        // --- RENDU PROFIL (MIS À JOUR AVEC BADGES) ---
+        // --- RENDU PROFIL ---
         
         async function renderProfile(userId) {
             if (!userId) {
@@ -1238,7 +1242,6 @@
                     `;
                 }
                 
-                // NOUVEAU: Logique de rendu des Badges
                 let badgesHtml = '';
                 if (profile.badges && profile.badges.length > 0) {
                     profile.badges.forEach(badgeKey => {
