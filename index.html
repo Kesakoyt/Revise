@@ -160,7 +160,7 @@
                     </div>
                 </section>
                 
-                <!-- NOUVELLE PAGE: Édition de Profil (MISE À JOUR) -->
+                <!-- Page: Édition de Profil -->
                 <section id="edit-profile-page" class="page-content">
                     <div class="bg-white p-8 rounded-lg shadow-lg max-w-lg mx-auto">
                         <h2 class="text-3xl font-bold text-gray-900 mb-6">Éditer le profil</h2>
@@ -171,7 +171,6 @@
                                 <input type="text" id="edit-username" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                             </div>
                             
-                            <!-- NOUVEAU: Photo de profil URL -->
                             <div class="mb-4">
                                 <label for="edit-photo-url" class="block text-sm font-medium text-gray-700 mb-1">URL de la photo de profil (public)</label>
                                 <input type="url" id="edit-photo-url" placeholder="https://..." class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
@@ -516,6 +515,22 @@
             "Autre (Collège)", "Autre (Lycée)", "Études Supérieures", "Non applicable"
         ];
         
+        // NOUVEAU: Définitions des Badges
+        const BADGE_DEFINITIONS = {
+            "staff": {
+                name: "Staff",
+                image: "https://img.icons8.com/fluency/70/discord-stuff-badge.png"
+            },
+            "testeur": {
+                name: "Testeur",
+                image: "https://img.icons8.com/fluency/70/discord-hypesquad-events-badge.png"
+            },
+            "moderateur": {
+                name: "Modérateur",
+                image: "https://img.icons8.com/fluency/70/discord-moderator-program-alumni-badge.png"
+            }
+        };
+        
         // --- Éléments DOM ---
         const sidebar = document.getElementById('sidebar');
         const authInfoSidebar = document.getElementById('auth-info-sidebar');
@@ -575,7 +590,7 @@
         // Éléments DOM Édition Profil
         const editProfileForm = document.getElementById('edit-profile-form');
         const editUsername = document.getElementById('edit-username');
-        const editPhotoUrl = document.getElementById('edit-photo-url'); // NOUVEAU
+        const editPhotoUrl = document.getElementById('edit-photo-url');
         const editFirstname = document.getElementById('edit-firstname');
         const editLastname = document.getElementById('edit-lastname');
         const editClasseContainer = document.getElementById('edit-classe-container');
@@ -850,10 +865,6 @@
             }
         }
 
-
-        /**
-         * Crée un élément DOM de carte pour une ressource. (MIS À JOUR)
-         */
         function createResourceCard(resource, author) {
             const card = document.createElement('div');
             card.className = 'bg-white rounded-lg shadow-lg overflow-hidden transition-shadow duration-300 hover:shadow-xl cursor-pointer';
@@ -871,9 +882,10 @@
             }
 
             const liked = resource.likes?.includes(currentUserId);
-            const disliked = resource.dislikes?.includes(currentUserId); // NOUVEAU
+            const disliked = resource.dislikes?.includes(currentUserId);
             const likeIconSrc = "https://img.icons8.com/fluency/48/facebook-like.png";
-            const dislikeIconSrc = "https://img.icons8.com/fluency/48/thumbs-down.png"; // NOUVEAU
+            const dislikeIconSrc = "https://img.icons8.com/fluency/48/thumbs-down.png";
+            const viewIconSrc = "https://img.icons8.com/fluency/48/visible.png";
 
             card.innerHTML = `
                 ${imageHtml}
@@ -893,19 +905,16 @@
                             Par ${author ? author.username : 'Anonyme'}
                         </a>
                         <div class="flex items-center space-x-3">
-                            <!-- NOUVEAU: Compteur de vues -->
                             <div class="flex items-center space-x-1 text-gray-500">
-                                <i data-lucide="eye" class="h-4 w-4"></i>
+                                <img src="${viewIconSrc}" alt="Vues" class="h-5 w-5">
                                 <span>${formatNumber(resource.views || 0)}</span>
                             </div>
                             
-                            <!-- Bouton Like -->
                             <button class="like-btn flex items-center space-x-1 text-gray-500 hover:text-indigo-600" data-resource-id="${resource.id}">
                                 <img src="${likeIconSrc}" class="h-5 w-5 ${liked ? '' : 'grayscale opacity-60'}"/>
                                 <span>${resource.likes?.length || 0}</span>
                             </button>
                             
-                            <!-- NOUVEAU: Bouton Dislike -->
                             <button class="dislike-btn flex items-center space-x-1 text-gray-500 hover:text-red-600" data-resource-id="${resource.id}">
                                 <img src="${dislikeIconSrc}" class="h-5 w-5 ${disliked ? '' : 'grayscale opacity-60'}"/>
                                 <span>${resource.dislikes?.length || 0}</span>
@@ -915,7 +924,6 @@
                 </div>
             `;
             
-            // Écouteur Like
             card.querySelector('.like-btn').addEventListener('click', async (e) => {
                 e.stopPropagation();
                 if (!currentUserId) {
@@ -926,7 +934,6 @@
                 await toggleLike(resource.id, e.currentTarget, card.querySelector('.dislike-btn'), resource);
             });
             
-            // NOUVEAU: Écouteur Dislike
             card.querySelector('.dislike-btn').addEventListener('click', async (e) => {
                 e.stopPropagation();
                 if (!currentUserId) {
@@ -940,7 +947,7 @@
             return card;
         }
 
-        // --- AFFICHAGE DÉTAILLÉ (MIS À JOUR) ---
+        // --- AFFICHAGE DÉTAILLÉ ---
         
         async function renderResourceDetail(resourceId) {
             if (!resourceId) {
@@ -950,17 +957,14 @@
             resourceDetailContainer.innerHTML = '<p class="text-gray-500">Chargement de la ressource...</p>';
 
             try {
-                // NOUVEAU: Incrémenter la vue
                 const resourceRef = doc(db, resourcesCollectionPath, resourceId);
                 await updateDoc(resourceRef, { views: increment(1) });
                 
-                // Mettre à jour le cache (si les données sont déjà là)
                 const cachedResource = allResources.find(r => r.id === resourceId);
                 if (cachedResource) {
                     cachedResource.views = (cachedResource.views || 0) + 1;
                 } else {
-                    // Si pas dans le cache, re-fetch tout (ou juste cette ressource)
-                    allResources = []; // Invalider le cache
+                    allResources = [];
                     await fetchAllResourcesOnce();
                 }
                 
@@ -981,10 +985,12 @@
                 const disliked = resource.dislikes?.includes(currentUserId);
                 const likeIconSrc = "https://img.icons8.com/fluency/48/facebook-like.png";
                 const dislikeIconSrc = "https://img.icons8.com/fluency/48/thumbs-down.png";
+                const viewIconSrc = "https://img.icons8.com/fluency/48/visible.png";
+                const backIconSrc = "https://img.icons8.com/fluency/48/back.png";
 
                 resourceDetailContainer.innerHTML = `
                     <button onclick="window.history.back()" class="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800 mb-6">
-                        <i data-lucide="arrow-left" class="h-4 w-4 mr-1"></i>
+                        <img src="${backIconSrc}" alt="Retour" class="h-5 w-5 mr-1">
                         Retour
                     </button>
                 
@@ -1002,7 +1008,7 @@
                         </div>
                         <div class="flex items-center space-x-4">
                             <div class="flex items-center space-x-1 text-gray-500">
-                                <i data-lucide="eye" class="h-4 w-4"></i>
+                                <img src="${viewIconSrc}" alt="Vues" class="h-5 w-5">
                                 <span>${formatNumber(resource.views || 0)} Vues</span>
                             </div>
                             <button class="like-btn flex items-center space-x-1 text-gray-500 hover:text-indigo-600" data-resource-id="${resource.id}">
@@ -1051,7 +1057,7 @@
         }
 
 
-        // --- GESTION LIKE / DISLIKE / ABONNEMENT (MIS À JOUR) ---
+        // --- GESTION LIKE / DISLIKE / ABONNEMENT ---
 
         async function toggleLike(resourceId, likeBtn, dislikeBtn, resource) {
             const resourceRef = doc(db, resourcesCollectionPath, resourceId);
@@ -1065,7 +1071,6 @@
             
             try {
                 if (isLiked) {
-                    // Un-like
                     likeIcon.classList.add('grayscale', 'opacity-60');
                     resource.likes = resource.likes.filter(id => id !== currentUserId);
                     likeCount.textContent = resource.likes.length;
@@ -1073,7 +1078,6 @@
                         likes: arrayRemove(currentUserId)
                     });
                 } else {
-                    // Like
                     likeIcon.classList.remove('grayscale', 'opacity-60');
                     if (!resource.likes) resource.likes = [];
                     resource.likes.push(currentUserId);
@@ -1108,7 +1112,6 @@
             
             try {
                 if (isDisliked) {
-                    // Un-dislike
                     dislikeIcon.classList.add('grayscale', 'opacity-60');
                     resource.dislikes = resource.dislikes.filter(id => id !== currentUserId);
                     dislikeCount.textContent = resource.dislikes.length;
@@ -1116,7 +1119,6 @@
                         dislikes: arrayRemove(currentUserId)
                     });
                 } else {
-                    // Dislike
                     dislikeIcon.classList.remove('grayscale', 'opacity-60');
                     if (!resource.dislikes) resource.dislikes = [];
                     resource.dislikes.push(currentUserId);
@@ -1167,7 +1169,6 @@
                     targetProfile.followerCount = (targetProfile.followerCount || 0) + (isSubscribed ? -1 : 1);
                 }
                 
-                // Re-rendre le profil pour mettre à jour le bouton ET le compteur
                 await renderProfile(targetUserId);
                 
             } catch (error) {
@@ -1177,7 +1178,7 @@
         }
 
 
-        // --- RENDU PROFIL (MIS À JOUR) ---
+        // --- RENDU PROFIL (MIS À JOUR AVEC BADGES) ---
         
         async function renderProfile(userId) {
             if (!userId) {
@@ -1223,11 +1224,9 @@
                     certificationHtml = `<span class="ml-2 text-xs font-medium bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">En attente</span>`;
                 }
                 
-                // NOUVEAU: Logique grammaticale pour "Abonné/s"
                 const followerCount = profile.followerCount || 0;
                 const followerText = (followerCount <= 1) ? 'Abonné' : 'Abonnés';
                 
-                // NOUVEAU: Logique pour la photo de profil
                 let profileImageHtml = '';
                 if (profile.photoURL) {
                     profileImageHtml = `<img src="${profile.photoURL}" alt="${profile.username}" class="w-24 h-24 rounded-full object-cover">`;
@@ -1239,6 +1238,21 @@
                     `;
                 }
                 
+                // NOUVEAU: Logique de rendu des Badges
+                let badgesHtml = '';
+                if (profile.badges && profile.badges.length > 0) {
+                    profile.badges.forEach(badgeKey => {
+                        const badge = BADGE_DEFINITIONS[badgeKey];
+                        if (badge) {
+                            badgesHtml += `
+                                <img src="${badge.image}" alt="${badge.name}" title="${badge.name}" class="w-12 h-12">
+                            `;
+                        }
+                    });
+                } else {
+                    badgesHtml = '<p class="text-gray-500 text-sm">Aucun badge pour le moment.</p>';
+                }
+
                 profileContainer.innerHTML = `
                     <div class="flex flex-col md:flex-row items-center mb-6">
                         <div class="flex-shrink-0 mb-4 md:mb-0">
@@ -1262,7 +1276,7 @@
                     <div class="mb-6">
                         <h3 class="text-xl font-semibold text-gray-800 mb-3">Badges</h3>
                         <div class="flex flex-wrap gap-2">
-                            <span class="bg-gray-200 text-gray-700 text-sm px-3 py-1 rounded-full">Bientôt disponible...</span>
+                            ${badgesHtml}
                         </div>
                     </div>
                     
@@ -1303,7 +1317,7 @@
             }
         }
         
-        // --- GESTION ÉDITION PROFIL (MIS À JOUR) ---
+        // --- GESTION ÉDITION PROFIL ---
         async function loadProfileForEdit() {
             if (!currentUserId || !currentUserProfile) {
                 showToast("Vous devez être connecté.", "error");
@@ -1314,7 +1328,6 @@
             let privateData;
             
             try {
-                // Charger les données privées
                 const privateRef = doc(db, privateUsersCollectionPath, currentUserId, "private_data", "details");
                 const privateSnap = await getDoc(privateRef);
                 
@@ -1337,9 +1350,8 @@
                     privateData = privateSnap.data();
                 }
                 
-                // Pré-remplir le formulaire
                 editUsername.value = currentUserProfile.username || '';
-                editPhotoUrl.value = currentUserProfile.photoURL || ''; // NOUVEAU
+                editPhotoUrl.value = currentUserProfile.photoURL || '';
                 editFirstname.value = privateData.firstname || '';
                 editLastname.value = privateData.lastname || '';
                 
@@ -1359,11 +1371,10 @@
             }
         }
 
-        // --- AUTHENTIFICATION (MISE À JOUR) ---
+        // --- AUTHENTIFICATION ---
 
         function updateAuthUI(user) {
             if (user) {
-                // NOUVEAU: Logique pour photo de profil
                 let profileImageHtml = '';
                 if (currentUserProfile && currentUserProfile.photoURL) {
                     profileImageHtml = `<img src="${currentUserProfile.photoURL}" alt="Profil" class="w-8 h-8 rounded-full object-cover">`;
@@ -1407,14 +1418,13 @@
             }
         }
 
-        // NOUVEAU: Logique pour photo de profil
         async function createMultiPartUserProfile(uid, email, data, username, photoURL = null) {
             
             const publicUserRef = doc(db, publicUsersCollectionPath, uid);
             const publicData = {
                 uid: uid,
                 username: username,
-                photoURL: photoURL, // NOUVEAU
+                photoURL: photoURL,
                 status: data.status,
                 createdAt: Timestamp.now(),
                 certification: false,
@@ -1453,11 +1463,10 @@
                     currentUserProfile = docSnap.data();
                 } else {
                     if (user.providerData.some(p => p.providerId === 'google.com')) {
-                        // Création de profil pour un nouvel utilisateur Google
                         const googleUsername = user.displayName || user.email.split('@')[0];
                         const googleFirstname = user.displayName ? user.displayName.split(' ')[0] : '';
                         const googleLastname = user.displayName ? user.displayName.split(' ').slice(1).join(' ') : '';
-                        const googlePhotoURL = user.photoURL; // NOUVEAU
+                        const googlePhotoURL = user.photoURL;
                         
                         const tempData = {
                             status: "Non défini",
@@ -1467,7 +1476,6 @@
                             requestCertification: false
                         };
                         
-                        // Utilise la fonction multi-part
                         await createMultiPartUserProfile(user.uid, user.email, tempData, googleUsername, googlePhotoURL);
                         
                         showToast("Profil Google créé !", "success");
@@ -1502,7 +1510,6 @@
                 showPage('auth-page');
             }
             
-            // Re-render les ressources pour afficher le bon état like/dislike
             if (location.hash === '#home') {
                 renderResources(homeResourcesContainer, {}, homeSearchInput.value);
             } else if (location.hash.startsWith('#category')) {
@@ -1656,7 +1663,6 @@
             }
         });
         
-        // Écouteur pour l'édition de profil (MIS À JOUR)
         editProfileForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!currentUserId || !currentUserProfile) return;
@@ -1666,19 +1672,17 @@
 
             try {
                 const newUsername = editUsername.value;
-                const newPhotoURL = editPhotoUrl.value; // NOUVEAU
+                const newPhotoURL = editPhotoUrl.value;
                 const newFirstname = editFirstname.value;
                 const newLastname = editLastname.value;
                 const newClasse = editClasse.value;
                 
-                // 1. Mettre à jour le document public
                 const publicRef = doc(db, publicUsersCollectionPath, currentUserId);
                 await updateDoc(publicRef, {
                     username: newUsername,
-                    photoURL: newPhotoURL // NOUVEAU
+                    photoURL: newPhotoURL
                 });
                 
-                // 2. Mettre à jour le document privé
                 const privateRef = doc(db, privateUsersCollectionPath, currentUserId, "private_data", "details");
                 await updateDoc(privateRef, {
                     firstname: newFirstname,
@@ -1686,13 +1690,12 @@
                     classe: currentUserProfile.status === 'professeur' ? null : newClasse
                 });
                 
-                // 3. Mettre à jour l'état local
                 currentUserProfile.username = newUsername;
-                currentUserProfile.photoURL = newPhotoURL; // NOUVEAU
+                currentUserProfile.photoURL = newPhotoURL;
                 allUsersData[currentUserId] = { ...allUsersData[currentUserId], ...currentUserProfile };
                 
                 showToast("Profil mis à jour avec succès !", "success");
-                updateAuthUI(auth.currentUser); // Rafraîchir la sidebar
+                updateAuthUI(auth.currentUser);
                 location.hash = '#profile?id=' + currentUserId;
                 
             } catch (error) {
@@ -1912,8 +1915,8 @@
                     authorName: currentUserProfile.username,
                     createdAt: Timestamp.now(),
                     likes: [],
-                    dislikes: [], // NOUVEAU
-                    views: 0, // NOUVEAU
+                    dislikes: [],
+                    views: 0,
                     comments: []
                 };
 
@@ -1964,6 +1967,7 @@
         // Point d'entrée principal
         loadCategories();
         populateClassesList(signupClasse); // Pré-remplir la liste d'inscription
+        populateClassesList(editClasse); // Pré-remplir la liste d'édition
         window.addEventListener('hashchange', router);
 
     </script>
