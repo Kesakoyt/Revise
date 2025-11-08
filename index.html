@@ -84,6 +84,11 @@
                     <i data-lucide="plus-circle" class="h-5 w-5 mr-3"></i>
                     Partager un cours
                 </a>
+                <!-- LIEN UTILISATEURS (RENOMMÉ) -->
+                <a href="#users" class="flex items-center px-3 py-2 text-slate-600 rounded-md hover:bg-indigo-50 hover:text-indigo-600" data-page-id="users-page">
+                    <i data-lucide="users" class="h-5 w-5 mr-3"></i>
+                    Utilisateurs
+                </a>
                 <!-- Les catégories seront insérées ici par JS -->
             </nav>
             
@@ -207,6 +212,21 @@
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </section>
+                
+                <!-- PAGE UTILISATEURS (RENOMMÉE) -->
+                <section id="users-page" class="page-content">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                        <h2 class="text-3xl font-bold text-gray-900">Utilisateurs</h2>
+                        <!-- NOUVEAU FILTRE -->
+                        <div class="flex items-center space-x-2">
+                            <label for="users-filter-toggle" class="text-sm font-medium text-gray-700">Afficher uniquement mes abonnements</label>
+                            <input type="checkbox" id="users-filter-toggle" class="h-4 w-4 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                        </div>
+                    </div>
+                    <div id="users-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- Les cartes d'utilisateurs seront insérées ici -->
                     </div>
                 </section>
 
@@ -528,7 +548,6 @@
                 name: "Modérateur",
                 image: "https://img.icons8.com/fluency/70/discord-moderator-program-alumni-badge.png"
             },
-            // Badge que je viens d'ajouter
             "actif": {
                 name: "Membre Actif",
                 image: "https://img.icons8.com/fluency/48/star.png" 
@@ -550,6 +569,7 @@
         const loadingPage = document.getElementById('loading-page');
         const resourceDetailPage = document.getElementById('resource-detail-page');
         const editProfilePage = document.getElementById('edit-profile-page'); 
+        const usersPage = document.getElementById('users-page'); // RENOMMÉ
 
         // Conteneurs de page
         const homeResourcesContainer = document.getElementById('home-resources-container');
@@ -557,10 +577,14 @@
         const categoryTitle = document.getElementById('category-title');
         const profileContainer = document.getElementById('profile-container');
         const resourceDetailContainer = document.getElementById('resource-detail-container');
+        const usersContainer = document.getElementById('users-container'); // RENOMMÉ
         
         // Barres de recherche
         const homeSearchInput = document.getElementById('home-search-input');
         const categorySearchInput = document.getElementById('category-search-input');
+        
+        // Filtres
+        const usersFilterToggle = document.getElementById('users-filter-toggle'); // NOUVEAU
         
         // --- Éléments DOM Auth ---
         const loginForm = document.getElementById('login-form');
@@ -643,7 +667,7 @@
           { "name": "Langues", "icon": "languages", "subcategories": ["Anglais", "Espagnol", "Allemand", "Français (FLE)", "Grammaire"] },
           { "name": "Programmation", "icon": "code-2", "subcategories": ["JavaScript", "Python", "HTML/CSS", "Java", "Algorithmes"] },
           { "name": "Philosophie", "icon": "brain", "subcategories": ["Métaphysique", "Éthique", "Philosophie Politique", "Auteurs"] }
-        ]
+        ];
 
         // --- Fonctions utilitaires ---
 
@@ -750,6 +774,15 @@
                     } else {
                         showPage('edit-profile-page');
                         await loadProfileForEdit();
+                    }
+                    break;
+                // CAS UTILISATEURS (RENOMMÉ)
+                case '#users':
+                    if (!currentUserId) {
+                        location.hash = '#auth';
+                    } else {
+                        showPage('users-page');
+                        await renderUsersPage();
                     }
                     break;
                 case '#resource':
@@ -951,7 +984,7 @@
             return card;
         }
 
-        // --- AFFICHAGE DÉTAILLÉ ---
+        // --- AFFICHAGE DÉTAILLÉ (MODIFIÉ) ---
         
         async function renderResourceDetail(resourceId) {
             if (!resourceId) {
@@ -973,7 +1006,16 @@
                 }
                 
                 const resource = allResources.find(r => r.id === resourceId);
-                const author = resource ? allUsersData[resource.authorId] : null;
+                let author = resource ? allUsersData[resource.authorId] : null;
+                
+                if (resource && !author) {
+                    const userRef = doc(db, publicUsersCollectionPath, resource.authorId);
+                    const userSnap = await getDoc(userRef);
+                    if (userSnap.exists()) {
+                        author = userSnap.data();
+                        allUsersData[resource.authorId] = author;
+                    }
+                }
 
                 if (!resource || !author) {
                     resourceDetailContainer.innerHTML = '<p class="text-red-500">Ressource ou auteur introuvable.</p>';
@@ -991,7 +1033,11 @@
                 const dislikeIconSrc = "https://img.icons8.com/fluency/48/thumbs-down.png";
                 const viewIconSrc = "https://img.icons8.com/fluency/48/visible.png";
                 const backIconSrc = "https://img.icons8.com/fluency/48/back.png";
-
+                
+                const authorAvatar = author.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(author.username)}&background=e0e7ff&color=4338ca`;
+                const authorFollowerCount = author.followerCount || 0;
+                const authorFollowerText = (authorFollowerCount <= 1) ? 'Abonné' : 'Abonnés';
+                
                 resourceDetailContainer.innerHTML = `
                     <button onclick="window.history.back()" class="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800 mb-6">
                         <img src="${backIconSrc}" alt="Retour" class="h-5 w-5 mr-1">
@@ -1002,14 +1048,30 @@
                     
                     <h1 class="text-4xl font-bold text-gray-900 mb-4">${resource.title}</h1>
                     
-                    <div class="flex flex-wrap items-center justify-between text-gray-600 mb-6 border-y py-4 gap-4">
-                        <div class="flex items-center space-x-2">
-                            <i data-lucide="user" class="h-4 w-4"></i>
-                            <span>Par <a href="#profile?id=${author.uid}" class="font-medium hover:text-indigo-600">${author.username}</a></span>
-                            <span class="text-gray-300">|</span>
-                            <i data-lucide="folder" class="h-4 w-4"></i>
-                            <span><a href="#category?id=${encodeURIComponent(resource.category)}" class="font-medium hover:text-indigo-600">${resource.category}</a></span>
+                    <div class="flex flex-col md:flex-row flex-wrap items-center justify-between text-gray-600 mb-6 border-y py-4 gap-4">
+                        <!-- BLOC AUTEUR AMÉLIORÉ -->
+                        <div class="flex items-center space-x-4">
+                            <div class="flex items-center space-x-2">
+                                <img src="${authorAvatar}" alt="${author.username}" class="w-10 h-10 rounded-full object-cover">
+                                <div>
+                                    <a href="#profile?id=${author.uid}" class="font-medium hover:text-indigo-600 text-gray-900">${author.username}</a>
+                                    <div class="flex items-center text-xs text-gray-500">
+                                        ${author.certification ? `<img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="w-4 h-4 mr-1" title="Utilisateur certifié">` : ''}
+                                        <span>${formatNumber(authorFollowerCount)} ${authorFollowerText}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <span class="text-gray-300 hidden md:inline">|</span>
+                            
+                            <!-- Info Catégorie -->
+                            <div class="flex items-center space-x-2 text-sm">
+                                <i data-lucide="folder" class="h-4 w-4 text-gray-500"></i>
+                                <a href="#category?id=${encodeURIComponent(resource.category)}" class="font-medium hover:text-indigo-600">${resource.category}</a>
+                            </div>
                         </div>
+                        
+                        <!-- BLOC ACTIONS -->
                         <div class="flex items-center space-x-4">
                             <div class="flex items-center space-x-1 text-gray-500">
                                 <img src="${viewIconSrc}" alt="Vues" class="h-5 w-5">
@@ -1180,6 +1242,90 @@
                 showToast("Erreur lors de l'abonnement.", "error");
             }
         }
+        
+        // --- PAGE UTILISATEURS (MODIFIÉE) ---
+
+        async function renderUsersPage() {
+            const container = usersContainer;
+            if (!container) return;
+            
+            container.innerHTML = '<p class="text-gray-500">Chargement des utilisateurs...</p>';
+            
+            try {
+                const usersRef = collection(db, publicUsersCollectionPath);
+                const q = query(usersRef);
+                const querySnapshot = await getDocs(q);
+                
+                let allUsers = [];
+                querySnapshot.forEach(doc => {
+                    const userData = doc.data();
+                    allUsersData[userData.uid] = userData; // Mettre à jour le cache
+                    allUsers.push(userData);
+                });
+                
+                // NOUVELLE LOGIQUE DE FILTRE
+                const filterMySubscriptions = usersFilterToggle.checked;
+                if (filterMySubscriptions) {
+                    const followingList = currentUserProfile.following || [];
+                    allUsers = allUsers.filter(user => followingList.includes(user.uid));
+                }
+                
+                // Tri par nombre d'abonnés (décroissant)
+                allUsers.sort((a, b) => (b.followerCount || 0) - (a.followerCount || 0));
+                
+                container.innerHTML = '';
+                
+                if (allUsers.length === 0) {
+                    if (filterMySubscriptions) {
+                        container.innerHTML = '<p class="text-gray-500">Vous n\'êtes abonné à personne pour le moment.</p>';
+                    } else {
+                        container.innerHTML = '<p class="text-gray-500">Aucun utilisateur trouvé.</p>';
+                    }
+                    return;
+                }
+                
+                allUsers.forEach(profile => {
+                    const card = createUserCard(profile);
+                    container.appendChild(card);
+                });
+
+            } catch (error) {
+                console.error("Erreur renderUsersPage:", error);
+                container.innerHTML = '<p class="text-red-500">Erreur lors du chargement des utilisateurs.</p>';
+            }
+        }
+
+        // --- NOUVELLE FONCTION: CARTE UTILISATEUR ---
+        
+        function createUserCard(profile) {
+            const card = document.createElement('a');
+            card.href = `#profile?id=${profile.uid}`;
+            card.className = 'bg-white p-4 rounded-lg shadow-md flex items-center space-x-4 transition-shadow duration-300 hover:shadow-lg';
+            
+            const profileImage = profile.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username)}&background=e0e7ff&color=4338ca`;
+            
+            let certificationHtml = '';
+            if (profile.certification) {
+                certificationHtml = `<img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="w-4 h-4 ml-1" title="Utilisateur certifié">`;
+            }
+            
+            const followerCount = profile.followerCount || 0;
+            const followerText = (followerCount <= 1) ? 'Abonné' : 'Abonnés';
+            
+            card.innerHTML = `
+                <div>
+                    <img src="${profileImage}" alt="${profile.username}" class="w-14 h-14 rounded-full object-cover">
+                </div>
+                <div class="flex-1 overflow-hidden">
+                    <div class="flex items-center">
+                        <h3 class="text-lg font-bold text-gray-900 truncate">${profile.username}</h3>
+                        ${certificationHtml}
+                    </div>
+                    <p class="text-sm text-gray-500">${formatNumber(followerCount)} ${followerText}</p>
+                </div>
+            `;
+            return card;
+        }
 
 
         // --- RENDU PROFIL ---
@@ -1231,16 +1377,9 @@
                 const followerCount = profile.followerCount || 0;
                 const followerText = (followerCount <= 1) ? 'Abonné' : 'Abonnés';
                 
-                let profileImageHtml = '';
-                if (profile.photoURL) {
-                    profileImageHtml = `<img src="${profile.photoURL}" alt="${profile.username}" class="w-24 h-24 rounded-full object-cover">`;
-                } else {
-                    profileImageHtml = `
-                        <div class="w-24 h-24 bg-gray-300 rounded-full flex items-center justify-center">
-                            <i data-lucide="user" class="w-12 h-12 text-gray-600"></i>
-                        </div>
-                    `;
-                }
+                const profileImageSrc = profile.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username)}&background=e0e7ff&color=4338ca&size=96`;
+                let profileImageHtml = `<img src="${profileImageSrc}" alt="${profile.username}" class="w-24 h-24 rounded-full object-cover">`;
+
                 
                 let badgesHtml = '';
                 if (profile.badges && profile.badges.length > 0) {
@@ -1379,11 +1518,11 @@
         function updateAuthUI(user) {
             if (user) {
                 let profileImageHtml = '';
+                let profileImageSrc = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUserProfile ? currentUserProfile.username : 'R')}&background=e0e7ff&color=4338ca`;
                 if (currentUserProfile && currentUserProfile.photoURL) {
-                    profileImageHtml = `<img src="${currentUserProfile.photoURL}" alt="Profil" class="w-8 h-8 rounded-full object-cover">`;
-                } else {
-                    profileImageHtml = `<div class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center"><i data-lucide="user" class="w-5 h-5 text-gray-600"></i></div>`;
+                    profileImageSrc = currentUserProfile.photoURL;
                 }
+                profileImageHtml = `<img src="${profileImageSrc}" alt="Profil" class="w-8 h-8 rounded-full object-cover">`;
                 
                 authInfoSidebar.innerHTML = `
                     <div class="flex items-center space-x-3 mb-4">
@@ -1728,6 +1867,9 @@
             const categoryName = decodeURIComponent(location.hash.split('?id=')[1] || '');
             renderResources(categoryResourcesContainer, { category: categoryName }, e.target.value);
         });
+        
+        // NOUVEL ÉCOUTEUR POUR LE FILTRE
+        usersFilterToggle.addEventListener('change', renderUsersPage);
 
 
         // --- GESTION DE L'ÉDITEUR ET DU MODAL ---
