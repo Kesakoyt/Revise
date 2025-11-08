@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr" class="h-full bg-gray-100">
+<html lang="fr" class="h-full bg-slate-50">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -38,7 +38,7 @@
         }
         #toast.bg-red-500 { background-color: #ef4444; }
         #toast.bg-green-500 { background-color: #22c55e; }
-        #toast.bg-blue-500 { background-color: #3b82f6; }
+        #toast.bg-gray-800 { background-color: #1f2937; }
         
         /* Styles pour le contenu Quill en lecture seule (prose) */
         .prose .ql-editor {
@@ -51,7 +51,7 @@
         .prose .ql-editor h1 { font-size: 2.25em; }
         .prose .ql-editor h2 { font-size: 1.875em; }
         .prose .ql-editor h3 { font-size: 1.5em; }
-        .prose .ql-editor a { color: #2563eb; }
+        .prose .ql-editor a { color: #4f46e5; }
         .prose .ql-editor pre.ql-syntax {
             background-color: #2d2d2d;
             color: #f8f8f2;
@@ -59,26 +59,28 @@
             border-radius: 0.5em;
             overflow-x: auto;
         }
+        /* Cacher les étapes d'inscription par défaut */
+        .signup-step { display: none; }
     </style>
 </head>
 <body class="h-full font-sans antialiased">
     <div id="app-wrapper" class="relative flex h-full min-h-screen">
         
-        <!-- Sidebar (Menu principal) -->
-        <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 flex flex-col w-64 bg-gray-800 text-white transition-transform duration-300 ease-in-out -translate-x-full md:relative md:translate-x-0">
+        <!-- Sidebar (Menu principal) - NOUVEAU STYLE -->
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 flex flex-col w-64 bg-white text-slate-800 border-r border-slate-200 transition-transform duration-300 ease-in-out -translate-x-full md:relative md:translate-x-0 md:hidden">
             <!-- Logo -->
-            <div class="flex items-center justify-center h-16 px-4 bg-gray-900 shadow-md">
-                <i data-lucide="book-open-check" class="h-8 w-8 text-blue-400"></i>
-                <h1 class="ml-3 text-2xl font-bold">Révise</h1>
+            <div class="flex items-center justify-center h-16 px-4 border-b border-slate-200">
+                <i data-lucide="book-open-check" class="h-8 w-8 text-indigo-600"></i>
+                <h1 class="ml-3 text-2xl font-bold text-slate-800">Révise</h1>
             </div>
             
             <!-- Navigation principale -->
             <nav id="sidebar-nav" class="flex-1 overflow-y-auto px-2 py-4 space-y-1">
-                <a href="#home" class="flex items-center px-3 py-2 text-gray-300 rounded-md hover:bg-gray-700 hover:text-white" data-page-id="home-page">
+                <a href="#home" class="flex items-center px-3 py-2 text-slate-600 rounded-md hover:bg-indigo-50 hover:text-indigo-600" data-page-id="home-page">
                     <i data-lucide="home" class="h-5 w-5 mr-3"></i>
                     Accueil
                 </a>
-                <a href="#create" class="flex items-center px-3 py-2 text-gray-300 rounded-md hover:bg-gray-700 hover:text-white" data-page-id="create-page">
+                <a href="#create" class="flex items-center px-3 py-2 text-slate-600 rounded-md hover:bg-indigo-50 hover:text-indigo-600" data-page-id="create-page">
                     <i data-lucide="plus-circle" class="h-5 w-5 mr-3"></i>
                     Partager un cours
                 </a>
@@ -86,13 +88,13 @@
             </nav>
             
             <!-- Zone d'authentification (bas de sidebar) -->
-            <div id="auth-info-sidebar" class="p-4 border-t border-gray-700">
+            <div id="auth-info-sidebar" class="p-4 border-t border-slate-200">
                 <!-- Contenu mis à jour par JS (Bouton Connexion ou Infos utilisateur) -->
             </div>
         </aside>
 
         <!-- Contenu principal -->
-        <div class="flex-1 flex flex-col">
+        <div class="flex-1 flex flex-col w-full">
             <!-- Header (barre du haut sur mobile) -->
             <header class="sticky top-0 z-20 bg-white shadow-md md:hidden">
                 <div class="flex items-center justify-between px-4 h-16">
@@ -100,7 +102,7 @@
                         <i data-lucide="menu" class="h-6 w-6"></i>
                     </button>
                     <div class="flex items-center">
-                        <i data-lucide="book-open-check" class="h-6 w-6 text-blue-600"></i>
+                        <i data-lucide="book-open-check" class="h-6 w-6 text-indigo-600"></i>
                         <h1 class="ml-2 text-xl font-bold text-gray-800">Révise</h1>
                     </div>
                     <div class="w-6"></div> <!-- Espaceur -->
@@ -108,12 +110,12 @@
             </header>
 
             <!-- Zone d'affichage des pages -->
-            <main id="main-content" class="flex-1 p-4 md:p-8 bg-gray-100 overflow-y-auto">
+            <main id="main-content" class="flex-1 p-4 md:p-8 bg-slate-50 overflow-y-auto">
                 
                 <!-- Page de chargement -->
                 <section id="loading-page" class="page-content active">
                     <div class="flex items-center justify-center h-full">
-                        <svg class="animate-spin -ml-1 mr-3 h-10 w-10 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg class="animate-spin -ml-1 mr-3 h-10 w-10 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
@@ -127,7 +129,7 @@
                         <h2 class="text-3xl font-bold text-gray-900">Ressources Récentes</h2>
                         <!-- Barre de recherche Accueil -->
                         <div class="relative w-full md:w-72">
-                            <input type="search" id="home-search-input" placeholder="Rechercher une ressource..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <input type="search" id="home-search-input" placeholder="Rechercher une ressource..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"></i>
                         </div>
                     </div>
@@ -142,7 +144,7 @@
                         <h2 class="text-3xl font-bold text-gray-900" id="category-title">Catégorie</h2>
                         <!-- Barre de recherche Catégorie -->
                         <div class="relative w-full md:w-72">
-                            <input type="search" id="category-search-input" placeholder="Rechercher dans cette catégorie..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <input type="search" id="category-search-input" placeholder="Rechercher dans cette catégorie..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
                             <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"></i>
                         </div>
                     </div>
@@ -158,30 +160,37 @@
                     </div>
                 </section>
 
-                <!-- NOUVELLE PAGE: Détail de la Ressource -->
+                <!-- Page: Détail de la Ressource -->
                 <section id="resource-detail-page" class="page-content">
                     <div id="resource-detail-container" class="bg-white p-6 md:p-10 rounded-lg shadow-lg max-w-4xl mx-auto">
                         <!-- Le contenu de la ressource sera injecté ici par JS -->
                     </div>
                 </section>
 
-                <!-- Page d'Authentification -->
+                <!-- Page d'Authentification (MODIFIÉE) -->
                 <section id="auth-page" class="page-content max-w-md mx-auto mt-10">
-                    <!-- Formulaire de Connexion (visible par défaut) -->
+                    
+                    <!-- NOUVEAU: Logo au-dessus des formulaires -->
+                    <div class="flex justify-center items-center mb-6">
+                        <i data-lucide="book-open-check" class="h-10 w-10 text-indigo-600"></i>
+                        <h1 class="ml-3 text-3xl font-bold text-gray-800">Révise</h1>
+                    </div>
+                    
+                    <!-- Formulaire de Connexion -->
                     <div id="login-view">
                         <form id="login-form" class="bg-white p-8 rounded-lg shadow-lg">
                             <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Connexion</h2>
                             
                             <div class="mb-4">
                                 <label for="login-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                <input type="email" id="login-email" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                                <input type="email" id="login-email" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                             </div>
                             <div class="mb-6">
                                 <label for="login-password" class="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
-                                <input type="password" id="login-password" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                                <input type="password" id="login-password" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                             </div>
                             
-                            <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-150 ease-in-out">
+                            <button type="submit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-150 ease-in-out">
                                 Se connecter
                             </button>
                             
@@ -194,38 +203,101 @@
                             
                             <p class="text-center text-sm text-gray-600 mt-6">
                                 Pas encore de compte ? 
-                                <button type="button" id="show-signup-btn" class="font-medium text-blue-600 hover:text-blue-500">
+                                <button type="button" id="show-signup-btn" class="font-medium text-indigo-600 hover:text-indigo-500">
                                     Inscrivez-vous
                                 </button>
                             </p>
                         </form>
                     </div>
 
-                    <!-- Formulaire d'Inscription (caché par défaut) -->
+                    <!-- Formulaire d'Inscription en 3 Étapes -->
                     <div id="signup-view" class="hidden">
                         <form id="signup-form" class="bg-white p-8 rounded-lg shadow-lg">
-                            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Inscription</h2>
+                            <h2 class="text-2xl font-bold text-center text-gray-800 mb-4">Créer un compte</h2>
                             
-                            <div class="mb-4">
-                                <label for="signup-username" class="block text-sm font-medium text-gray-700 mb-1">Nom d'utilisateur</label>
-                                <input type="text" id="signup-username" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                            <div class="flex justify-between mb-6">
+                                <span id="progress-step-1" class="w-1/3 text-center py-2 border-b-4 border-indigo-600 font-semibold text-gray-800">Statut</span>
+                                <span id="progress-step-2" class="w-1/3 text-center py-2 border-b-4 border-gray-300 text-gray-400">Détails</span>
+                                <span id="progress-step-3" class="w-1/3 text-center py-2 border-b-4 border-gray-300 text-gray-400">Compte</span>
                             </div>
-                            <div class="mb-4">
-                                <label for="signup-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                <input type="email" id="signup-email" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+
+                            <!-- Étape 1: Choix du Statut -->
+                            <div id="signup-step-1" class="signup-step" style="display: block;">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Vous êtes :</label>
+                                <select id="signup-status" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option value="">-- Choisir un statut --</option>
+                                    <option value="eleve">Élève</option>
+                                    <option value="parent">Parent</option>
+                                    <option value="professeur">Professeur</option>
+                                </select>
+                                <button type="button" id="signup-next-1" class="mt-6 w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">
+                                    Suivant
+                                </button>
                             </div>
-                            <div class="mb-6">
-                                <label for="signup-password" class="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
-                                <input type="password" id="signup-password" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+
+                            <!-- Étape 2: Détails Privés -->
+                            <div id="signup-step-2" class="signup-step">
+                                <div class="mb-4">
+                                    <label for="signup-firstname" class="block text-sm font-medium text-gray-700 mb-1">Prénom</label>
+                                    <input type="text" id="signup-firstname" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                </div>
+                                <div class="mb-4">
+                                    <label for="signup-lastname" class="block text-sm font-medium text-gray-700 mb-1">Nom</label>
+                                    <input type="text" id="signup-lastname" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                </div>
+                                
+                                <div class="mb-4" id="signup-classe-container">
+                                    <label for="signup-classe" class="block text-sm font-medium text-gray-700 mb-1">Classe</label>
+                                    <select id="signup-classe" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                        <!-- Options de classe insérées par JS -->
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-4 hidden" id="signup-certification-container">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="signup-request-certification" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                                        <span class="ml-2 text-sm text-gray-700">Je suis un professeur et je demande la certification</span>
+                                    </label>
+                                    <p class="text-xs text-gray-500 mt-1">Un administrateur validera votre demande.</p>
+                                </div>
+
+                                <div class="flex justify-between mt-6">
+                                    <button type="button" id="signup-prev-2" class="bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">
+                                        Précédent
+                                    </button>
+                                    <button type="button" id="signup-next-2" class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">
+                                        Suivant
+                                    </button>
+                                </div>
                             </div>
-                            
-                            <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-150 ease-in-out">
-                                Créer un compte
-                            </button>
+
+                            <!-- Étape 3: Compte -->
+                            <div id="signup-step-3" class="signup-step">
+                                <div class="mb-4">
+                                    <label for="signup-username" class="block text-sm font-medium text-gray-700 mb-1">Pseudo (public)</label>
+                                    <input type="text" id="signup-username" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                </div>
+                                <div class="mb-4">
+                                    <label for="signup-email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                    <input type="email" id="signup-email" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                </div>
+                                <div class="mb-6">
+                                    <label for="signup-password" class="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+                                    <input type="password" id="signup-password" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                </div>
+                                <div class="flex justify-between mt-6">
+                                    <button type="button" id="signup-prev-3" class="bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">
+                                        Précédent
+                                    </button>
+                                    <button type="submit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">
+                                        Créer mon compte
+                                    </button>
+                                </div>
+                            </div>
                             
                             <p class="text-center text-sm text-gray-600 mt-6">
                                 Déjà un compte ? 
-                                <button type="button" id="show-login-btn" class="font-medium text-blue-600 hover:text-blue-500">
+                                <button type="button" id="show-login-btn" class="font-medium text-indigo-600 hover:text-indigo-500">
                                     Connectez-vous
                                 </button>
                             </p>
@@ -239,7 +311,7 @@
                         <h2 class="text-3xl font-bold text-gray-900 mb-6">Partager un cours</h2>
                         <!-- Conteneur de l'éditeur Quill -->
                         <div id="editor-container"></div>
-                        <button id="open-metadata-modal-btn" class="mt-6 w-full md:w-auto bg-blue-600 text-white py-2 px-6 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-150 ease-in-out">
+                        <button id="open-metadata-modal-btn" class="mt-6 w-full md:w-auto bg-indigo-600 text-white py-2 px-6 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-150 ease-in-out">
                             Suivant
                         </button>
                     </div>
@@ -254,51 +326,78 @@
         <div class="bg-white p-8 rounded-lg shadow-xl max-w-lg w-full m-4">
             <h2 class="text-2xl font-bold text-gray-800 mb-6">Finaliser la ressource</h2>
             <form id="create-resource-form">
-                <!-- Titre -->
                 <div class="mb-4">
                     <label for="resource-title" class="block text-sm font-medium text-gray-700 mb-1">Titre</label>
-                    <input type="text" id="resource-title" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <input type="text" id="resource-title" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                 </div>
                 
-                <!-- Catégorie (Menu déroulant) -->
                 <div class="mb-4">
                     <label for="resource-category" class="block text-sm font-medium text-gray-700 mb-1">Catégorie</d-iv>
-                    <select id="resource-category" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <select id="resource-category" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                         <!-- Options de catégories chargées par JS -->
                     </select>
                 </div>
                 
-                <!-- Sous-catégorie (Menu déroulant) -->
                 <div class="mb-4">
                     <label for="resource-subcategory" class="block text-sm font-medium text-gray-700 mb-1">Sous-catégorie</label>
-                    <select id="resource-subcategory" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <select id="resource-subcategory" required class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                         <!-- Options de sous-catégories chargées par JS -->
                     </select>
                 </div>
 
-                <!-- Téléversement d'image (conditionnel) -->
                 <div id="image-upload-container" class="mb-6 hidden">
-                    <label for="resource-image" class="block text-sm font-medium text-gray-700 mb-1">Image de couverture (optionnel)</label>
-                    <input type="file" id="resource-image" accept="image/*" class="w-full text-sm text-gray-500
-                        file:mr-4 file:py-2 file:px-4
-                        file:rounded-md file:border-0
-                        file:text-sm file:font-semibold
-                        file:bg-blue-50 file:text-blue-700
-                        hover:file:bg-blue-100
-                    ">
-                    <p class="text-xs text-gray-500 mt-1">Seuls les utilisateurs certifiés peuvent ajouter des images.</p>
+                    <label for="resource-image" class="block text-sm font-medium text-gray-700 mb-1">Lien de l'image de couverture (optionnel)</label>
+                    <input type="url" id="resource-image" placeholder="https://..." class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <p class="text-xs text-gray-500 mt-1">Lien vers une image (utilisateurs certifiés uniquement).</p>
                 </div>
                 
-                <!-- Boutons d'action -->
                 <div class="flex justify-end space-x-4">
                     <button type="button" id="close-metadata-modal-btn" class="bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">
                         Annuler
                     </button>
-                    <button type="submit" id="submit-resource-btn" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
+                    <button type="submit" id="submit-resource-btn" class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">
                         Publier
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- MODAL GÉNÉRIQUE: Pour URL (Image, Vidéo, Lien) -->
+    <div id="quill-url-modal" class="fixed inset-0 z-50 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full m-4">
+            <h2 id="quill-url-modal-title" class="text-xl font-bold text-gray-800 mb-4">Insérer un lien</h2>
+            <div class="mb-4">
+                <label for="quill-url-input" class="block text-sm font-medium text-gray-700 mb-1">Coller l'URL</label>
+                <input type="url" id="quill-url-input" placeholder="https://..." class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <div class="flex justify-end space-x-4">
+                <button type="button" id="cancel-quill-url-btn" class="bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">
+                    Annuler
+                </button>
+                <button type="button" id="insert-quill-url-btn" class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">
+                    Insérer
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- MODAL: Pour Formules Mathématiques -->
+    <div id="formula-modal" class="fixed inset-0 z-50 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full m-4">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Insérer une formule (format LaTeX)</h2>
+            <div class="mb-4">
+                <label for="formula-input" class="block text-sm font-medium text-gray-700 mb-1">Formule</label>
+                <textarea id="formula-input" rows="4" placeholder="\frac{-b \pm \sqrt{b^2-4ac}}{2a}" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-mono"></textarea>
+            </div>
+            <div class="flex justify-end space-x-4">
+                <button type="button" id="cancel-formula-btn" class="bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">
+                    Annuler
+                </button>
+                <button type="button" id="insert-formula-btn" class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">
+                    Insérer
+                </button>
+            </div>
         </div>
     </div>
 
@@ -335,19 +434,13 @@
             arrayRemove,
             increment
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { 
-            getStorage, 
-            ref, 
-            uploadBytes, 
-            getDownloadURL 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
         
         // --- Configuration Firebase ---
         const firebaseConfig = {
             apiKey: "AIzaSyA102dFxJqH9b16CsETTw9aVq3F5qjgDXw",
             authDomain: "revise-49500.firebaseapp.com",
             projectId: "revise-49500",
-            storageBucket: "revise-49500.appspot.com", // Utiliser appspot.com pour le SDK
+            storageBucket: "revise-49500.appspot.com",
             messagingSenderId: "535837483111",
             appId: "1:535837483111:web:678016b8fec414b4aaf4c2",
             measurementId: "G-SSQMR2W036"
@@ -357,15 +450,22 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const storage = getStorage(app);
         
         console.log("Configuration Firebase utilisée :", firebaseConfig);
 
-        // --- Chemins Firestore ---
-        const appId = firebaseConfig.projectId; // Utiliser le projectId comme appId
-        const usersCollectionPath = `artifacts/${appId}/public/data/users`;
+        // --- Chemins Firestore (MODIFIÉ) ---
+        const appId = firebaseConfig.projectId;
+        const publicUsersCollectionPath = `artifacts/${appId}/public/data/users`;
+        const privateUsersCollectionPath = `artifacts/${appId}/users`;
         const resourcesCollectionPath = `artifacts/${appId}/public/data/resources`;
 
+        // --- Listes de données ---
+        const CLASSES_LIST = [
+            "6ème", "5ème", "4ème", "3ème", 
+            "Seconde", "Première", "Terminale", 
+            "Autre (Collège)", "Autre (Lycée)", "Études Supérieures"
+        ];
+        
         // --- Éléments DOM ---
         const sidebar = document.getElementById('sidebar');
         const authInfoSidebar = document.getElementById('auth-info-sidebar');
@@ -379,28 +479,49 @@
         const profilePage = document.getElementById('profile-page');
         const createPage = document.getElementById('create-page');
         const loadingPage = document.getElementById('loading-page');
-        const resourceDetailPage = document.getElementById('resource-detail-page'); // NOUVEAU
+        const resourceDetailPage = document.getElementById('resource-detail-page');
 
         // Conteneurs de page
         const homeResourcesContainer = document.getElementById('home-resources-container');
         const categoryResourcesContainer = document.getElementById('category-resources-container');
         const categoryTitle = document.getElementById('category-title');
         const profileContainer = document.getElementById('profile-container');
-        const resourceDetailContainer = document.getElementById('resource-detail-container'); // NOUVEAU
+        const resourceDetailContainer = document.getElementById('resource-detail-container');
         
         // Barres de recherche
         const homeSearchInput = document.getElementById('home-search-input');
         const categorySearchInput = document.getElementById('category-search-input');
         
-        // Formulaires Auth
+        // --- Éléments DOM Auth (MODIFIÉ) ---
         const loginForm = document.getElementById('login-form');
-        const signupForm = document.getElementById('signup-form');
-        const logoutBtn = document.getElementById('logout-btn'); // Note: ce bouton est créé dynamiquement
         const googleAuthBtn = document.getElementById('google-auth-btn');
         const showSignupBtn = document.getElementById('show-signup-btn');
-        const showLoginBtn = document.getElementById('show-login-btn');
         
-        // Éléments DOM pour le Modal
+        const signupView = document.getElementById('signup-view');
+        const loginView = document.getElementById('login-view');
+        const showLoginBtn = signupView.querySelector('#show-login-btn');
+        
+        const signupForm = document.getElementById('signup-form');
+        const signupSteps = document.querySelectorAll('.signup-step');
+        
+        const signupStatus = document.getElementById('signup-status');
+        const signupNext1 = document.getElementById('signup-next-1');
+        
+        const signupFirstname = document.getElementById('signup-firstname');
+        const signupLastname = document.getElementById('signup-lastname');
+        const signupClasseContainer = document.getElementById('signup-classe-container');
+        const signupClasse = document.getElementById('signup-classe');
+        const signupCertificationContainer = document.getElementById('signup-certification-container');
+        const signupRequestCertification = document.getElementById('signup-request-certification');
+        const signupPrev2 = document.getElementById('signup-prev-2');
+        const signupNext2 = document.getElementById('signup-next-2');
+        
+        const signupUsername = document.getElementById('signup-username');
+        const signupEmail = document.getElementById('signup-email');
+        const signupPassword = document.getElementById('signup-password');
+        const signupPrev3 = document.getElementById('signup-prev-3');
+
+        // Éléments DOM Modals
         const metadataModal = document.getElementById('metadata-modal');
         const openModalBtn = document.getElementById('open-metadata-modal-btn');
         const closeModalBtn = document.getElementById('close-metadata-modal-btn');
@@ -411,21 +532,29 @@
         const imageInput = document.getElementById('resource-image');
         const imageUploadContainer = document.getElementById('image-upload-container');
         const submitResourceBtn = document.getElementById('submit-resource-btn');
-
-        // Toast
+        const quillUrlModal = document.getElementById('quill-url-modal');
+        const quillUrlModalTitle = document.getElementById('quill-url-modal-title');
+        const quillUrlInput = document.getElementById('quill-url-input');
+        const cancelQuillUrlBtn = document.getElementById('cancel-quill-url-btn');
+        const insertQuillUrlBtn = document.getElementById('insert-quill-url-btn');
+        const formulaModal = document.getElementById('formula-modal');
+        const formulaInput = document.getElementById('formula-input');
+        const cancelFormulaBtn = document.getElementById('cancel-formula-btn');
+        const insertFormulaBtn = document.getElementById('insert-formula-btn');
         const toast = document.getElementById('toast');
 
         // --- État de l'application ---
         let currentUserId = null;
         let currentUserProfile = null;
-        let categoriesData = []; // Stocke les données de categories.json
-        let quillEditor = null; // Instance de l'éditeur Quill
-        
-        // Cache pour les ressources et les utilisateurs
+        let categoriesData = [];
+        let quillEditor = null;
+        let currentQuillHandler = null;
         let allResources = [];
         let allUsersData = {};
+        
+        let tempSignupData = {};
 
-        // --- Données des catégories (déplacées depuis categories.json) ---
+        // --- Données des catégories ---
         categoriesData = [
           { "name": "Mathématiques", "icon": "calculator", "subcategories": ["Algèbre", "Géométrie", "Analyse", "Probabilités", "Statistiques"] },
           { "name": "Sciences Physiques", "icon": "atom", "subcategories": ["Mécanique", "Électricité", "Optique", "Chimie Organique", "Chimie Inorganique"] },
@@ -437,9 +566,6 @@
 
         // --- Fonctions utilitaires ---
 
-        /**
-         * Formate un nombre (ex: 1000 -> 1k, 3300 -> 3.3k)
-         */
         function formatNumber(num) {
             if (!num) return '0';
             if (num < 1000) {
@@ -453,9 +579,6 @@
             return result.endsWith('.0') ? (num / 1000000).toFixed(0) + 'M' : result + 'M';
         }
 
-        /**
-         * Affiche une "page" et cache les autres
-         */
         function showPage(pageId) {
             document.querySelectorAll('.page-content').forEach(page => {
                 page.classList.remove('active');
@@ -469,21 +592,24 @@
                 initializeQuill();
             }
             
+            if (pageId === 'auth-page') {
+                showSignupStep(1);
+                loginView.style.display = 'block';
+                signupView.classList.add('hidden');
+            }
+            
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
             }
         }
 
-        /**
-         * Affiche un message toast (notification)
-         */
         function showToast(message, type = 'info') {
-            let bgColor = 'bg-blue-500'; // info
+            let bgColor = 'bg-gray-800';
             if (type === 'error') bgColor = 'bg-red-500';
             if (type === 'success') bgColor = 'bg-green-500';
             
             toast.textContent = message;
-            toast.className = ''; // Reset classes
+            toast.className = '';
             toast.classList.add(bgColor, 'show');
             
             setTimeout(() => {
@@ -495,12 +621,16 @@
         async function router() {
             const hash = location.hash || '#home';
             const [page, param] = hash.split('?id=');
+
+            if (!currentUserId && page !== '#auth') {
+                location.hash = '#auth';
+                return;
+            }
             
             if (sidebar.classList.contains('translate-x-0')) {
                 sidebar.classList.add('-translate-x-full');
             }
 
-            // Réinitialiser les barres de recherche
             homeSearchInput.value = '';
             categorySearchInput.value = '';
 
@@ -533,7 +663,6 @@
                         showPage('create-page');
                     }
                     break;
-                // NOUVEAU CAS POUR LE ROUTEUR
                 case '#resource':
                     showPage('resource-detail-page');
                     await renderResourceDetail(param);
@@ -546,9 +675,6 @@
 
         // --- RENDU DES RESSOURCES ---
 
-        /**
-         * Charge les ressources depuis Firestore et les met en cache
-         */
         async function fetchAllResourcesOnce() {
             if (allResources.length > 0) {
                 return false; 
@@ -565,11 +691,20 @@
                 
                 const userIds = [...new Set(resources.map(r => r.authorId))];
                 if (userIds.length > 0) {
-                    const usersQuery = query(collection(db, usersCollectionPath), where("uid", "in", userIds));
-                    const usersSnapshot = await getDocs(usersQuery);
-                    usersSnapshot.forEach(doc => {
-                        allUsersData[doc.data().uid] = doc.data();
-                    });
+                    const chunks = [];
+                    for (let i = 0; i < userIds.length; i += 30) {
+                        chunks.push(userIds.slice(i, i + 30));
+                    }
+                    
+                    for (const chunk of chunks) {
+                        if (chunk.length > 0) {
+                            const usersQuery = query(collection(db, publicUsersCollectionPath), where("uid", "in", chunk));
+                            const usersSnapshot = await getDocs(usersQuery);
+                            usersSnapshot.forEach(doc => {
+                                allUsersData[doc.data().uid] = doc.data();
+                            });
+                        }
+                    }
                 }
                 
                 resources.sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
@@ -583,9 +718,6 @@
             }
         }
 
-        /**
-         * Fonction principale pour charger ET afficher les ressources
-         */
         async function loadAndDisplayResources(container, filters = {}) {
             if (!container) return;
             container.innerHTML = '<p class="text-gray-500">Chargement des ressources...</p>';
@@ -600,9 +732,6 @@
             }
         }
         
-        /**
-         * Affiche les ressources depuis le cache, en appliquant filtres et recherche.
-         */
         function renderResources(container, filters = {}, searchTerm = '') {
             if (!container) return;
             
@@ -657,19 +786,33 @@
          */
         function createResourceCard(resource, author) {
             const card = document.createElement('div');
-            card.className = 'bg-white rounded-lg shadow-lg overflow-hidden transition-shadow duration-300 hover:shadow-xl';
+            // MODIFIÉ: Ajout de 'cursor-pointer' pour la carte cliquable
+            card.className = 'bg-white rounded-lg shadow-lg overflow-hidden transition-shadow duration-300 hover:shadow-xl cursor-pointer';
+            
+            // NOUVELLE LOGIQUE: Ouvre la page de détail au clic sur la carte
+            card.addEventListener('click', (e) => {
+                // Empêche la navigation si on clique sur un lien ou un bouton
+                if (e.target.closest('a') || e.target.closest('button')) {
+                    return;
+                }
+                location.hash = `#resource?id=${resource.id}`;
+            });
             
             let imageHtml = '';
             if (resource.imageUrl) {
                 imageHtml = `<img src="${resource.imageUrl}" alt="${resource.title}" class="h-48 w-full object-cover">`;
             }
 
+            // NOUVELLE ICÔNE: Remplacement de 'data-lucide' par 'img'
+            const liked = resource.likes?.includes(currentUserId);
+            const likeIconSrc = "https://img.icons8.com/fluency/48/facebook-like.png";
+
             card.innerHTML = `
                 ${imageHtml}
                 <div class="p-6">
-                    <span class="text-xs font-semibold text-blue-600 uppercase">${resource.category} > ${resource.subcategory}</span>
-                    <!-- TITRE CLiquable -->
-                    <a href="#resource?id=${resource.id}" class="block text-2xl font-bold text-gray-900 mt-2 mb-3 hover:text-blue-600 transition-colors">
+                    <span class="text-xs font-semibold text-indigo-600 uppercase">${resource.category} > ${resource.subcategory}</span>
+                    <!-- Le titre est toujours un lien, mais la carte entière est cliquable -->
+                    <a href="#resource?id=${resource.id}" class="block text-2xl font-bold text-gray-900 mt-2 mb-3 hover:text-indigo-600 transition-colors">
                         ${resource.title}
                     </a>
                     
@@ -679,11 +822,11 @@
                     </div>
                     
                     <div class="flex items-center justify-between mt-4">
-                        <a href="#profile?id=${resource.authorId}" class="text-sm font-medium text-gray-800 hover:text-blue-600">
+                        <a href="#profile?id=${resource.authorId}" class="text-sm font-medium text-gray-800 hover:text-indigo-600">
                             Par ${author ? author.username : 'Anonyme'}
                         </a>
-                        <button class="like-btn flex items-center space-x-1 text-gray-500 hover:text-red-500" data-resource-id="${resource.id}">
-                            <i data-lucide="heart" class="h-5 w-5 ${resource.likes?.includes(currentUserId) ? 'fill-current text-red-500' : ''}"></i>
+                        <button class="like-btn flex items-center space-x-1 text-gray-500 hover:text-indigo-600" data-resource-id="${resource.id}">
+                            <img src="${likeIconSrc}" class="h-5 w-5 ${liked ? '' : 'grayscale opacity-60'}"/>
                             <span>${resource.likes?.length || 0}</span>
                         </button>
                     </div>
@@ -703,11 +846,8 @@
             return card;
         }
 
-        // --- NOUVELLE FONCTION: AFFICHAGE DÉTAILLÉ ---
+        // --- AFFICHAGE DÉTAILLÉ ---
         
-        /**
-         * Affiche une ressource unique en plein écran
-         */
         async function renderResourceDetail(resourceId) {
             if (!resourceId) {
                 resourceDetailContainer.innerHTML = '<p class="text-red-500">Aucune ressource spécifiée.</p>';
@@ -716,10 +856,8 @@
             resourceDetailContainer.innerHTML = '<p class="text-gray-500">Chargement de la ressource...</p>';
 
             try {
-                // 1. S'assurer que les données sont chargées
                 await fetchAllResourcesOnce();
                 
-                // 2. Trouver la ressource et l'auteur dans le cache
                 const resource = allResources.find(r => r.id === resourceId);
                 const author = resource ? allUsersData[resource.authorId] : null;
 
@@ -728,46 +866,44 @@
                     return;
                 }
 
-                // 3. Construire le HTML
                 let imageHtml = '';
                 if (resource.imageUrl) {
                     imageHtml = `<img src="${resource.imageUrl}" alt="${resource.title}" class="h-64 w-full object-cover rounded-lg mb-6">`;
                 }
+                
+                // NOUVELLE ICÔNE:
+                const liked = resource.likes?.includes(currentUserId);
+                const likeIconSrc = "https://img.icons8.com/fluency/48/facebook-like.png";
 
                 resourceDetailContainer.innerHTML = `
-                    <!-- Bouton Retour -->
-                    <button onclick="window.history.back()" class="flex items-center text-sm font-medium text-blue-600 hover:text-blue-800 mb-6">
+                    <button onclick="window.history.back()" class="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800 mb-6">
                         <i data-lucide="arrow-left" class="h-4 w-4 mr-1"></i>
                         Retour
                     </button>
                 
                     ${imageHtml}
                     
-                    <!-- Titre -->
                     <h1 class="text-4xl font-bold text-gray-900 mb-4">${resource.title}</h1>
                     
-                    <!-- Métadonnées (Auteur, Catégorie, Likes) -->
                     <div class="flex flex-wrap items-center justify-between text-gray-600 mb-6 border-y py-4">
                         <div class="flex items-center space-x-2">
                             <i data-lucide="user" class="h-4 w-4"></i>
-                            <span>Par <a href="#profile?id=${author.uid}" class="font-medium hover:text-blue-600">${author.username}</a></span>
+                            <span>Par <a href="#profile?id=${author.uid}" class="font-medium hover:text-indigo-600">${author.username}</a></span>
                             <span class="text-gray-300">|</span>
                             <i data-lucide="folder" class="h-4 w-4"></i>
-                            <span><a href="#category?id=${encodeURIComponent(resource.category)}" class="font-medium hover:text-blue-600">${resource.category}</a></span>
+                            <span><a href="#category?id=${encodeURIComponent(resource.category)}" class="font-medium hover:text-indigo-600">${resource.category}</a></span>
                         </div>
-                        <button class="like-btn flex items-center space-x-1 text-gray-500 hover:text-red-500" data-resource-id="${resource.id}">
-                            <i data-lucide="heart" class="h-5 w-5 ${resource.likes?.includes(currentUserId) ? 'fill-current text-red-500' : ''}"></i>
+                        <button class="like-btn flex items-center space-x-1 text-gray-500 hover:text-indigo-600" data-resource-id="${resource.id}">
+                            <img src="${likeIconSrc}" class="h-5 w-5 ${liked ? '' : 'grayscale opacity-60'}"/>
                             <span>${resource.likes?.length || 0}</span>
                         </button>
                     </div>
 
-                    <!-- Contenu complet (Quill) -->
                     <div class="prose prose-lg max-w-none ql-snow">
                         <div class="ql-editor">${resource.textContentHtml}</div>
                     </div>
                 `;
 
-                // 4. Ajouter l'écouteur pour le bouton "Like"
                 resourceDetailContainer.querySelector('.like-btn').addEventListener('click', async (e) => {
                     e.stopPropagation();
                     if (!currentUserId) {
@@ -778,7 +914,6 @@
                     await toggleLike(resource.id, e.currentTarget, resource);
                 });
 
-                // 5. Rafraîchir les icônes
                 if (typeof lucide !== 'undefined') {
                     lucide.createIcons();
                 }
@@ -792,12 +927,9 @@
 
         // --- GESTION LIKE / ABONNEMENT ---
 
-        /**
-         * Gère le clic sur le bouton "like".
-         */
         async function toggleLike(resourceId, buttonElement, resource) {
             const resourceRef = doc(db, resourcesCollectionPath, resourceId);
-            const icon = buttonElement.querySelector('i');
+            const iconImg = buttonElement.querySelector('img'); // NOUVEAU: Cible l'image
             const countSpan = buttonElement.querySelector('span');
             
             const isLiked = resource.likes?.includes(currentUserId);
@@ -805,7 +937,7 @@
             try {
                 if (isLiked) {
                     // Un-like
-                    icon.classList.remove('fill-current', 'text-red-500');
+                    iconImg.classList.add('grayscale', 'opacity-60'); // NOUVEAU: Style non-liké
                     resource.likes = resource.likes.filter(id => id !== currentUserId);
                     countSpan.textContent = resource.likes.length;
                     await updateDoc(resourceRef, {
@@ -813,7 +945,7 @@
                     });
                 } else {
                     // Like
-                    icon.classList.add('fill-current', 'text-red-500');
+                    iconImg.classList.remove('grayscale', 'opacity-60'); // NOUVEAU: Style liké
                     if (!resource.likes) resource.likes = [];
                     resource.likes.push(currentUserId);
                     countSpan.textContent = resource.likes.length;
@@ -827,9 +959,6 @@
             }
         }
         
-        /**
-         * Gère le clic sur le bouton "s'abonner" (avec compteur).
-         */
         async function toggleSubscription(targetUserId, buttonElement) {
             if (!currentUserId) {
                 showToast("Vous devez être connecté.", "error");
@@ -840,32 +969,29 @@
                 return;
             }
 
-            const currentUserRef = doc(db, usersCollectionPath, currentUserId);
-            const targetUserRef = doc(db, usersCollectionPath, targetUserId); // Réf de l'utilisateur cible
+            const currentUserRef = doc(db, publicUsersCollectionPath, currentUserId);
+            const targetUserRef = doc(db, publicUsersCollectionPath, targetUserId);
             const isSubscribed = currentUserProfile.following?.includes(targetUserId);
 
             try {
                 if (isSubscribed) {
-                    // Se désabonner
                     await updateDoc(currentUserRef, { following: arrayRemove(targetUserId) });
-                    await updateDoc(targetUserRef, { followerCount: increment(-1) }); // Décrémenter
+                    await updateDoc(targetUserRef, { followerCount: increment(-1) });
                     
                     currentUserProfile.following = currentUserProfile.following.filter(id => id !== targetUserId);
                     buttonElement.textContent = "S'abonner";
-                    buttonElement.classList.replace('bg-gray-500', 'bg-blue-600');
-                    buttonElement.classList.replace('hover:bg-gray-600', 'hover:bg-blue-700');
+                    buttonElement.classList.replace('bg-gray-500', 'bg-indigo-600');
+                    buttonElement.classList.replace('hover:bg-gray-600', 'hover:bg-indigo-700');
                 } else {
-                    // S'abonner
                     await updateDoc(currentUserRef, { following: arrayUnion(targetUserId) });
-                    await updateDoc(targetUserRef, { followerCount: increment(1) }); // Incrémenter
+                    await updateDoc(targetUserRef, { followerCount: increment(1) });
                     
                     currentUserProfile.following = [...(currentUserProfile.following || []), targetUserId];
                     buttonElement.textContent = "Abonné";
-                    buttonElement.classList.replace('bg-blue-600', 'bg-gray-500');
-                    buttonElement.classList.replace('hover:bg-blue-700', 'hover:bg-gray-600');
+                    buttonElement.classList.replace('bg-indigo-600', 'bg-gray-500');
+                    buttonElement.classList.replace('hover:bg-indigo-700', 'hover:bg-gray-600');
                 }
                 
-                // Mettre à jour localement le profil (pour le compteur)
                 const targetProfile = allUsersData[targetUserId];
                 if (targetProfile) {
                     targetProfile.followerCount = (targetProfile.followerCount || 0) + (isSubscribed ? -1 : 1);
@@ -881,11 +1007,8 @@
         }
 
 
-        // --- RENDU PROFIL ---
+        // --- RENDU PROFIL (MODIFIÉ) ---
         
-        /**
-         * Affiche le profil (avec compteur et badge image).
-         */
         async function renderProfile(userId) {
             if (!userId) {
                 profileContainer.innerHTML = '<p class="text-red-500">Aucun utilisateur spécifié.</p>';
@@ -894,8 +1017,7 @@
             profileContainer.innerHTML = '<p class="text-gray-500">Chargement du profil...</p>';
 
             try {
-                // 1. Récupérer le profil
-                const userRef = doc(db, usersCollectionPath, userId);
+                const userRef = doc(db, publicUsersCollectionPath, userId);
                 const userSnap = await getDoc(userRef);
 
                 if (!userSnap.exists()) {
@@ -904,20 +1026,25 @@
                 }
                 
                 const profile = userSnap.data();
-                allUsersData[userId] = profile; // Mettre à jour le cache
+                allUsersData[userId] = profile;
 
-                // 2. Vérifier l'état d'abonnement
                 let subscribeButtonHtml = '';
                 if (currentUserId && currentUserId !== userId) {
                     const isSubscribed = currentUserProfile.following?.includes(userId);
                     subscribeButtonHtml = `
-                        <button id="subscribe-btn" class="ml-4 px-4 py-2 rounded-md text-white ${isSubscribed ? 'bg-gray-500 hover:bg-gray-600' : 'bg-blue-600 hover:bg-blue-700'}">
+                        <button id="subscribe-btn" class="ml-4 px-4 py-2 rounded-md text-white ${isSubscribed ? 'bg-gray-500 hover:bg-gray-600' : 'bg-indigo-600 hover:bg-indigo-700'}">
                             ${isSubscribed ? 'Abonné' : "S'abonner"}
                         </button>
                     `;
                 }
 
-                // 3. Afficher les infos du profil
+                let certificationHtml = '';
+                if (profile.certification) {
+                    certificationHtml = `<img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="w-5 h-5 ml-2" title="Utilisateur certifié">`;
+                } else if (profile.certificationPending) {
+                    certificationHtml = `<span class="ml-2 text-xs font-medium bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">En attente</span>`;
+                }
+                
                 profileContainer.innerHTML = `
                     <div class="flex flex-col md:flex-row items-center mb-6">
                         <div class="flex-shrink-0 w-24 h-24 bg-gray-300 rounded-full flex items-center justify-center mb-4 md:mb-0">
@@ -926,17 +1053,12 @@
                         <div class="md:ml-6 text-center md:text-left">
                             <div class="flex items-center justify-center md:justify-start">
                                 <h2 class="text-3xl font-bold text-gray-900">${profile.username}</h2>
-                                ${profile.certification ? `
-                                    <img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="w-5 h-5 ml-2" title="Utilisateur certifié">
-                                ` : ''}
+                                ${certificationHtml}
                             </div>
-                            <p class="text-gray-600">
-                                Membre depuis ${profile.createdAt?.toDate().toLocaleDateString('fr-FR') || 'Date inconnue'}
-                            </p>
+                            
                             <p class="text-gray-500 font-semibold">
                                 ${formatNumber(profile.followerCount || 0)} Abonnés
                             </p>
-                            <p class="text-sm text-gray-500">UserID: ${profile.uid}</p>
                         </div>
                         <div class="mt-4 md:mt-0 md:ml-auto">
                             ${subscribeButtonHtml}
@@ -958,13 +1080,11 @@
                     </div>
                 `;
                 
-                // 4. Écouteur pour le bouton d'abonnement
                 const subBtn = document.getElementById('subscribe-btn');
                 if (subBtn) {
                     subBtn.addEventListener('click', () => toggleSubscription(userId, subBtn));
                 }
 
-                // 5. Charger les ressources de cet utilisateur
                 const userResourcesContainer = document.getElementById('profile-resources-container');
                 await fetchAllResourcesOnce();
                 const userResources = allResources.filter(r => r.authorId === userId);
@@ -992,13 +1112,10 @@
 
         // --- AUTHENTIFICATION ---
 
-        /**
-         * Met à jour l'interface utilisateur en fonction de l'état de connexion.
-         */
         function updateAuthUI(user) {
             if (user) {
                 authInfoSidebar.innerHTML = `
-                    <a href="#profile?id=${user.uid}" class="block text-center font-medium text-gray-200 hover:text-white mb-4">
+                    <a href="#profile?id=${user.uid}" class="block text-center font-medium text-slate-700 hover:text-indigo-600 mb-4">
                         ${currentUserProfile ? currentUserProfile.username : 'Chargement...'}
                     </a>
                     <button id="logout-btn" class="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700">
@@ -1008,9 +1125,6 @@
                 document.getElementById('logout-btn').addEventListener('click', async () => {
                     await signOut(auth);
                     showToast("Déconnexion réussie.", "success");
-                    location.hash = '#home';
-                    allResources = [];
-                    allUsersData = {};
                 });
                 
                 if (currentUserProfile && currentUserProfile.certification) {
@@ -1021,7 +1135,7 @@
                 
             } else {
                 authInfoSidebar.innerHTML = `
-                    <a href="#auth" class="w-full text-center block bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
+                    <a href="#auth" class="w-full text-center block bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">
                         Connexion / Inscription
                     </a>
                 `;
@@ -1033,63 +1147,106 @@
             }
         }
 
-        /**
-         * Crée un profil utilisateur (avec followerCount).
-         */
-        async function createUserProfile(uid, email, username) {
-            const userRef = doc(db, usersCollectionPath, uid);
+        async function createMultiPartUserProfile(uid, email, data, username) {
+            
+            const publicUserRef = doc(db, publicUsersCollectionPath, uid);
+            const publicData = {
+                uid: uid,
+                username: username,
+                status: data.status,
+                createdAt: Timestamp.now(),
+                certification: false,
+                certificationPending: data.requestCertification || false,
+                badges: [],
+                following: [],
+                followerCount: 0
+            };
+
+            const privateUserRef = doc(db, privateUsersCollectionPath, uid, "private_data", "details");
+            const privateData = {
+                uid: uid,
+                email: email,
+                firstname: data.firstname,
+                lastname: data.lastname,
+                classe: data.classe || null
+            };
+
             try {
-                await setDoc(userRef, {
-                    uid: uid,
-                    email: email,
-                    username: username,
-                    createdAt: Timestamp.now(),
-                    certification: false,
-                    badges: [],
-                    following: [],
-                    followerCount: 0 // Initialisation du compteur
-                });
+                await setDoc(publicUserRef, publicData);
+                await setDoc(privateUserRef, privateData);
+                
+                currentUserProfile = publicData; 
+                
             } catch (error) {
-                console.error("Erreur création profil:", error);
+                console.error("Erreur création profil (multi-part):", error);
                 showToast("Erreur lors de la création du profil.", "error");
             }
         }
 
-        // Écouteur principal de l'état d'authentification
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUserId = user.uid;
-                const userRef = doc(db, usersCollectionPath, user.uid);
+                const userRef = doc(db, publicUsersCollectionPath, user.uid);
                 const docSnap = await getDoc(userRef);
                 
                 if (docSnap.exists()) {
                     currentUserProfile = docSnap.data();
                 } else {
-                    const username = user.displayName || user.email.split('@')[0];
-                    await createUserProfile(user.uid, user.email, username);
-                    currentUserProfile = { 
-                        uid: user.uid, 
-                        email: user.email, 
-                        username: username, 
-                        certification: false, 
-                        following: [], 
-                        followerCount: 0 
-                    };
+                    if (user.providerData.some(p => p.providerId === 'google.com')) {
+                        const publicRef = doc(db, publicUsersCollectionPath, user.uid);
+                        currentUserProfile = {
+                            uid: user.uid,
+                            username: user.displayName || user.email.split('@')[0],
+                            status: "Non défini",
+                            createdAt: Timestamp.now(),
+                            certification: false,
+                            certificationPending: false,
+                            following: [],
+                            followerCount: 0
+                        };
+                        await setDoc(publicRef, currentUserProfile);
+                        
+                        const privateRef = doc(db, privateUsersCollectionPath, user.uid, "private_data", "details");
+                        await setDoc(privateRef, {
+                            uid: user.uid,
+                            email: user.email,
+                            firstname: user.displayName,
+                            lastname: "",
+                            classe: null
+                        });
+                        
+                        showToast("Profil Google créé !", "success");
+                    }
                 }
                 
+                sidebar.classList.remove('md:hidden');
+                document.querySelector('.flex-1.flex.flex-col').classList.remove('w-full');
+                
                 updateAuthUI(user);
+                
+                if (location.hash === '#create') {
+                    initializeQuill(); 
+                }
                 
                 if (location.hash === '#auth') {
                     location.hash = '#home';
                 }
+                
+                router();
+                
             } else {
                 currentUserId = null;
                 currentUserProfile = null;
                 updateAuthUI(null);
+                
+                sidebar.classList.add('md:hidden');
+                sidebar.classList.add('-translate-x-full');
+                document.querySelector('.flex-1.flex.flex-col').classList.add('w-full');
+                
+                location.hash = '#auth';
+                showPage('auth-page');
             }
-            router();
             
-            // Mettre à jour les "likes" sur la page actuelle
             if (location.hash === '#home') {
                 renderResources(homeResourcesContainer, {}, homeSearchInput.value);
             } else if (location.hash.startsWith('#category')) {
@@ -1099,36 +1256,123 @@
         });
 
 
-        // --- ÉCOUTEURS D'ÉVÉNEMENTS (LISTENERS) ---
+        // --- NOUVEAUX ÉCOUTEURS D'INSCRIPTION ---
         
-        // Bascule entre Connexion et Inscription
+        function showSignupStep(stepNumber) {
+            signupSteps.forEach(step => step.style.display = 'none');
+            const stepToShow = document.getElementById(`signup-step-${stepNumber}`);
+            if (stepToShow) {
+                stepToShow.style.display = 'block';
+            }
+            
+            const progressSteps = [
+                document.getElementById('progress-step-1'),
+                document.getElementById('progress-step-2'),
+                document.getElementById('progress-step-3')
+            ];
+            progressSteps.forEach((step, index) => {
+                if (index + 1 < stepNumber) {
+                    step.classList.remove('border-gray-300', 'text-gray-400', 'border-indigo-600', 'font-semibold', 'text-gray-800');
+                    step.classList.add('border-green-500', 'text-green-600');
+                } else if (index + 1 === stepNumber) {
+                    step.classList.remove('border-gray-300', 'text-gray-400', 'border-green-500', 'text-green-600');
+                    step.classList.add('border-indigo-600', 'font-semibold', 'text-gray-800');
+                } else {
+                    step.classList.remove('border-green-500', 'text-green-600', 'border-indigo-600', 'font-semibold', 'text-gray-800');
+                    step.classList.add('border-gray-300', 'text-gray-400');
+                }
+            });
+        }
+
+        function populateClassesList() {
+            signupClasse.innerHTML = '<option value="">-- Choisir une classe --</option>';
+            CLASSES_LIST.forEach(classe => {
+                const option = document.createElement('option');
+                option.value = classe;
+                option.textContent = classe;
+                signupClasse.appendChild(option);
+            });
+        }
+        
         showSignupBtn.addEventListener('click', () => {
-            document.getElementById('login-view').classList.add('hidden');
-            document.getElementById('signup-view').classList.remove('hidden');
-        });
-        showLoginBtn.addEventListener('click', () => {
-            document.getElementById('login-view').classList.remove('hidden');
-            document.getElementById('signup-view').classList.add('hidden');
+            loginView.style.display = 'none';
+            signupView.classList.remove('hidden');
+            showSignupStep(1);
         });
         
-        // Soumission Formulaire Inscription
+        showLoginBtn.addEventListener('click', () => {
+            loginView.style.display = 'block';
+            signupView.classList.add('hidden');
+        });
+        
+        signupNext1.addEventListener('click', () => {
+            const status = signupStatus.value;
+            if (!status) {
+                showToast("Veuillez choisir un statut.", "error");
+                return;
+            }
+            tempSignupData = { status };
+            
+            if (status === 'professeur') {
+                signupClasseContainer.style.display = 'none';
+                signupCertificationContainer.classList.remove('hidden');
+            } else {
+                signupClasseContainer.style.display = 'block';
+                signupCertificationContainer.classList.add('hidden');
+            }
+            
+            showSignupStep(2);
+        });
+
+        signupPrev2.addEventListener('click', () => showSignupStep(1));
+
+        signupNext2.addEventListener('click', () => {
+            const firstname = signupFirstname.value;
+            const lastname = signupLastname.value;
+            if (!firstname || !lastname) {
+                showToast("Veuillez remplir le nom et le prénom.", "error");
+                return;
+            }
+            
+            tempSignupData.firstname = firstname;
+            tempSignupData.lastname = lastname;
+            
+            if (tempSignupData.status !== 'professeur') {
+                tempSignupData.classe = signupClasse.value;
+            } else {
+                tempSignupData.requestCertification = signupRequestCertification.checked;
+            }
+            
+            showSignupStep(3);
+        });
+
+        signupPrev3.addEventListener('click', () => showSignupStep(2));
+        
         signupForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const username = document.getElementById('signup-username').value;
-            const email = document.getElementById('signup-email').value;
-            const password = document.getElementById('signup-password').value;
             
+            const username = signupUsername.value;
+            const email = signupEmail.value;
+            const password = signupPassword.value;
+            
+            if (!username || !email || !password) {
+                showToast("Veuillez remplir tous les champs du compte.", "error");
+                return;
+            }
+
             try {
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                await createUserProfile(userCredential.user.uid, email, username);
+                
+                await createMultiPartUserProfile(userCredential.user.uid, email, tempSignupData, username);
+                
                 showToast("Inscription réussie !", "success");
+                
             } catch (error) {
                 console.error("Erreur Inscription:", error);
                 showToast(`Erreur: ${error.message}`, "error");
             }
         });
         
-        // Soumission Formulaire Connexion
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const email = document.getElementById('login-email').value;
@@ -1143,7 +1387,6 @@
             }
         });
         
-        // Connexion Google
         googleAuthBtn.addEventListener('click', async () => {
             const provider = new GoogleAuthProvider();
             try {
@@ -1155,13 +1398,11 @@
             }
         });
 
-        // Gestion menu mobile
         mobileMenuButton.addEventListener('click', () => {
             sidebar.classList.toggle('-translate-x-full');
             sidebar.classList.toggle('translate-x-0');
         });
 
-        // Écouteurs pour les barres de recherche
         homeSearchInput.addEventListener('input', (e) => {
             renderResources(homeResourcesContainer, {}, e.target.value);
         });
@@ -1174,14 +1415,72 @@
 
         // --- GESTION DE L'ÉDITEUR ET DU MODAL ---
         
-        /**
-         * Initialise l'éditeur Quill
-         */
+        function quillUrlHandler(type) {
+            currentQuillHandler = type;
+            let title = 'Insérer un lien';
+            if (type === 'image') title = 'Insérer une image (URL)';
+            if (type === 'video') title = 'Insérer une vidéo (URL)';
+            
+            quillUrlModalTitle.textContent = title;
+            quillUrlInput.value = '';
+            quillUrlModal.classList.remove('hidden');
+            quillUrlInput.focus();
+        }
+
+        function quillFormulaHandler() {
+            const range = quillEditor.getSelection(true);
+            const format = quillEditor.getFormat(range);
+            if (format && format.formula) {
+                formulaInput.value = format.formula;
+            } else {
+                formulaInput.value = '';
+            }
+            formulaModal.classList.remove('hidden');
+            formulaInput.focus();
+        }
+
+        cancelQuillUrlBtn.addEventListener('click', () => {
+            quillUrlModal.classList.add('hidden');
+        });
+
+        insertQuillUrlBtn.addEventListener('click', () => {
+            const url = quillUrlInput.value;
+            if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                const range = quillEditor.getSelection(true);
+                if (currentQuillHandler === 'link') {
+                    quillEditor.format('link', url);
+                } else {
+                    quillEditor.insertEmbed(range.index, currentQuillHandler, url);
+                    quillEditor.setSelection(range.index + 1);
+                }
+                quillUrlModal.classList.add('hidden');
+            } else {
+                showToast("Veuillez entrer une URL valide (commençant par http:// ou https://).", "error");
+            }
+        });
+
+        cancelFormulaBtn.addEventListener('click', () => {
+            formulaModal.classList.add('hidden');
+        });
+
+        insertFormulaBtn.addEventListener('click', () => {
+            const formula = formulaInput.value;
+            if (formula) {
+                const range = quillEditor.getSelection(true);
+                quillEditor.insertEmbed(range.index, 'formula', formula);
+                quillEditor.setSelection(range.index + 1);
+                formulaModal.classList.add('hidden');
+            }
+        });
+        
         function initializeQuill() {
-            if (quillEditor || !document.getElementById('editor-container')) {
-                return;
+            // CORRECTION BUG: Détruit l'éditeur précédent avant d'en créer un nouveau
+            const editorContainer = document.getElementById('editor-container');
+            if (editorContainer && editorContainer.innerHTML) {
+                 editorContainer.innerHTML = '';
             }
             
+            // --- Barre d'outils dynamique ---
             const toolbarOptions = [
                 [{ 'header': [1, 2, 3, false] }, { 'font': [] }],
                 ['bold', 'italic', 'underline', 'strike'],
@@ -1189,14 +1488,26 @@
                 [{ 'script': 'sub'}, { 'script': 'super' }],
                 [{ 'indent': '-1'}, { 'indent': '+1' }],
                 [{ 'color': [] }, { 'background': [] }],
-                ['link', 'image', 'video'],
+                ['link'],
                 ['formula'],
                 ['clean']
             ];
 
+            if (currentUserProfile && currentUserProfile.certification) {
+                toolbarOptions.splice(6, 0, ['image', 'video']);
+            }
+
             quillEditor = new Quill('#editor-container', {
                 modules: {
-                    toolbar: toolbarOptions,
+                    toolbar: {
+                        container: toolbarOptions,
+                        handlers: {
+                            'image': () => quillUrlHandler('image'),
+                            'video': () => quillUrlHandler('video'),
+                            'link': () => quillUrlHandler('link'),
+                            'formula': quillFormulaHandler
+                        }
+                    },
                     formula: true
                 },
                 theme: 'snow',
@@ -1204,9 +1515,6 @@
             });
         }
         
-        /**
-         * Charge les catégories dans les menus déroulants du modal.
-         */
         function loadCategoriesIntoModal() {
             if (!categoryInput || !subcategoryInput) return;
             
@@ -1238,7 +1546,6 @@
             });
         }
 
-        // Ouvrir le Modal
         openModalBtn.addEventListener('click', () => {
             if (!quillEditor || quillEditor.getLength() < 10) {
                 showToast("Veuillez écrire un peu de contenu avant de continuer.", "error");
@@ -1248,12 +1555,10 @@
             loadCategoriesIntoModal();
         });
 
-        // Fermer le Modal
         closeModalBtn.addEventListener('click', () => {
             metadataModal.classList.add('hidden');
         });
 
-        // Soumission finale de la ressource (depuis le modal)
         createForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -1269,17 +1574,22 @@
                 const title = titleInput.value;
                 const category = categoryInput.value;
                 const subcategory = subcategoryInput.value;
-                const imageFile = imageInput.files[0];
+                const imageUrlFromInput = imageInput.value;
                 
                 const contentHtml = quillEditor.root.innerHTML;
                 const contentText = quillEditor.getText(0, 200).trim();
 
                 let imageUrl = null;
                 
-                if (imageFile && currentUserProfile && currentUserProfile.certification) {
-                    const imageRef = ref(storage, `resources/${currentUserId}_${Date.now()}_${imageFile.name}`);
-                    const snapshot = await uploadBytes(imageRef, imageFile);
-                    imageUrl = await getDownloadURL(snapshot.ref);
+                if (imageUrlFromInput && currentUserProfile && currentUserProfile.certification) {
+                    if (imageUrlFromInput.startsWith('http://') || imageUrlFromInput.startsWith('https://')) {
+                        imageUrl = imageUrlFromInput;
+                    } else {
+                        showToast("L'URL de l'image de couverture n'est pas valide.", "error");
+                        submitResourceBtn.disabled = false;
+                        submitResourceBtn.textContent = "Publier";
+                        return;
+                    }
                 }
                 
                 const resourceData = {
@@ -1290,7 +1600,7 @@
                     textContent: contentText,
                     imageUrl: imageUrl,
                     authorId: currentUserId,
-                    authorName: currentUserProfile.username, 
+                    authorName: currentUserProfile.username,
                     createdAt: Timestamp.now(),
                     likes: [],
                     comments: []
@@ -1319,15 +1629,12 @@
 
         // --- DÉMARRAGE DE L'APPLICATION ---
         
-        /**
-         * Charge les catégories et construit la sidebar.
-         */
         function loadCategories() {
             try {
                 categoriesData.forEach(cat => {
                     const link = document.createElement('a');
                     link.href = `#category?id=${encodeURIComponent(cat.name)}`;
-                    link.className = 'flex items-center px-3 py-2 text-gray-300 rounded-md hover:bg-gray-700 hover:text-white';
+                    link.className = 'flex items-center px-3 py-2 text-slate-600 rounded-md hover:bg-indigo-50 hover:text-indigo-600';
                     link.dataset.pageId = 'category-page';
                     link.innerHTML = `
                         <i data-lucide="${cat.icon || 'folder'}" class="h-5 w-5 mr-3"></i>
@@ -1345,7 +1652,7 @@
         
         // Point d'entrée principal
         loadCategories();
-        router();
+        populateClassesList();
         window.addEventListener('hashchange', router);
 
     </script>
