@@ -482,6 +482,35 @@
             </div>
         </div>
     </div>
+    
+    <!-- NOUVEAU MODAL: Demande de Certification -->
+    <div id="certification-modal" class="fixed inset-0 z-50 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden">
+        <div class="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full m-4">
+            <form id="certification-form">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Demander la certification</h2>
+                <p class="text-sm text-gray-600 mb-4">Veuillez expliquer pourquoi vous devriez être certifié et évaluer la qualité de vos contributions actuelles.</p>
+                
+                <div class="mb-4">
+                    <label for="cert-motivation" class="block text-sm font-medium text-gray-700 mb-1">Vos motivations (20 caractères min.)</label>
+                    <textarea id="cert-motivation" rows="4" placeholder="Expliquez pourquoi vous demandez la certification..." class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                </div>
+                
+                <div class="mb-6">
+                    <label for="cert-quality" class="block text-sm font-medium text-gray-700 mb-1">Évaluez la qualité de votre contenu (ex: 3/5, 4/5...)</label>
+                    <input type="text" id="cert-quality" placeholder="ex: 4/5, Bon..." class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                
+                <div class="flex justify-end space-x-4">
+                    <button type="button" id="cancel-cert-btn" class="bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300">
+                        Annuler
+                    </button>
+                    <button type="submit" id="submit-cert-form" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
+                        Envoyer la demande
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
 
     <!-- Toast (Notification) -->
@@ -661,6 +690,13 @@
         const cancelFormulaBtn = document.getElementById('cancel-formula-btn');
         const insertFormulaBtn = document.getElementById('insert-formula-btn');
         const toast = document.getElementById('toast');
+        
+        // NOUVEAUX ÉLÉMENTS DOM (Modal Certification)
+        const certificationModal = document.getElementById('certification-modal');
+        const certificationForm = document.getElementById('certification-form');
+        const cancelCertBtn = document.getElementById('cancel-cert-btn');
+        const certMotivation = document.getElementById('cert-motivation');
+        const certQualityInput = document.getElementById('cert-quality'); // MODIFIÉ
 
         // --- État de l'application ---
         let currentUserId = null;
@@ -670,6 +706,7 @@
         let currentQuillHandler = null;
         let allResources = [];
         let allUsersData = {};
+        // let currentCertRating = 0; // SUPPRIMÉ
         
         let tempSignupData = {};
 
@@ -947,99 +984,75 @@
                         ${resource.title}
                     </a>
                     
-                    <div class="text-gray-700 mb-4 h-20 overflow-hidden relative">
-                         <div class="ql-snow"><div class="ql-editor p-0">${resource.textContentHtml || ''}</div></div>
-                         <div class="absolute bottom-0 left-0 w-full h-8 bg-gradient-to-t from-white to-transparent"></div>
+                    <div class="text-gray-700 text-sm mb-4">
+                        Par <a href="#profile?id=${author?.uid || ''}" class="font-medium text-indigo-600 hover:underline">${author?.username || 'Utilisateur inconnu'}</a>
                     </div>
                     
-                    <div class="flex items-center justify-between mt-4">
-                        <a href="#profile?id=${resource.authorId}" class="text-sm font-medium text-gray-800 hover:text-indigo-600">
-                            Par ${author ? author.username : 'Anonyme'}
-                        </a>
+                    <div class="flex items-center justify-between text-gray-600">
+                        <!-- Likes/Dislikes -->
                         <div class="flex items-center space-x-3">
-                            <div class="flex items-center space-x-1 text-gray-500">
-                                <img src="${viewIconSrc}" alt="Vues" class="h-5 w-5">
-                                <span>${formatNumber(resource.views || 0)}</span>
-                            </div>
-                            
-                            <button class="like-btn flex items-center space-x-1 text-gray-500 hover:text-indigo-600" data-resource-id="${resource.id}">
-                                <img src="${likeIconSrc}" class="h-5 w-5 ${liked ? '' : 'grayscale opacity-60'}"/>
-                                <span>${resource.likes?.length || 0}</span>
+                            <button class="like-btn flex items-center space-x-1 hover:text-indigo-600" data-id="${resource.id}">
+                                <img src="${likeIconSrc}" alt="Like" class="h-5 w-5 ${liked ? '' : 'grayscale'}">
+                                <span class="like-count text-sm font-medium">${formatNumber(resource.likes?.length || 0)}</span>
                             </button>
-                            
-                            <button class="dislike-btn flex items-center space-x-1 text-gray-500 hover:text-red-600" data-resource-id="${resource.id}">
-                                <img src="${dislikeIconSrc}" class="h-5 w-5 ${disliked ? '' : 'grayscale opacity-60'}"/>
-                                <span>${resource.dislikes?.length || 0}</span>
+                            <button class="dislike-btn flex items-center space-x-1 hover:text-red-500" data-id="${resource.id}">
+                                <img src="${dislikeIconSrc}" alt="Dislike" class="h-5 w-5 ${disliked ? '' : 'grayscale'}">
+                                <span class="dislike-count text-sm font-medium">${formatNumber(resource.dislikes?.length || 0)}</span>
                             </button>
+                        </div>
+                        
+                        <!-- Vues -->
+                        <div class="flex items-center space-x-1">
+                            <img src="${viewIconSrc}" alt="Vues" class="h-5 w-5 opacity-70">
+                            <span class="view-count text-sm font-medium">${formatNumber(resource.views || 0)}</span>
                         </div>
                     </div>
                 </div>
             `;
             
-            card.querySelector('.like-btn').addEventListener('click', async (e) => {
+            card.querySelector('.like-btn').addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (!currentUserId) {
-                    showToast("Vous devez être connecté pour aimer une ressource.", "error");
-                    location.hash = '#auth';
-                    return;
-                }
-                await toggleLike(resource.id, e.currentTarget, card.querySelector('.dislike-btn'), resource);
+                if (!currentUserId) { showToast("Vous devez être connecté.", "error"); location.hash = '#auth'; return; }
+                toggleLike(resource.id, e.currentTarget, card.querySelector('.dislike-btn'));
             });
-            
-            card.querySelector('.dislike-btn').addEventListener('click', async (e) => {
+            card.querySelector('.dislike-btn').addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (!currentUserId) {
-                    showToast("Vous devez être connecté pour noter une ressource.", "error");
-                    location.hash = '#auth';
-                    return;
-                }
-                await toggleDislike(resource.id, e.currentTarget, card.querySelector('.like-btn'), resource);
+                if (!currentUserId) { showToast("Vous devez être connecté.", "error"); location.hash = '#auth'; return; }
+                toggleDislike(resource.id, e.currentTarget, card.querySelector('.like-btn'));
             });
 
             return card;
         }
 
-        // --- AFFICHAGE DÉTAILLÉ (CORRIGÉ) ---
-        
+        // --- NOUVELLE FONCTION: AFFICHAGE DÉTAILLÉ ---
         async function renderResourceDetail(resourceId) {
             if (!resourceId) {
-                resourceDetailContainer.innerHTML = '<p class="text-red-500">Aucune ressource spécifiée.</p>';
+                resourceDetailContainer.innerHTML = 'Aucune ressource spécifiée.';
                 return;
             }
             resourceDetailContainer.innerHTML = '<p class="text-gray-500">Chargement de la ressource...</p>';
-
+            
             try {
+                // Mettre à jour le compteur de vues (sans attendre la fin)
                 const resourceRef = doc(db, resourcesCollectionPath, resourceId);
-                await updateDoc(resourceRef, { views: increment(1) });
-                
-                const cachedResource = allResources.find(r => r.id === resourceId);
-                if (cachedResource) {
-                    cachedResource.views = (cachedResource.views || 0) + 1;
-                } else {
-                    allResources = [];
-                    await fetchAllResourcesOnce();
-                }
+                updateDoc(resourceRef, { views: increment(1) });
+
+                await fetchAllResourcesOnce();
                 
                 const resource = allResources.find(r => r.id === resourceId);
-                let author = resource ? allUsersData[resource.authorId] : null;
+                const author = resource ? allUsersData[resource.authorId] : null;
                 
-                if (resource && !author) {
-                    const userRef = doc(db, publicUsersCollectionPath, resource.authorId);
-                    const userSnap = await getDoc(userRef);
-                    if (userSnap.exists()) {
-                        author = userSnap.data();
-                        allUsersData[resource.authorId] = author;
-                    }
-                }
-
                 if (!resource || !author) {
-                    resourceDetailContainer.innerHTML = '<p class="text-red-500">Ressource ou auteur introuvable.</p>';
+                    resourceDetailContainer.innerHTML = 'Ressource ou auteur introuvable.';
                     return;
                 }
+                
+                // Mettre à jour le compteur de vues dans le cache local
+                resource.views = (resource.views || 0) + 1;
 
                 let imageHtml = '';
                 if (resource.imageUrl) {
-                    imageHtml = `<img src="${resource.imageUrl}" alt="${resource.title}" class="h-64 w-full object-cover rounded-lg mb-6">`;
+                    imageHtml = `<img src="${resource.imageUrl}" alt="${resource.title}" class="w-full h-64 object-cover rounded-lg mb-6 shadow">`;
                 }
                 
                 const liked = resource.likes?.includes(currentUserId);
@@ -1049,238 +1062,92 @@
                 const viewIconSrc = "https://img.icons8.com/fluency/48/visible.png";
                 const backIconSrc = "https://img.icons8.com/fluency/48/back.png";
                 
-                const authorAvatar = author.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(author.username)}&background=e0e7ff&color=4338ca`;
-                const authorFollowerCount = author.followerCount || 0;
-                const authorFollowerText = (authorFollowerCount <= 1) ? 'Abonné' : 'Abonnés';
+                const certIcon = author.certification ? `
+                    <img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="h-5 w-5 ml-1">
+                ` : '';
                 
-                // CORRECTION DE LA POSITION DE LA CERTIFICATION
+                const authorPhotoUrl = author.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(author.username)}&background=random`;
+
                 resourceDetailContainer.innerHTML = `
-                    <button onclick="window.history.back()" class="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800 mb-6">
+                    <button onclick="history.back()" class="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800 mb-6">
                         <img src="${backIconSrc}" alt="Retour" class="h-5 w-5 mr-1">
                         Retour
                     </button>
-                
+                    
                     ${imageHtml}
                     
                     <h1 class="text-4xl font-bold text-gray-900 mb-4">${resource.title}</h1>
+                    <span class="text-sm font-semibold text-indigo-600 uppercase">${resource.category} > ${resource.subcategory}</span>
                     
-                    <div class="flex flex-col md:flex-row flex-wrap items-center justify-between text-gray-600 mb-6 border-y py-4 gap-4">
-                        <!-- BLOC AUTEUR AMÉLIORÉ -->
-                        <div class="flex items-center space-x-4">
-                            <div class="flex items-center space-x-2">
-                                <img src="${authorAvatar}" alt="${author.username}" class="w-10 h-10 rounded-full object-cover">
-                                <div>
-                                    <div class="flex items-center">
-                                        <a href="#profile?id=${author.uid}" class="font-medium hover:text-indigo-600 text-gray-900">${author.username}</a>
-                                        ${author.certification ? `<img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="w-4 h-4 ml-1" title="Utilisateur certifié">` : ''}
-                                    </div>
-                                    <div class="flex items-center text-xs text-gray-500">
-                                        <span>${formatNumber(authorFollowerCount)} ${authorFollowerText}</span>
-                                    </div>
-                                </div>
+                    <!-- NOUVELLE CARTE AUTEUR AMÉLIORÉE -->
+                    <div class="flex items-center bg-slate-50 p-4 rounded-lg my-6">
+                        <img src="${authorPhotoUrl}" alt="${author.username}" class="h-12 w-12 rounded-full mr-4">
+                        <div>
+                            <div class="flex items-center">
+                                <a href="#profile?id=${author.uid}" class="text-lg font-bold text-gray-900 hover:underline">${author.username}</a>
+                                ${certIcon}
                             </div>
-                            
-                            <span class="text-gray-300 hidden md:inline">|</span>
-                            
-                            <!-- Info Catégorie -->
-                            <div class="flex items-center space-x-2 text-sm">
-                                <i data-lucide="folder" class="h-4 w-4 text-gray-500"></i>
-                                <a href="#category?id=${encodeURIComponent(resource.category)}" class="font-medium hover:text-indigo-600">${resource.category}</a>
-                            </div>
-                        </div>
-                        
-                        <!-- BLOC ACTIONS -->
-                        <div class="flex items-center space-x-4">
-                            <div class="flex items-center space-x-1 text-gray-500">
-                                <img src="${viewIconSrc}" alt="Vues" class="h-5 w-5">
-                                <span>${formatNumber(resource.views || 0)} Vues</span>
-                            </div>
-                            <button class="like-btn flex items-center space-x-1 text-gray-500 hover:text-indigo-600" data-resource-id="${resource.id}">
-                                <img src="${likeIconSrc}" class="h-5 w-5 ${liked ? '' : 'grayscale opacity-60'}"/>
-                                <span>${resource.likes?.length || 0}</span>
-                            </button>
-                            <button class="dislike-btn flex items-center space-x-1 text-gray-500 hover:text-red-600" data-resource-id="${resource.id}">
-                                <img src="${dislikeIconSrc}" class="h-5 w-5 ${disliked ? '' : 'grayscale opacity-60'}"/>
-                                <span>${resource.dislikes?.length || 0}</span>
-                            </button>
+                            <span class="text-sm text-gray-600">${formatNumber(author.followerCount || 0)} Abonné${(author.followerCount || 0) !== 1 ? 's' : ''}</span>
                         </div>
                     </div>
-
-                    <div class="prose prose-lg max-w-none ql-snow">
-                        <div class="ql-editor">${resource.textContentHtml}</div>
+                    
+                    <!-- Stats (Likes/Dislikes/Vues) -->
+                    <div class="flex items-center space-x-6 text-gray-600 border-y py-4 mb-6">
+                        <button class="like-btn flex items-center space-x-1 hover:text-indigo-600" data-id="${resource.id}">
+                            <img src="${likeIconSrc}" alt="Like" class="h-6 w-6 ${liked ? '' : 'grayscale'}">
+                            <span class="like-count text-base font-medium">${formatNumber(resource.likes?.length || 0)}</span>
+                        </button>
+                        <button class="dislike-btn flex items-center space-x-1 hover:text-red-500" data-id="${resource.id}">
+                            <img src="${dislikeIconSrc}" alt="Dislike" class="h-6 w-6 ${disliked ? '' : 'grayscale'}">
+                            <span class="dislike-count text-base font-medium">${formatNumber(resource.dislikes?.length || 0)}</span>
+                        </button>
+                        <div class="flex items-center space-x-1">
+                            <img src="${viewIconSrc}" alt="Vues" class="h-6 w-6 opacity-70">
+                            <span class="view-count text-base font-medium">${formatNumber(resource.views || 0)}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Contenu du cours (formaté) -->
+                    <div class="prose max-w-none ql-editor">
+                        ${resource.textContentHtml}
                     </div>
                 `;
 
-                const likeBtn = resourceDetailContainer.querySelector('.like-btn');
-                const dislikeBtn = resourceDetailContainer.querySelector('.dislike-btn');
-                
-                likeBtn.addEventListener('click', async (e) => {
+                resourceDetailContainer.querySelector('.like-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
-                    if (!currentUserId) {
-                        showToast("Vous devez être connecté.", "error"); location.hash = '#auth'; return;
-                    }
-                    await toggleLike(resource.id, likeBtn, dislikeBtn, resource);
+                    if (!currentUserId) { showToast("Vous devez être connecté.", "error"); location.hash = '#auth'; return; }
+                    toggleLike(resource.id, e.currentTarget, resourceDetailContainer.querySelector('.dislike-btn'));
                 });
-                
-                dislikeBtn.addEventListener('click', async (e) => {
+                resourceDetailContainer.querySelector('.dislike-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
-                    if (!currentUserId) {
-                        showToast("Vous devez être connecté.", "error"); location.hash = '#auth'; return;
-                    }
-                    await toggleDislike(resource.id, dislikeBtn, likeBtn, resource);
+                    if (!currentUserId) { showToast("Vous devez être connecté.", "error"); location.hash = '#auth'; return; }
+                    toggleDislike(resource.id, e.currentTarget, resourceDetailContainer.querySelector('.like-btn'));
                 });
-
-                if (typeof lucide !== 'undefined') {
-                    lucide.createIcons();
-                }
 
             } catch (error) {
                 console.error("Erreur renderResourceDetail:", error);
-                resourceDetailContainer.innerHTML = '<p class="text-red-500">Erreur lors du chargement de la ressource.</p>';
-            }
-        }
-
-
-        // --- GESTION LIKE / DISLIKE / ABONNEMENT ---
-
-        async function toggleLike(resourceId, likeBtn, dislikeBtn, resource) {
-            const resourceRef = doc(db, resourcesCollectionPath, resourceId);
-            const likeIcon = likeBtn.querySelector('img');
-            const likeCount = likeBtn.querySelector('span');
-            const dislikeIcon = dislikeBtn.querySelector('img');
-            const dislikeCount = dislikeBtn.querySelector('span');
-
-            const isLiked = resource.likes?.includes(currentUserId);
-            const isDisliked = resource.dislikes?.includes(currentUserId);
-            
-            try {
-                if (isLiked) {
-                    likeIcon.classList.add('grayscale', 'opacity-60');
-                    resource.likes = resource.likes.filter(id => id !== currentUserId);
-                    likeCount.textContent = resource.likes.length;
-                    await updateDoc(resourceRef, {
-                        likes: arrayRemove(currentUserId)
-                    });
-                } else {
-                    likeIcon.classList.remove('grayscale', 'opacity-60');
-                    if (!resource.likes) resource.likes = [];
-                    resource.likes.push(currentUserId);
-                    likeCount.textContent = resource.likes.length;
-                    
-                    let updates = { likes: arrayUnion(currentUserId) };
-                    
-                    if (isDisliked) {
-                        dislikeIcon.classList.add('grayscale', 'opacity-60');
-                        resource.dislikes = resource.dislikes.filter(id => id !== currentUserId);
-                        dislikeCount.textContent = resource.dislikes.length;
-                        updates.dislikes = arrayRemove(currentUserId);
-                    }
-                    
-                    await updateDoc(resourceRef, updates);
-                }
-            } catch (error) {
-                console.error("Erreur toggleLike:", error);
-                showToast("Erreur lors de l'action.", "error");
+                resourceDetailContainer.innerHTML = 'Erreur lors du chargement de la ressource.';
             }
         }
         
-        async function toggleDislike(resourceId, dislikeBtn, likeBtn, resource) {
-            const resourceRef = doc(db, resourcesCollectionPath, resourceId);
-            const dislikeIcon = dislikeBtn.querySelector('img');
-            const dislikeCount = dislikeBtn.querySelector('span');
-            const likeIcon = likeBtn.querySelector('img');
-            const likeCount = likeBtn.querySelector('span');
-
-            const isLiked = resource.likes?.includes(currentUserId);
-            const isDisliked = resource.dislikes?.includes(currentUserId);
-            
-            try {
-                if (isDisliked) {
-                    dislikeIcon.classList.add('grayscale', 'opacity-60');
-                    resource.dislikes = resource.dislikes.filter(id => id !== currentUserId);
-                    dislikeCount.textContent = resource.dislikes.length;
-                    await updateDoc(resourceRef, {
-                        dislikes: arrayRemove(currentUserId)
-                    });
-                } else {
-                    dislikeIcon.classList.remove('grayscale', 'opacity-60');
-                    if (!resource.dislikes) resource.dislikes = [];
-                    resource.dislikes.push(currentUserId);
-                    dislikeCount.textContent = resource.dislikes.length;
-                    
-                    let updates = { dislikes: arrayUnion(currentUserId) };
-                    
-                    if (isLiked) {
-                        likeIcon.classList.add('grayscale', 'opacity-60');
-                        resource.likes = resource.likes.filter(id => id !== currentUserId);
-                        likeCount.textContent = resource.likes.length;
-                        updates.likes = arrayRemove(currentUserId);
-                    }
-                    
-                    await updateDoc(resourceRef, updates);
-                }
-            } catch (error) {
-                console.error("Erreur toggleDislike:", error);
-                showToast("Erreur lors de l'action.", "error");
-            }
-        }
-        
-        async function toggleSubscription(targetUserId, buttonElement) {
-            if (!currentUserId) {
-                showToast("Vous devez être connecté.", "error"); return;
-            }
-            if (currentUserId === targetUserId) {
-                showToast("Vous ne pouvez pas vous abonner à vous-même.", "info"); return;
-            }
-
-            const currentUserRef = doc(db, publicUsersCollectionPath, currentUserId);
-            const targetUserRef = doc(db, publicUsersCollectionPath, targetUserId);
-            const isSubscribed = currentUserProfile.following?.includes(targetUserId);
-
-            try {
-                if (isSubscribed) {
-                    await updateDoc(currentUserRef, { following: arrayRemove(targetUserId) });
-                    await updateDoc(targetUserRef, { followerCount: increment(-1) });
-                    currentUserProfile.following = currentUserProfile.following.filter(id => id !== targetUserId);
-                } else {
-                    await updateDoc(currentUserRef, { following: arrayUnion(targetUserId) });
-                    await updateDoc(targetUserRef, { followerCount: increment(1) });
-                    currentUserProfile.following = [...(currentUserProfile.following || []), targetUserId];
-                }
-                
-                const targetProfile = allUsersData[targetUserId];
-                if (targetProfile) {
-                    targetProfile.followerCount = (targetProfile.followerCount || 0) + (isSubscribed ? -1 : 1);
-                }
-                
-                await renderProfile(targetUserId);
-                
-            } catch (error) {
-                console.error("Erreur toggleSubscription:", error);
-                showToast("Erreur lors de l'abonnement.", "error");
-            }
-        }
-        
-        // --- PAGE UTILISATEURS (CORRIGÉE) ---
+        // --- PAGE UTILISATEURS (MODIFIÉE) ---
 
         async function renderUsersPage() {
             const container = usersContainer;
             if (!container) return;
-            
             container.innerHTML = '<p class="text-gray-500">Chargement des utilisateurs...</p>';
             
             try {
                 // CORRECTION: On charge TOUS les utilisateurs, pas seulement ceux du cache
                 const usersRef = collection(db, publicUsersCollectionPath);
                 const querySnapshot = await getDocs(usersRef);
-                
                 let allUsers = [];
                 querySnapshot.forEach(doc => {
                     const userData = doc.data();
                     allUsers.push(userData);
                     allUsersData[userData.uid] = userData; // Mettre à jour le cache global
                 });
-                
+
                 // NOUVELLE LOGIQUE DE FILTRE ET RECHERCHE
                 const filterMySubscriptions = usersFilterToggle.checked;
                 const searchTerm = usersSearchInput.value.toLowerCase().trim();
@@ -1327,544 +1194,489 @@
         }
 
         // --- NOUVELLE FONCTION: CARTE UTILISATEUR ---
-        
         function createUserCard(profile) {
             const card = document.createElement('a');
             card.href = `#profile?id=${profile.uid}`;
-            card.className = 'bg-white p-4 rounded-lg shadow-md flex items-center space-x-4 transition-shadow duration-300 hover:shadow-lg';
+            card.className = 'bg-white rounded-lg shadow-lg overflow-hidden transition-shadow duration-300 hover:shadow-xl p-4 flex items-center space-x-4';
             
-            const profileImage = profile.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username)}&background=e0e7ff&color=4338ca`;
+            const photoUrl = profile.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username)}&background=random&color=fff`;
             
-            let certificationHtml = '';
-            if (profile.certification) {
-                certificationHtml = `<img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="w-4 h-4 ml-1" title="Utilisateur certifié">`;
-            }
-            
-            const followerCount = profile.followerCount || 0;
-            const followerText = (followerCount <= 1) ? 'Abonné' : 'Abonnés';
+            const certIcon = profile.certification ? `
+                <img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="h-5 w-5 ml-1">
+            ` : '';
             
             card.innerHTML = `
-                <div>
-                    <img src="${profileImage}" alt="${profile.username}" class="w-14 h-14 rounded-full object-cover">
-                </div>
-                <div class="flex-1 overflow-hidden">
+                <img src="${photoUrl}" alt="${profile.username}" class="h-16 w-16 rounded-full">
+                <div class="flex-1">
                     <div class="flex items-center">
                         <h3 class="text-lg font-bold text-gray-900 truncate">${profile.username}</h3>
-                        ${certificationHtml}
+                        ${certIcon}
                     </div>
-                    <p class="text-sm text-gray-500">${formatNumber(followerCount)} ${followerText}</p>
+                    <span class="text-sm text-gray-600">${formatNumber(profile.followerCount || 0)} Abonné${(profile.followerCount || 0) !== 1 ? 's' : ''}</span>
                 </div>
             `;
             return card;
         }
 
-
-        // --- RENDU PROFIL ---
+        // --- PAGE PROFIL ---
         
-        async function renderProfile(userId) {
-            if (!userId) {
-                profileContainer.innerHTML = '<p class="text-red-500">Aucun utilisateur spécifié.</p>';
+        async function renderProfile(profileId) {
+            if (!profileId) {
+                profileContainer.innerHTML = '<p class="text-red-500">Aucun profil spécifié.</p>';
                 return;
             }
+            
             profileContainer.innerHTML = '<p class="text-gray-500">Chargement du profil...</p>';
-
+            
             try {
-                const userRef = doc(db, publicUsersCollectionPath, userId);
-                const userSnap = await getDoc(userRef);
-
-                if (!userSnap.exists()) {
-                    profileContainer.innerHTML = '<p class="text-red-500">Profil introuvable.</p>';
-                    return;
-                }
-                
-                const profile = userSnap.data();
-                allUsersData[userId] = profile;
-
-                let actionButtonHtml = '';
-                if (currentUserId) {
-                    if (currentUserId === userId) {
-                        actionButtonHtml = `
-                            <a href="#edit-profile" id="edit-profile-btn" class="ml-4 px-4 py-2 rounded-md text-white bg-gray-600 hover:bg-gray-700">
-                                Éditer le profil
-                            </a>
-                        `;
+                let profile = allUsersData[profileId];
+                if (!profile) {
+                    const userRef = doc(db, publicUsersCollectionPath, profileId);
+                    const docSnap = await getDoc(userRef);
+                    if (docSnap.exists()) {
+                        profile = docSnap.data();
+                        allUsersData[profileId] = profile; // Mettre en cache
                     } else {
-                        const isSubscribed = currentUserProfile.following?.includes(userId);
-                        actionButtonHtml = `
-                            <button id="subscribe-btn" class="ml-4 px-4 py-2 rounded-md text-white ${isSubscribed ? 'bg-gray-500 hover:bg-gray-600' : 'bg-indigo-600 hover:bg-indigo-700'}">
-                                ${isSubscribed ? 'Abonné' : "S'abonner"}
-                            </button>
-                        `;
+                        profileContainer.innerHTML = '<p class="text-red-500">Profil introuvable.</p>';
+                        return;
                     }
                 }
-
-                let certificationHtml = '';
-                if (profile.certification) {
-                    certificationHtml = `<img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="w-5 h-5 ml-2" title="Utilisateur certifié">`;
-                } else if (profile.certificationPending) {
-                    certificationHtml = `<span class="ml-2 text-xs font-medium bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">En attente</span>`;
+                
+                const isCurrentUser = (profileId === currentUserId);
+                const isSubscribed = currentUserProfile?.following?.includes(profileId);
+                
+                let subscribeBtn = '';
+                if (!isCurrentUser) {
+                    subscribeBtn = `
+                        <button id="subscribe-btn" class="px-4 py-2 rounded-md font-semibold ${isSubscribed ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-indigo-600 text-white hover:bg-indigo-700'}">
+                            ${isSubscribed ? 'Abonné' : 'S\'abonner'}
+                        </button>
+                    `;
+                } else {
+                    subscribeBtn = `
+                        <a href="#edit-profile" class="px-4 py-2 rounded-md font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300">
+                            Éditer le profil
+                        </a>
+                    `;
                 }
                 
-                const followerCount = profile.followerCount || 0;
-                const followerText = (followerCount <= 1) ? 'Abonné' : 'Abonnés';
+                const certIcon = profile.certification ? `
+                    <img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="h-6 w-6 ml-2">
+                ` : '';
                 
-                const profileImageSrc = profile.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username)}&background=e0e7ff&color=4338ca&size=96`;
-                let profileImageHtml = `<img src="${profileImageSrc}" alt="${profile.username}" class="w-24 h-24 rounded-full object-cover">`;
-
+                const photoUrl = profile.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username)}&background=random&color=fff&size=128`;
                 
+                // Génération des badges
                 let badgesHtml = '';
                 if (profile.badges && profile.badges.length > 0) {
                     profile.badges.forEach(badgeKey => {
-                        const badge = BADGE_DEFINITIONS[badgeKey];
-                        if (badge) {
+                        const badgeInfo = BADGE_DEFINITIONS[badgeKey];
+                        if (badgeInfo) {
                             badgesHtml += `
-                                <img src="${badge.image}" alt="${badge.name}" title="${badge.name}" class="w-12 h-12">
+                                <div class="flex flex-col items-center text-center">
+                                    <img src="${badgeInfo.image}" alt="${badgeInfo.name}" class="h-12 w-12" title="${badgeInfo.name}">
+                                    <span class="text-xs font-medium text-gray-600 mt-1">${badgeInfo.name}</span>
+                                </div>
                             `;
                         }
                     });
                 } else {
-                    badgesHtml = '<p class="text-gray-500 text-sm">Aucun badge pour le moment.</p>';
+                    badgesHtml = '<p class="text-sm text-gray-500">Aucun badge pour le moment.</p>';
                 }
 
                 profileContainer.innerHTML = `
                     <div class="flex flex-col md:flex-row items-center mb-6">
-                        <div class="flex-shrink-0 mb-4 md:mb-0">
-                            ${profileImageHtml}
-                        </div>
-                        <div class="md:ml-6 text-center md:text-left">
+                        <img src="${photoUrl}" alt="${profile.username}" class="h-32 w-32 rounded-full mb-4 md:mb-0 md:mr-8 ring-4 ring-indigo-100">
+                        <div class="flex-1 text-center md:text-left">
                             <div class="flex items-center justify-center md:justify-start">
-                                <h2 class="text-3xl font-bold text-gray-900">${profile.username}</h2>
-                                ${certificationHtml}
+                                <h2 class="text-4xl font-bold text-gray-900">${profile.username}</h2>
+                                ${certIcon}
                             </div>
-                            
-                            <p class="text-gray-500 font-semibold">
-                                ${formatNumber(followerCount)} ${followerText}
-                            </p>
+                            <div class="flex justify-center md:justify-start space-x-6 mt-4 text-gray-600">
+                                <div class="text-center">
+                                    <span class="text-2xl font-bold text-gray-900">${formatNumber(profile.followerCount || 0)}</span>
+                                    <span class="block text-sm">Abonné${(profile.followerCount || 0) !== 1 ? 's' : ''}</span>
+                                </div>
+                                <div class="text-center">
+                                    <span class="text-2xl font-bold text-gray-900">${allResources.filter(r => r.authorId === profile.uid).length}</span>
+                                    <span class="block text-sm">Ressources</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="mt-4 md:mt-0 md:ml-auto">
-                            ${actionButtonHtml}
+                        <div class="mt-4 md:mt-0">
+                            ${subscribeBtn}
                         </div>
                     </div>
                     
-                    <div class="mb-6">
-                        <h3 class="text-xl font-semibold text-gray-800 mb-3">Badges</h3>
-                        <div class="flex flex-wrap gap-2">
+                    <hr class="my-8">
+                    
+                    <!-- Section Badges -->
+                    <div>
+                        <h3 class="text-2xl font-bold text-gray-900 mb-4">Badges</h3>
+                        <div class="flex flex-wrap gap-4 p-4 bg-slate-50 rounded-lg">
                             ${badgesHtml}
                         </div>
                     </div>
                     
+                    <hr class="my-8">
+                    
+                    <!-- Section Ressources -->
                     <div>
-                        <h3 class="text-xl font-semibold text-gray-800 mb-4">Ressources publiées</h3>
-                        <div id="profile-resources-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <!-- Les ressources du profil seront chargées ici -->
+                        <h3 class="text-2xl font-bold text-gray-900 mb-4">Ressources de ${profile.username}</h3>
+                        <div id="profile-resources-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <!-- Cartes des ressources de l'utilisateur -->
                         </div>
                     </div>
                 `;
                 
+                // Gérer le bouton d'abonnement
                 const subBtn = document.getElementById('subscribe-btn');
                 if (subBtn) {
-                    subBtn.addEventListener('click', () => toggleSubscription(userId, subBtn));
+                    subBtn.addEventListener('click', async () => {
+                        await toggleSubscription(profileId, subBtn);
+                    });
                 }
-
-                const userResourcesContainer = document.getElementById('profile-resources-container');
-                await fetchAllResourcesOnce();
-                const userResources = allResources.filter(r => r.authorId === userId);
                 
-                if (userResources.length === 0) {
-                    userResourcesContainer.innerHTML = '<p class="text-gray-500">Cet utilisateur n\'a pas encore publié de ressources.</p>';
-                } else {
-                    userResourcesContainer.innerHTML = '';
+                // Afficher les ressources de l'utilisateur
+                const userResources = allResources.filter(r => r.authorId === profileId);
+                const userResourcesContainer = document.getElementById('profile-resources-container');
+                if (userResources.length > 0) {
                     userResources.forEach(resource => {
                         const card = createResourceCard(resource, profile);
                         userResourcesContainer.appendChild(card);
                     });
+                } else {
+                    userResourcesContainer.innerHTML = '<p class="text-gray-500">Cet utilisateur n\'a pas encore publié de ressources.</p>';
                 }
                 
-                if (typeof lucide !== 'undefined') {
-                    lucide.createIcons();
-                }
-
             } catch (error) {
                 console.error("Erreur renderProfile:", error);
                 profileContainer.innerHTML = '<p class="text-red-500">Erreur lors du chargement du profil.</p>';
+            } finally {
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
             }
         }
         
-        // --- GESTION ÉDITION PROFIL (MISE À JOUR) ---
+        // --- PAGE ÉDITION DE PROFIL (MODIFIÉE) ---
+        
         async function loadProfileForEdit() {
-            if (!currentUserId || !currentUserProfile) {
-                showToast("Vous devez être connecté.", "error");
-                location.hash = '#auth';
-                return;
-            }
-            
-            let privateData;
-            
             try {
                 const privateRef = doc(db, privateUsersCollectionPath, currentUserId, "private_data", "details");
                 const privateSnap = await getDoc(privateRef);
                 
+                let privateData = {};
                 if (!privateSnap.exists()) {
-                    showToast("Création de votre fiche d'informations privées...", "info");
-                    privateData = {
-                        uid: currentUserId,
-                        email: auth.currentUser.email || "",
-                        firstname: "",
-                        lastname: "",
-                        classe: "Non applicable"
-                    };
-                    if(auth.currentUser.displayName) {
-                        const names = auth.currentUser.displayName.split(' ');
-                        privateData.firstname = names[0] || "";
-                        privateData.lastname = names.slice(1).join(' ') || "";
-                    }
-                    await setDoc(privateRef, privateData);
+                    // Si le doc privé n'existe pas (anciens comptes), le créer
+                    await setDoc(privateRef, { 
+                        firstname: "", 
+                        lastname: "", 
+                        classe: "Non applicable" 
+                    });
                 } else {
                     privateData = privateSnap.data();
                 }
                 
+                // Remplir les champs
                 editUsername.value = currentUserProfile.username || '';
                 editPhotoUrl.value = currentUserProfile.photoURL || '';
                 editFirstname.value = privateData.firstname || '';
                 editLastname.value = privateData.lastname || '';
+                editClasse.value = privateData.classe || 'Non applicable';
                 
+                // Gérer l'affichage du statut (élève/parent vs prof)
                 if (currentUserProfile.status === 'professeur') {
-                    editClasseContainer.style.display = 'none';
+                    editClasseContainer.classList.add('hidden');
                 } else {
-                    editClasseContainer.style.display = 'block';
-                    if (editClasse.options.length <= 1) {
-                        populateClassesList(editClasse);
-                    }
-                    editClasse.value = privateData.classe || 'Non applicable';
+                    editClasseContainer.classList.remove('hidden');
                 }
-
+                
                 // NOUVEAU: Gérer la section de demande de certification
                 const certSection = document.getElementById('certification-request-section');
                 if (currentUserProfile.certification) {
                     certSection.innerHTML = `
                         <h3 class="text-lg font-medium text-gray-900 mb-2">Certification</h3>
-                        <div class="flex items-center space-x-2">
-                            <img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="w-6 h-6">
-                            <span class="font-medium text-green-600">Vous êtes un utilisateur certifié.</span>
-                        </div>
+                        <p class="text-sm text-green-600">Vous êtes un utilisateur certifié.</p>
                     `;
                 } else if (currentUserProfile.certificationPending) {
                     certSection.innerHTML = `
                         <h3 class="text-lg font-medium text-gray-900 mb-2">Certification</h3>
-                        <span class="font-medium text-yellow-600">Votre demande de certification est en cours d'examen.</span>
+                        <p class="text-sm text-blue-600">Votre demande de certification est en cours d'examen.</p>
                     `;
                 } else {
                     certSection.innerHTML = `
                         <h3 class="text-lg font-medium text-gray-900 mb-2">Certification</h3>
-                        <p class="text-sm text-gray-500 mb-3">Les utilisateurs certifiés peuvent poster des images et ont un badge de confiance.</p>
+                        <p class="text-sm text-gray-500 mb-4">Les utilisateurs certifiés peuvent poster des images et ont un badge de confiance.</p>
                         <button type="button" id="request-certification-btn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700">
                             Demander la certification
                         </button>
                     `;
                 }
                 
-                // Ajouter l'écouteur pour le nouveau bouton
+                // MODIFICATION: L'écouteur ouvre le modal au lieu d'écrire dans la BDD
                 const requestBtn = document.getElementById('request-certification-btn');
                 if (requestBtn) {
-                    requestBtn.addEventListener('click', async () => {
-                        requestBtn.disabled = true;
-                        requestBtn.textContent = "Envoi...";
-                        try {
-                            const publicRef = doc(db, publicUsersCollectionPath, currentUserId);
-                            await updateDoc(publicRef, {
-                                certificationPending: true
-                            });
-                            currentUserProfile.certificationPending = true; // Mettre à jour l'état local
-                            allUsersData[currentUserId].certificationPending = true; // Mettre à jour le cache
-                            showToast("Demande de certification envoyée !", "success");
-                            await loadProfileForEdit(); // Rafraîchir la section
-                        } catch (error) {
-                            console.error("Erreur demande certification:", error);
-                            showToast("Une erreur est survenue.", "error");
-                            requestBtn.disabled = false;
-                            requestBtn.textContent = "Demander la certification";
+                    requestBtn.addEventListener('click', () => {
+                        // Réinitialiser le modal
+                        certMotivation.value = '';
+                        certQualityInput.value = ''; // MODIFIÉ
+                        
+                        // Ouvrir le modal
+                        certificationModal.classList.remove('hidden');
+                        if (typeof lucide !== 'undefined') {
+                            lucide.createIcons();
                         }
                     });
                 }
 
             } catch (error) {
                 console.error("Erreur loadProfileForEdit:", error);
-                showToast("Erreur lors du chargement de vos informations.", "error");
+                showToast("Erreur lors du chargement de vos données privées.", "error");
             }
         }
+        
+        editProfileForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            saveEditProfileBtn.disabled = true;
+            saveEditProfileBtn.textContent = "Sauvegarde...";
+            
+            try {
+                // 1. Données publiques
+                const publicRef = doc(db, publicUsersCollectionPath, currentUserId);
+                await updateDoc(publicRef, {
+                    username: editUsername.value,
+                    photoURL: editPhotoUrl.value
+                });
+                
+                // 2. Données privées
+                const privateRef = doc(db, privateUsersCollectionPath, currentUserId, "private_data", "details");
+                await updateDoc(privateRef, {
+                    firstname: editFirstname.value,
+                    lastname: editLastname.value,
+                    classe: editClasse.value
+                });
+                
+                // 3. Mettre à jour l'état local
+                currentUserProfile.username = editUsername.value;
+                currentUserProfile.photoURL = editPhotoUrl.value;
+                allUsersData[currentUserId] = currentUserProfile;
+                
+                showToast("Profil mis à jour avec succès !", "success");
+                updateAuthUI(auth.currentUser); // Mettre à jour la sidebar
+                location.hash = `#profile?id=${currentUserId}`;
+                
+            } catch (error) {
+                console.error("Erreur sauvegarde profil:", error);
+                showToast("Erreur lors de la sauvegarde.", "error");
+            } finally {
+                saveEditProfileBtn.disabled = false;
+                saveEditProfileBtn.textContent = "Enregistrer";
+            }
+        });
+        
+        cancelEditProfileBtn.addEventListener('click', () => {
+            location.hash = `#profile?id=${currentUserId}`;
+        });
+        
+        // NOUVEAUX ÉCOUTEURS: Modal de Certification
+        
+        cancelCertBtn.addEventListener('click', () => {
+            certificationModal.classList.add('hidden');
+        });
 
+        certificationForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const motivation = certMotivation.value.trim();
+            const quality = certQualityInput.value.trim(); // MODIFIÉ
+            
+            if (motivation.length < 20) {
+                showToast("Veuillez développer vos motivations (20 caractères min).", "error");
+                return;
+            }
+            if (!quality) { // MODIFIÉ
+                showToast("Veuillez évaluer la qualité de votre contenu.", "error");
+                return;
+            }
+
+            const submitBtn = document.getElementById('submit-cert-form');
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Envoi...";
+
+            try {
+                // 1. Mettre à jour les données privées avec les motivations
+                const privateRef = doc(db, privateUsersCollectionPath, currentUserId, "private_data", "details");
+                await updateDoc(privateRef, {
+                    certificationMotivation: motivation,
+                    certificationQuality: quality // MODIFIÉ
+                });
+
+                // 2. Mettre à jour le statut public "en attente"
+                const publicRef = doc(db, publicUsersCollectionPath, currentUserId);
+                await updateDoc(publicRef, {
+                    certificationPending: true
+                });
+
+                // 3. Mettre à jour l'état local
+                currentUserProfile.certificationPending = true;
+                allUsersData[currentUserId].certificationPending = true;
+
+                showToast("Demande de certification envoyée !", "success");
+                certificationModal.classList.add('hidden');
+                await loadProfileForEdit(); // Rafraîchir la page d'édition
+
+            } catch (error) {
+                console.error("Erreur envoi demande certification:", error);
+                showToast("Une erreur est survenue.", "error");
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "Envoyer la demande";
+            }
+        });
+        
         // --- AUTHENTIFICATION ---
 
         function updateAuthUI(user) {
             if (user) {
-                let profileImageHtml = '';
-                let profileImageSrc = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUserProfile ? currentUserProfile.username : 'R')}&background=e0e7ff&color=4338ca`;
-                if (currentUserProfile && currentUserProfile.photoURL) {
-                    profileImageSrc = currentUserProfile.photoURL;
-                }
-                profileImageHtml = `<img src="${profileImageSrc}" alt="Profil" class="w-8 h-8 rounded-full object-cover">`;
+                // Utilisateur connecté
+                sidebar.classList.remove('md:hidden'); // Afficher la sidebar
+                
+                const photoUrl = currentUserProfile?.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUserProfile?.username || 'User')}&background=random&color=fff`;
                 
                 authInfoSidebar.innerHTML = `
-                    <div class="flex items-center space-x-3 mb-4">
-                        ${profileImageHtml}
-                        <a href="#profile?id=${user.uid}" class="font-medium text-slate-700 hover:text-indigo-600 truncate">
-                            ${currentUserProfile ? currentUserProfile.username : 'Chargement...'}
-                        </a>
+                    <div class="flex items-center">
+                        <img src="${photoUrl}" alt="Profil" class="h-10 w-10 rounded-full">
+                        <div class="ml-3">
+                            <a href="#profile?id=${user.uid}" class="font-semibold text-slate-700 hover:text-indigo-600">${currentUserProfile?.username || 'Chargement...'}</a>
+                            <p class="text-sm text-slate-500">${user.email}</p>
+                        </div>
                     </div>
-                    <button id="logout-btn" class="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700">
+                    <button id="logout-btn" class="w-full text-left flex items-center mt-4 text-sm text-slate-600 hover:text-indigo-600">
+                        <i data-lucide="log-out" class="h-4 w-4 mr-2"></i>
                         Déconnexion
                     </button>
                 `;
                 document.getElementById('logout-btn').addEventListener('click', async () => {
                     await signOut(auth);
-                    showToast("Déconnexion réussie.", "success");
+                    showToast("Vous êtes déconnecté.", "info");
                 });
-                
-                if (currentUserProfile && currentUserProfile.certification) {
-                    imageUploadContainer.classList.remove('hidden');
-                } else {
-                    imageUploadContainer.classList.add('hidden');
-                }
-                
             } else {
+                // Utilisateur déconnecté
+                sidebar.classList.add('md:hidden'); // Cacher la sidebar
+                
                 authInfoSidebar.innerHTML = `
-                    <a href="#auth" class="w-full text-center block bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">
-                        Connexion / Inscription
+                    <p class="text-sm text-slate-500 mb-2">Vous n'êtes pas connecté.</p>
+                    <a href="#auth" class="w-full flex items-center justify-center bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700">
+                        Connexion
                     </a>
                 `;
-                imageUploadContainer.classList.add('hidden');
             }
-            
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
             }
         }
-
-        async function createMultiPartUserProfile(uid, email, data, username, photoURL = null) {
+        
+        async function fetchUserProfile(uid) {
+            let profile = allUsersData[uid];
+            if (profile) return profile;
             
-            const publicUserRef = doc(db, publicUsersCollectionPath, uid);
-            const publicData = {
-                uid: uid,
-                username: username,
-                photoURL: photoURL,
-                status: data.status,
-                createdAt: Timestamp.now(),
-                certification: false,
-                certificationPending: data.requestCertification || false,
-                badges: [],
-                following: [],
-                followerCount: 0
-            };
-
-            const privateUserRef = doc(db, privateUsersCollectionPath, uid, "private_data", "details");
-            const privateData = {
-                uid: uid,
-                email: email,
-                firstname: data.firstname,
-                lastname: data.lastname,
-                classe: data.classe || "Non applicable"
-            };
-
-            try {
-                await setDoc(publicUserRef, publicData);
-                await setDoc(privateUserRef, privateData);
-                currentUserProfile = publicData; 
-            } catch (error) {
-                console.error("Erreur création profil (multi-part):", error);
-                showToast("Erreur lors de la création du profil.", "error");
+            const userRef = doc(db, publicUsersCollectionPath, uid);
+            const docSnap = await getDoc(userRef);
+            if (docSnap.exists()) {
+                profile = docSnap.data();
+                allUsersData[uid] = profile; // Mettre en cache
+                return profile;
             }
+            return null;
         }
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUserId = user.uid;
-                const userRef = doc(db, publicUsersCollectionPath, user.uid);
-                const docSnap = await getDoc(userRef);
+                currentUserProfile = await fetchUserProfile(user.uid);
                 
-                if (docSnap.exists()) {
-                    currentUserProfile = docSnap.data();
-                } else {
-                    if (user.providerData.some(p => p.providerId === 'google.com')) {
-                        const googleUsername = user.displayName || user.email.split('@')[0];
-                        const googleFirstname = user.displayName ? user.displayName.split(' ')[0] : '';
-                        const googleLastname = user.displayName ? user.displayName.split(' ').slice(1).join(' ') : '';
-                        const googlePhotoURL = user.photoURL;
-                        
-                        const tempData = {
-                            status: "Non défini",
-                            firstname: googleFirstname,
-                            lastname: googleLastname,
-                            classe: "Non applicable",
-                            requestCertification: false
-                        };
-                        
-                        await createMultiPartUserProfile(user.uid, user.email, tempData, googleUsername, googlePhotoURL);
-                        
-                        showToast("Profil Google créé !", "success");
-                    }
+                if (!currentUserProfile) {
+                    // Cas très rare: authentifié mais pas de profil (ex: suppression manuelle)
+                    console.warn("Utilisateur authentifié sans profil public. Déconnexion...");
+                    await signOut(auth);
+                    return;
                 }
-                
-                sidebar.classList.remove('md:hidden');
-                document.querySelector('.flex-1.flex.flex-col').classList.remove('w-full');
                 
                 updateAuthUI(user);
-                
-                if (location.hash === '#create') {
-                    initializeQuill(); 
-                }
-                
-                if (location.hash === '#auth') {
+                if (location.hash === '#auth' || location.hash === '') {
                     location.hash = '#home';
                 }
-                
                 router();
-                
             } else {
                 currentUserId = null;
                 currentUserProfile = null;
+                allResources = [];
+                allUsersData = {};
                 updateAuthUI(null);
-                
-                sidebar.classList.add('md:hidden');
-                sidebar.classList.add('-translate-x-full');
-                document.querySelector('.flex-1.flex.flex-col').classList.add('w-full');
-                
                 location.hash = '#auth';
-                showPage('auth-page');
-            }
-            
-            if (location.hash === '#home') {
-                renderResources(homeResourcesContainer, {}, homeSearchInput.value);
-            } else if (location.hash.startsWith('#category')) {
-                const categoryName = decodeURIComponent(location.hash.split('?id=')[1] || '');
-                renderResources(categoryResourcesContainer, { category: categoryName }, categorySearchInput.value);
+                showPage('auth-page'); // Forcer l'affichage
             }
         });
-
-
-        // --- ÉCOUTEURS D'INSCRIPTION ---
         
-        function showSignupStep(stepNumber) {
-            signupSteps.forEach(step => step.style.display = 'none');
-            const stepToShow = document.getElementById(`signup-step-${stepNumber}`);
-            if (stepToShow) {
-                stepToShow.style.display = 'block';
-            }
-            
-            const progressSteps = [
-                document.getElementById('progress-step-1'),
-                document.getElementById('progress-step-2'),
-                document.getElementById('progress-step-3')
-            ];
-            progressSteps.forEach((step, index) => {
-                if (index + 1 < stepNumber) {
-                    step.classList.remove('border-gray-300', 'text-gray-400', 'border-indigo-600', 'font-semibold', 'text-gray-800');
-                    step.classList.add('border-green-500', 'text-green-600');
-                } else if (index + 1 === stepNumber) {
-                    step.classList.remove('border-gray-300', 'text-gray-400', 'border-green-500', 'text-green-600');
-                    step.classList.add('border-indigo-600', 'font-semibold', 'text-gray-800');
-                } else {
-                    step.classList.remove('border-green-500', 'text-green-600', 'border-indigo-600', 'font-semibold', 'text-gray-800');
-                    step.classList.add('border-gray-300', 'text-gray-400');
-                }
+        // --- GESTION DES FORMULAIRES AUTH ---
+        
+        function showSignupStep(step) {
+            signupSteps.forEach((s, i) => {
+                s.style.display = (i + 1 === step) ? 'block' : 'none';
             });
+            // Mettre à jour la barre de progression
+            document.getElementById('progress-step-1').className = `w-1/3 text-center py-2 border-b-4 ${step >= 1 ? 'border-indigo-600 font-semibold text-gray-800' : 'border-gray-300 text-gray-400'}`;
+            document.getElementById('progress-step-2').className = `w-1/3 text-center py-2 border-b-4 ${step >= 2 ? 'border-indigo-600 font-semibold text-gray-800' : 'border-gray-300 text-gray-400'}`;
+            document.getElementById('progress-step-3').className = `w-1/3 text-center py-2 border-b-4 ${step >= 3 ? 'border-indigo-600 font-semibold text-gray-800' : 'border-gray-300 text-gray-400'}`;
         }
 
-        function populateClassesList(selectElement) {
-            if (!selectElement) return;
-            selectElement.innerHTML = ''; 
-            CLASSES_LIST.forEach(classe => {
-                const option = document.createElement('option');
-                option.value = classe;
-                option.textContent = classe;
-                selectElement.appendChild(option);
-            });
-        }
-        
         showSignupBtn.addEventListener('click', () => {
             loginView.style.display = 'none';
             signupView.classList.remove('hidden');
             showSignupStep(1);
         });
-        
         showLoginBtn.addEventListener('click', () => {
             loginView.style.display = 'block';
             signupView.classList.add('hidden');
         });
-        
-        signupNext1.addEventListener('click', () => {
+
+        signupStatus.addEventListener('change', () => {
             const status = signupStatus.value;
-            if (!status) {
+            tempSignupData = { status };
+            if (status === 'professeur') {
+                signupClasseContainer.classList.add('hidden');
+                signupCertificationContainer.classList.remove('hidden');
+            } else {
+                signupClasseContainer.classList.remove('hidden');
+                signupCertificationContainer.classList.add('hidden');
+            }
+        });
+
+        signupNext1.addEventListener('click', () => {
+            if (!tempSignupData.status) {
                 showToast("Veuillez choisir un statut.", "error");
                 return;
             }
-            tempSignupData = { status };
-            
-            if (status === 'professeur') {
-                signupClasseContainer.style.display = 'none';
-                signupCertificationContainer.classList.remove('hidden');
-            } else {
-                signupClasseContainer.style.display = 'block';
-                signupCertificationContainer.classList.add('hidden');
-            }
-            
             showSignupStep(2);
         });
-
         signupPrev2.addEventListener('click', () => showSignupStep(1));
-
         signupNext2.addEventListener('click', () => {
-            const firstname = signupFirstname.value;
-            const lastname = signupLastname.value;
-            if (!firstname || !lastname) {
-                showToast("Veuillez remplir le nom et le prénom.", "error");
+            if (!signupFirstname.value || !signupLastname.value) {
+                showToast("Veuillez remplir votre nom et prénom.", "error");
                 return;
             }
-            
-            tempSignupData.firstname = firstname;
-            tempSignupData.lastname = lastname;
-            
-            if (tempSignupData.status !== 'professeur') {
-                tempSignupData.classe = signupClasse.value;
-                if (!tempSignupData.classe) {
-                    showToast("Veuillez choisir une classe.", "error");
-                    return;
-                }
-            } else {
-                tempSignupData.requestCertification = signupRequestCertification.checked;
-            }
-            
+            tempSignupData.firstname = signupFirstname.value;
+            tempSignupData.lastname = signupLastname.value;
+            tempSignupData.classe = signupClasse.value;
+            tempSignupData.requestCertification = signupRequestCertification.checked;
             showSignupStep(3);
         });
-
         signupPrev3.addEventListener('click', () => showSignupStep(2));
-        
-        signupForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const username = signupUsername.value;
-            const email = signupEmail.value;
-            const password = signupPassword.value;
-            
-            if (!username || !email || !password) {
-                showToast("Veuillez remplir tous les champs du compte.", "error");
-                return;
-            }
-
-            try {
-                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                await createMultiPartUserProfile(userCredential.user.uid, email, tempSignupData, username, null);
-                showToast("Inscription réussie !", "success");
-            } catch (error) {
-                console.error("Erreur Inscription:", error);
-                showToast(`Erreur: ${error.message}`, "error");
-            }
-        });
         
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const email = document.getElementById('login-email').value;
             const password = document.getElementById('login-password').value;
-            
             try {
                 await signInWithEmailAndPassword(auth, email, password);
                 showToast("Connexion réussie !", "success");
@@ -1873,76 +1685,240 @@
                 showToast(`Erreur: ${error.message}`, "error");
             }
         });
-        
-        googleAuthBtn.addEventListener('click', async () => {
-            const provider = new GoogleAuthProvider();
+
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = signupUsername.value;
+            const email = signupEmail.value;
+            const password = signupPassword.value;
+            
+            if (!username || !email || !password) {
+                showToast("Veuillez remplir tous les champs du compte.", "error");
+                return;
+            }
+            
             try {
-                await signInWithPopup(auth, provider);
-                showToast("Connexion Google réussie !", "success");
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+                
+                await createUserProfile(user, { ...tempSignupData, username });
+                
+                showToast("Compte créé avec succès !", "success");
+                tempSignupData = {}; // Vider les données temporaires
+                
             } catch (error) {
-                console.error("Erreur Google Auth:", error);
+                console.error("Erreur Inscription:", error);
                 showToast(`Erreur: ${error.message}`, "error");
             }
         });
         
-        editProfileForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!currentUserId || !currentUserProfile) return;
-            
-            saveEditProfileBtn.disabled = true;
-            saveEditProfileBtn.textContent = "Sauvegarde...";
-
+        googleAuthBtn.addEventListener('click', async () => {
+            const provider = new GoogleAuthProvider();
             try {
-                const newUsername = editUsername.value;
-                const newPhotoURL = editPhotoUrl.value;
-                const newFirstname = editFirstname.value;
-                const newLastname = editLastname.value;
-                const newClasse = editClasse.value;
+                const result = await signInWithPopup(auth, provider);
+                const user = result.user;
                 
-                const publicRef = doc(db, publicUsersCollectionPath, currentUserId);
-                await updateDoc(publicRef, {
-                    username: newUsername,
-                    photoURL: newPhotoURL
-                });
-                
-                const privateRef = doc(db, privateUsersCollectionPath, currentUserId, "private_data", "details");
-                await updateDoc(privateRef, {
-                    firstname: newFirstname,
-                    lastname: newLastname,
-                    classe: currentUserProfile.status === 'professeur' ? null : newClasse
-                });
-                
-                currentUserProfile.username = newUsername;
-                currentUserProfile.photoURL = newPhotoURL;
-                allUsersData[currentUserId] = { ...allUsersData[currentUserId], ...currentUserProfile };
-                
-                showToast("Profil mis à jour avec succès !", "success");
-                updateAuthUI(auth.currentUser);
-                location.hash = '#profile?id=' + currentUserId;
+                const profile = await fetchUserProfile(user.uid);
+                if (!profile) {
+                    showToast("Bienvenue ! Veuillez compléter votre profil.", "info");
+                    
+                    const [firstname, lastname] = user.displayName.split(' ');
+                    
+                    await createUserProfile(user, {
+                        username: user.displayName || user.email.split('@')[0],
+                        status: "eleve",
+                        firstname: firstname || '',
+                        lastname: lastname || '',
+                        classe: "Non applicable",
+                        requestCertification: false,
+                        photoURL: user.photoURL
+                    });
+                }
+                showToast("Connexion via Google réussie !", "success");
                 
             } catch (error) {
-                console.error("Erreur mise à jour profil:", error);
-                showToast("Erreur lors de la mise à jour.", "error");
-            } finally {
-                saveEditProfileBtn.disabled = false;
-                saveEditProfileBtn.textContent = "Enregistrer";
+                console.error("Erreur Google Auth:", error);
+                showToast(`Erreur Google: ${error.message}`, "error");
             }
         });
         
-        cancelEditProfileBtn.addEventListener('click', () => {
-            location.hash = '#profile?id=' + currentUserId;
-        });
+        async function createUserProfile(user, data) {
+            const publicRef = doc(db, publicUsersCollectionPath, user.uid);
+            const privateRef = doc(db, privateUsersCollectionPath, user.uid, "private_data", "details");
 
+            try {
+                await setDoc(publicRef, {
+                    uid: user.uid,
+                    username: data.username,
+                    email: user.email,
+                    photoURL: data.photoURL || null,
+                    status: data.status,
+                    createdAt: Timestamp.now(),
+                    following: [],
+                    followerCount: 0,
+                    badges: [],
+                    certification: false,
+                    certificationPending: data.status === 'professeur' && data.requestCertification
+                });
 
-        mobileMenuButton.addEventListener('click', () => {
-            sidebar.classList.toggle('-translate-x-full');
-            sidebar.classList.toggle('translate-x-0');
-        });
+                await setDoc(privateRef, {
+                    firstname: data.firstname,
+                    lastname: data.lastname,
+                    classe: data.classe
+                });
+                
+                currentUserProfile = await fetchUserProfile(user.uid);
+                updateAuthUI(user);
 
+            } catch (error) {
+                console.error("Erreur création profil:", error);
+                showToast("Erreur lors de la création du profil.", "error");
+            }
+        }
+        
+        // --- GESTION DES INTERACTIONS (Like, Dislike, Abonnement) ---
+        
+        async function toggleLike(resourceId, likeBtn, dislikeBtn) {
+            const resourceRef = doc(db, resourcesCollectionPath, resourceId);
+            const resource = allResources.find(r => r.id === resourceId);
+            
+            const liked = resource.likes?.includes(currentUserId);
+            const disliked = resource.dislikes?.includes(currentUserId);
+            
+            const likeIcon = likeBtn.querySelector('img');
+            const dislikeIcon = dislikeBtn.querySelector('img');
+            const likeCountSpan = likeBtn.querySelector('.like-count');
+            const dislikeCountSpan = dislikeBtn.querySelector('.dislike-count');
+
+            try {
+                let updates = {};
+                
+                if (liked) {
+                    updates.likes = arrayRemove(currentUserId);
+                    resource.likes = resource.likes.filter(id => id !== currentUserId);
+                    likeIcon.classList.add('grayscale');
+                } else {
+                    updates.likes = arrayUnion(currentUserId);
+                    if (!resource.likes) resource.likes = [];
+                    resource.likes.push(currentUserId);
+                    likeIcon.classList.remove('grayscale');
+                    
+                    if (disliked) {
+                        updates.dislikes = arrayRemove(currentUserId);
+                        resource.dislikes = resource.dislikes.filter(id => id !== currentUserId);
+                        dislikeIcon.classList.add('grayscale');
+                    }
+                }
+                
+                await updateDoc(resourceRef, updates);
+                
+                likeCountSpan.textContent = formatNumber(resource.likes.length);
+                dislikeCountSpan.textContent = formatNumber(resource.dislikes?.length || 0);
+
+            } catch (error) {
+                console.error("Erreur toggleLike:", error);
+                showToast("Erreur lors du vote.", "error");
+            }
+        }
+        
+        async function toggleDislike(resourceId, dislikeBtn, likeBtn) {
+            const resourceRef = doc(db, resourcesCollectionPath, resourceId);
+            const resource = allResources.find(r => r.id === resourceId);
+            
+            const liked = resource.likes?.includes(currentUserId);
+            const disliked = resource.dislikes?.includes(currentUserId);
+            
+            const likeIcon = likeBtn.querySelector('img');
+            const dislikeIcon = dislikeBtn.querySelector('img');
+            const likeCountSpan = likeBtn.querySelector('.like-count');
+            const dislikeCountSpan = dislikeBtn.querySelector('.dislike-count');
+
+            try {
+                let updates = {};
+                
+                if (disliked) {
+                    updates.dislikes = arrayRemove(currentUserId);
+                    resource.dislikes = resource.dislikes.filter(id => id !== currentUserId);
+                    dislikeIcon.classList.add('grayscale');
+                } else {
+                    updates.dislikes = arrayUnion(currentUserId);
+                    if (!resource.dislikes) resource.dislikes = [];
+                    resource.dislikes.push(currentUserId);
+                    dislikeIcon.classList.remove('grayscale');
+                    
+                    if (liked) {
+                        updates.likes = arrayRemove(currentUserId);
+                        resource.likes = resource.likes.filter(id => id !== currentUserId);
+                        likeIcon.classList.add('grayscale');
+                    }
+                }
+                
+                await updateDoc(resourceRef, updates);
+                
+                likeCountSpan.textContent = formatNumber(resource.likes?.length || 0);
+                dislikeCountSpan.textContent = formatNumber(resource.dislikes.length);
+
+            } catch (error) {
+                console.error("Erreur toggleDislike:", error);
+                showToast("Erreur lors du vote.", "error");
+            }
+        }
+        
+        async function toggleSubscription(targetUserId, subBtn) {
+            if (targetUserId === currentUserId) return;
+            
+            subBtn.disabled = true;
+            
+            const currentUserRef = doc(db, publicUsersCollectionPath, currentUserId);
+            const targetUserRef = doc(db, publicUsersCollectionPath, targetUserId);
+            
+            const isSubscribed = currentUserProfile.following?.includes(targetUserId);
+            
+            try {
+                if (isSubscribed) {
+                    // Se désabonner
+                    await updateDoc(currentUserRef, { following: arrayRemove(targetUserId) });
+                    await updateDoc(targetUserRef, { followerCount: increment(-1) });
+                    
+                    currentUserProfile.following = currentUserProfile.following.filter(id => id !== targetUserId);
+                    allUsersData[targetUserId].followerCount--;
+                    
+                    subBtn.textContent = 'S\'abonner';
+                    subBtn.className = 'px-4 py-2 rounded-md font-semibold bg-indigo-600 text-white hover:bg-indigo-700';
+                } else {
+                    // S'abonner
+                    await updateDoc(currentUserRef, { following: arrayUnion(targetUserId) });
+                    await updateDoc(targetUserRef, { followerCount: increment(1) });
+                    
+                    if (!currentUserProfile.following) currentUserProfile.following = [];
+                    currentUserProfile.following.push(targetUserId);
+                    allUsersData[targetUserId].followerCount++;
+                    
+                    subBtn.textContent = 'Abonné';
+                    subBtn.className = 'px-4 py-2 rounded-md font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300';
+                }
+                
+                // Mettre à jour le compteur d'abonnés sur la page de profil (si visible)
+                const followerCountSpan = profileContainer.querySelector('span.text-2xl.font-bold');
+                if (followerCountSpan && location.hash.startsWith('#profile?id=' + targetUserId)) {
+                    const labelSpan = followerCountSpan.nextElementSibling;
+                    const count = allUsersData[targetUserId].followerCount;
+                    followerCountSpan.textContent = formatNumber(count);
+                    labelSpan.textContent = `Abonné${count !== 1 ? 's' : ''}`;
+                }
+
+            } catch (error) {
+                console.error("Erreur toggleSubscription:", error);
+                showToast("Erreur lors de l'abonnement.", "error");
+            } finally {
+                subBtn.disabled = false;
+            }
+        }
+        
+        // --- Écouteurs de recherche ---
         homeSearchInput.addEventListener('input', (e) => {
             renderResources(homeResourcesContainer, {}, e.target.value);
         });
-        
         categorySearchInput.addEventListener('input', (e) => {
             const categoryName = decodeURIComponent(location.hash.split('?id=')[1] || '');
             renderResources(categoryResourcesContainer, { category: categoryName }, e.target.value);
@@ -1954,6 +1930,65 @@
 
 
         // --- GESTION DE L'ÉDITEUR ET DU MODAL ---
+        
+        let quillInstanceInitialized = false;
+        function initializeQuill() {
+            if (quillInstanceInitialized) {
+                quillEditor.setContents([]); // Vider l'éditeur
+                return; 
+            }
+            
+            if (!document.getElementById('editor-container')) {
+                return;
+            }
+            
+            const toolbarOptions = [
+                [{ 'header': [1, 2, 3, false] }, { 'font': [] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                [{ 'script': 'sub'}, { 'script': 'super' }],
+                [{ 'indent': '-1'}, { 'indent': '+1' }],
+                [{ 'color': [] }, { 'background': [] }],
+                ['link', 'image', 'video'],
+                ['formula'],
+                ['clean']
+            ];
+            
+            const dynamicToolbarOptions = [
+                [{ 'header': [1, 2, 3, false] }, { 'font': [] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                [{ 'script': 'sub'}, { 'script': 'super' }],
+                [{ 'indent': '-1'}, { 'indent': '+1' }],
+                [{ 'color': [] }, { 'background': [] }],
+                ['link'],
+                ['formula'],
+                ['clean']
+            ];
+            
+            if (currentUserProfile && currentUserProfile.certification) {
+                dynamicToolbarOptions.splice(6, 0, ['image', 'video']);
+            }
+
+            quillEditor = new Quill('#editor-container', {
+                modules: {
+                    toolbar: {
+                        container: dynamicToolbarOptions,
+                        handlers: {
+                            'image': () => quillUrlHandler('image'),
+                            'video': () => quillUrlHandler('video'),
+                            'link': () => quillUrlHandler('link'),
+                            'formula': quillFormulaHandler
+                        }
+                    },
+                    formula: true
+                },
+                theme: 'snow',
+                placeholder: 'Rédigez votre cours ici...'
+            });
+            
+            quillInstanceInitialized = true;
+        }
         
         function quillUrlHandler(type) {
             currentQuillHandler = type;
@@ -1982,7 +2017,6 @@
         cancelQuillUrlBtn.addEventListener('click', () => {
             quillUrlModal.classList.add('hidden');
         });
-
         insertQuillUrlBtn.addEventListener('click', () => {
             const url = quillUrlInput.value;
             if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
@@ -2002,7 +2036,6 @@
         cancelFormulaBtn.addEventListener('click', () => {
             formulaModal.classList.add('hidden');
         });
-
         insertFormulaBtn.addEventListener('click', () => {
             const formula = formulaInput.value;
             if (formula) {
@@ -2012,87 +2045,22 @@
                 formulaModal.classList.add('hidden');
             }
         });
-        
-        function initializeQuill() {
-            const editorContainer = document.getElementById('editor-container');
-            if (editorContainer && editorContainer.innerHTML) {
-                 editorContainer.innerHTML = '';
-            }
-            
-            const toolbarOptions = [
-                [{ 'header': [1, 2, 3, false] }, { 'font': [] }],
-                ['bold', 'italic', 'underline', 'strike'],
-                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                [{ 'script': 'sub'}, { 'script': 'super' }],
-                [{ 'indent': '-1'}, { 'indent': '+1' }],
-                [{ 'color': [] }, { 'background': [] }],
-                ['link'],
-                ['formula'],
-                ['clean']
-            ];
-
-            if (currentUserProfile && currentUserProfile.certification) {
-                toolbarOptions.splice(6, 0, ['image', 'video']);
-            }
-
-            quillEditor = new Quill('#editor-container', {
-                modules: {
-                    toolbar: {
-                        container: toolbarOptions,
-                        handlers: {
-                            'image': () => quillUrlHandler('image'),
-                            'video': () => quillUrlHandler('video'),
-                            'link': () => quillUrlHandler('link'),
-                            'formula': quillFormulaHandler
-                        }
-                    },
-                    formula: true
-                },
-                theme: 'snow',
-                placeholder: 'Rédigez votre cours ici...'
-            });
-        }
-        
-        function loadCategoriesIntoModal() {
-            if (!categoryInput || !subcategoryInput) return;
-            
-            categoryInput.innerHTML = '<option value="">Choisir une catégorie</option>';
-            subcategoryInput.innerHTML = '<option value="">Choisir une sous-catégorie</option>';
-            
-            categoriesData.forEach(cat => {
-                const option = document.createElement('option');
-                option.value = cat.name;
-                option.textContent = cat.name;
-                categoryInput.appendChild(option);
-            });
-
-            categoryInput.addEventListener('change', () => {
-                const selectedCategoryName = categoryInput.value;
-                const selectedCategory = categoriesData.find(c => c.name === selectedCategoryName);
-                
-                subcategoryInput.innerHTML = '';
-                if (selectedCategory && selectedCategory.subcategories) {
-                    selectedCategory.subcategories.forEach(subcat => {
-                        const option = document.createElement('option');
-                        option.value = subcat;
-                        option.textContent = subcat;
-                        subcategoryInput.appendChild(option);
-                    });
-                } else {
-                    subcategoryInput.innerHTML = '<option value="">Aucune sous-catégorie</option>';
-                }
-            });
-        }
 
         openModalBtn.addEventListener('click', () => {
-            if (!quillEditor || quillEditor.getLength() < 10) {
-                showToast("Veuillez écrire un peu de contenu avant de continuer.", "error");
+            const textContent = quillEditor.getText(0, 200).trim();
+            if (textContent.length < 10) {
+                showToast("Veuillez écrire un peu plus de contenu avant de continuer.", "error");
                 return;
             }
+            
+            if (currentUserProfile && currentUserProfile.certification) {
+                imageUploadContainer.classList.remove('hidden');
+            } else {
+                imageUploadContainer.classList.add('hidden');
+            }
+            
             metadataModal.classList.remove('hidden');
-            loadCategoriesIntoModal();
         });
-
         closeModalBtn.addEventListener('click', () => {
             metadataModal.classList.add('hidden');
         });
@@ -2101,72 +2069,78 @@
             e.preventDefault();
             
             if (!currentUserId || !currentUserProfile || !quillEditor) {
-                showToast("Erreur : vous n'êtes pas connecté ou votre profil n'est pas chargé.", "error");
+                showToast("Erreur: Utilisateur non connecté ou éditeur non prêt.", "error");
                 return;
             }
+            
+            const title = titleInput.value;
+            const category = categoryInput.value;
+            const subcategory = subcategoryInput.value;
+            const imageUrl = imageInput.value || null;
+            
+            const contentHtml = quillEditor.root.innerHTML;
+            const contentText = quillEditor.getText(0, 200).trim();
             
             submitResourceBtn.disabled = true;
             submitResourceBtn.textContent = "Publication...";
 
             try {
-                const title = titleInput.value;
-                const category = categoryInput.value;
-                const subcategory = subcategoryInput.value;
-                const imageUrlFromInput = imageInput.value;
-                
-                const contentHtml = quillEditor.root.innerHTML;
-                const contentText = quillEditor.getText(0, 200).trim();
-
-                let imageUrl = null;
-                
-                if (imageUrlFromInput && currentUserProfile && currentUserProfile.certification) {
-                    if (imageUrlFromInput.startsWith('http://') || imageUrlFromInput.startsWith('https://')) {
-                        imageUrl = imageUrlFromInput;
-                    } else {
-                        showToast("L'URL de l'image de couverture n'est pas valide.", "error");
-                        submitResourceBtn.disabled = false;
-                        submitResourceBtn.textContent = "Publier";
-                        return;
-                    }
-                }
-                
-                const resourceData = {
+                const newResource = {
                     title: title,
                     category: category,
                     subcategory: subcategory,
+                    imageUrl: (currentUserProfile.certification && imageUrl) ? imageUrl : null,
                     textContentHtml: contentHtml,
                     textContent: contentText,
-                    imageUrl: imageUrl,
                     authorId: currentUserId,
-                    authorName: currentUserProfile.username,
                     createdAt: Timestamp.now(),
                     likes: [],
                     dislikes: [],
-                    views: 0,
-                    comments: []
+                    views: 0
                 };
 
-                await addDoc(collection(db, resourcesCollectionPath), resourceData);
-
-                allResources = [];
-                allUsersData = {};
-
+                const docRef = await addDoc(collection(db, resourcesCollectionPath), newResource);
+                
+                newResource.id = docRef.id;
+                allResources.unshift(newResource);
+                
                 showToast("Ressource publiée avec succès !", "success");
                 metadataModal.classList.add('hidden');
-                quillEditor.setContents([]);
                 createForm.reset();
-                location.hash = '#home';
+                quillEditor.setContents([]);
+                location.hash = `#resource?id=${docRef.id}`;
                 
             } catch (error) {
                 console.error("Erreur publication ressource:", error);
-                showToast(`Erreur: ${error.message}`, "error");
+                showToast("Erreur lors de la publication.", "error");
             } finally {
                 submitResourceBtn.disabled = false;
                 submitResourceBtn.textContent = "Publier";
             }
         });
-
-
+        
+        categoryInput.addEventListener('change', () => {
+            updateSubcategories(categoryInput.value, subcategoryInput, true);
+        });
+        
+        function updateSubcategories(categoryName, selectElement, clear = false) {
+            if (clear) {
+                selectElement.innerHTML = '<option value="">-- Choisir une sous-catégorie --</option>';
+            } else {
+                selectElement.innerHTML = '';
+            }
+            
+            const category = categoriesData.find(cat => cat.name === categoryName);
+            if (category && category.subcategories) {
+                category.subcategories.forEach(sub => {
+                    const option = document.createElement('option');
+                    option.value = sub;
+                    option.textContent = sub;
+                    selectElement.appendChild(option);
+                });
+            }
+        }
+        
         // --- DÉMARRAGE DE L'APPLICATION ---
         
         function loadCategories() {
@@ -2184,24 +2158,56 @@
                     `;
                     sidebarNav.appendChild(link);
                 });
-                if (typeof lucide !== 'undefined') {
-                    lucide.createIcons();
-                }
+                
+                // Remplir les menus déroulants
+                const categorySelects = [categoryInput];
+                categorySelects.forEach(select => {
+                    if (select) {
+                        select.innerHTML = '<option value="">-- Choisir une catégorie --</option>';
+                        categoriesData.forEach(cat => {
+                            const option = document.createElement('option');
+                            option.value = cat.name;
+                            option.textContent = cat.name;
+                            select.appendChild(option);
+                        });
+                    }
+                });
+                
+                // Remplir les listes de classes
+                const classeSelects = [signupClasse, editClasse];
+                classeSelects.forEach(select => {
+                    if (select) {
+                        select.innerHTML = '';
+                        CLASSES_LIST.forEach(classe => {
+                            const option = document.createElement('option');
+                            option.value = classe;
+                            option.textContent = classe;
+                            select.appendChild(option);
+                        });
+                    }
+                });
+
             } catch (error) {
                 console.error("Erreur chargement catégories:", error);
             }
         }
-        
-        // Point d'entrée principal
-        loadCategories();
-        populateClassesList(signupClasse); // Pré-remplir la liste d'inscription
-        populateClassesList(editClasse); // Pré-remplir la liste d'édition
-        window.addEventListener('hashchange', router);
 
+        mobileMenuButton.addEventListener('click', () => {
+            sidebar.classList.toggle('-translate-x-full');
+        });
+
+        window.addEventListener('hashchange', router);
+        
+        // Initialisation au chargement
+        loadCategories();
+        showPage('loading-page');
+        // onAuthStateChanged se chargera d'appeler le routeur
+        
     </script>
     
-    <!-- Scripts pour l'éditeur (chargés à la fin) -->
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/katex.min.js"></script>
+    <!-- Quill Editor JS -->
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <!-- KaTeX JS (pour les formules de maths) -->
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.12.0/dist/katex.min.js"></script>
 </body>
 </html>
