@@ -283,13 +283,6 @@
                                 Se connecter
                             </button>
                             
-                            <p class="text-center text-sm text-gray-600 my-4">OU</p>
-                            
-                            <button type="button" id="google-auth-btn" class="w-full flex items-center justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691c-1.646 3.403-2.656 7.21-2.656 11.31s1.01 7.907 2.656 11.31l-5.657 5.657C1.135 38.824 0 34.046 0 29c0-5.046 1.135-9.824 3.039-14.309l5.657 5.657z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.341l-5.657-5.657C30.046 34.66 27.268 36 24 36c-5.223 0-9.657-3.343-11.303-8H7.047v8H24v-8z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.23 4.14-4.082 5.571l5.657 5.657C40.012 36.438 44 31.026 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
-                                Continuer avec Google
-                            </button>
-                            
                             <p class="text-center text-sm text-gray-600 mt-6">
                                 Pas encore de compte ? 
                                 <button type="button" id="show-signup-btn" class="font-medium text-indigo-600 hover:text-indigo-500">
@@ -532,9 +525,7 @@
             signInWithEmailAndPassword, 
             createUserWithEmailAndPassword, 
             onAuthStateChanged, 
-            signOut, 
-            GoogleAuthProvider, 
-            signInWithPopup 
+            signOut
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { 
             getFirestore, 
@@ -587,19 +578,23 @@
         const BADGE_DEFINITIONS = {
             "staff": {
                 name: "Staff",
-                image: "https://img.icons8.com/fluency/70/discord-stuff-badge.png"
+                image: "https://img.icons8.com/fluency/1000/discord-stuff-badge.png"
             },
             "testeur": {
                 name: "Testeur",
-                image: "https://img.icons8.com/fluency/70/discord-hypesquad-events-badge.png"
+                image: "https://img.icons8.com/fluency/1000/discord-hypesquad-events-badge.png"
             },
             "moderateur": {
                 name: "Modérateur",
-                image: "https://img.icons8.com/fluency/70/discord-moderator-program-alumni-badge.png"
+                image: "https://img.icons8.com/fluency/1000/discord-moderator-program-alumni-badge.png"
             },
             "actif": {
                 name: "Membre Actif",
-                image: "https://img.icons8.com/fluency/48/star.png" 
+                image: "https://img.icons8.com/fluency/1000/star.png" 
+            },
+            "grandaide": {
+                name: "Merci!",
+                image: "https://img.icons8.com/fluency/1000/lifebuoy.png" 
             }
         };
         
@@ -638,7 +633,6 @@
         
         // --- Éléments DOM Auth ---
         const loginForm = document.getElementById('login-form');
-        const googleAuthBtn = document.getElementById('google-auth-btn');
         const showSignupBtn = document.getElementById('show-signup-btn');
         
         const signupView = document.getElementById('signup-view');
@@ -1770,45 +1764,6 @@
             } catch (error) {
                 console.error("Erreur Inscription:", error);
                 showToast(`Erreur: ${error.message}`, "error");
-            }
-        });
-        
-        googleAuthBtn.addEventListener('click', async () => {
-            const provider = new GoogleAuthProvider();
-            try {
-                const result = await signInWithPopup(auth, provider);
-                const user = result.user;
-                
-                // NOUVELLE VALIDATION DE DOMAINE
-                if (!validateEmailDomain(user.email)) {
-                    showToast("Ce compte Google n'utilise pas un email autorisé (@kesako.org, @escr74.com, ...).", "error");
-                    // L'utilisateur est connecté à Firebase, mais nous n'allons pas créer son profil.
-                    // Nous devons le déconnecter immédiatement.
-                    await signOut(auth);
-                    return; // Arrêter le processus
-                }
-                
-                const profile = await fetchUserProfile(user.uid);
-                if (!profile) {
-                    showToast("Bienvenue ! Veuillez compléter votre profil.", "info");
-                    
-                    const [firstname, lastname] = user.displayName.split(' ');
-                    
-                    await createUserProfile(user, {
-                        username: user.displayName || user.email.split('@')[0],
-                        status: "eleve",
-                        firstname: firstname || '',
-                        lastname: lastname || '',
-                        classe: "Non applicable",
-                        requestCertification: false,
-                        photoURL: user.photoURL
-                    });
-                }
-                showToast("Connexion via Google réussie !", "success");
-                
-            } catch (error) {
-                console.error("Erreur Google Auth:", error);
-                showToast(`Erreur Google: ${error.message}`, "error");
             }
         });
         
