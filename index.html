@@ -781,6 +781,19 @@
             }, 3000);
         }
 
+        // NOUVELLE FONCTION: Validation de domaine d'email
+        function validateEmailDomain(email) {
+            if (!email) return false;
+            const allowedDomains = [
+                '@kesako.org', 
+                '@escr74.com', 
+                '@escr74.education', 
+                '@escr74.eu'
+            ];
+            // Vérifie si l'email se termine par un des domaines autorisés
+            return allowedDomains.some(domain => email.endsWith(domain));
+        }
+
         // NOUVEAU: Fonction de sécurité
         function escapeHTML(str) {
             if (!str) return '';
@@ -1240,7 +1253,7 @@
             return card;
         }
 
-        // --- PAGE PROFIL ---
+        // --- PAGE PROFIL (MODIFIÉE POUR VUES TOTALES) ---
         
         async function renderProfile(profileId) {
             if (!profileId) {
@@ -1263,6 +1276,11 @@
                         return;
                     }
                 }
+                
+                // NOUVEAU: Calculer les stats de l'utilisateur
+                const userResources = allResources.filter(r => r.authorId === profileId);
+                const totalViews = userResources.reduce((sum, resource) => sum + (resource.views || 0), 0);
+                const resourceCount = userResources.length;
                 
                 const isCurrentUser = (profileId === currentUserId);
                 const isSubscribed = currentUserProfile?.following?.includes(profileId);
@@ -1315,19 +1333,25 @@
                                 ${certIcon}
                             </div>
                             
-                            <!-- NOUVEL AFFICHAGE: Description -->
+                            <!-- AFFICHAGE: Description -->
                             <p class="text-gray-600 mt-2 text-center md:text-left">
                                 ${profile.description ? escapeHTML(profile.description) : '<i>Aucune description.</i>'}
                             </p>
                             
+                            <!-- BLOC STATS MIS À JOUR -->
                             <div class="flex justify-center md:justify-start space-x-6 mt-4 text-gray-600">
                                 <div class="text-center">
                                     <span class="text-2xl font-bold text-gray-900">${formatNumber(profile.followerCount || 0)}</span>
                                     <span class="block text-sm">Abonné${(profile.followerCount || 0) !== 1 ? 's' : ''}</span>
                                 </div>
                                 <div class="text-center">
-                                    <span class="text-2xl font-bold text-gray-900">${allResources.filter(r => r.authorId === profile.uid).length}</span>
+                                    <span class="text-2xl font-bold text-gray-900">${formatNumber(resourceCount)}</span>
                                     <span class="block text-sm">Ressources</span>
+                                </div>
+                                <!-- NOUVEAU BLOC VUES TOTALES -->
+                                <div class="text-center">
+                                    <span class="text-2xl font-bold text-gray-900">${formatNumber(totalViews)}</span>
+                                    <span class="block text-sm">Vues totales</span>
                                 </div>
                             </div>
                         </div>
@@ -1365,8 +1389,8 @@
                     });
                 }
                 
-                // Afficher les ressources de l'utilisateur
-                const userResources = allResources.filter(r => r.authorId === profileId);
+                // Afficher les ressources de l'utilisateur (OPTIMISÉ)
+                // const userResources = allResources.filter(r => r.authorId === profileId); // LIGNE SUPPRIMÉE
                 const userResourcesContainer = document.getElementById('profile-resources-container');
                 if (userResources.length > 0) {
                     userResources.forEach(resource => {
@@ -1723,6 +1747,12 @@
             const email = signupEmail.value;
             const password = signupPassword.value;
             
+            // NOUVELLE VALIDATION DE DOMAINE
+            if (!validateEmailDomain(email)) {
+                showToast("L'inscription est réservée aux emails @kesako.org, @escr74.com, @escr74.education, ou @escr74.eu.", "error");
+                return; // Arrêter la soumission
+            }
+            
             if (!username || !email || !password) {
                 showToast("Veuillez remplir tous les champs du compte.", "error");
                 return;
@@ -1748,6 +1778,15 @@
             try {
                 const result = await signInWithPopup(auth, provider);
                 const user = result.user;
+                
+                // NOUVELLE VALIDATION DE DOMAINE
+                if (!validateEmailDomain(user.email)) {
+                    showToast("Ce compte Google n'utilise pas un email autorisé (@kesako.org, @escr74.com, ...).", "error");
+                    // L'utilisateur est connecté à Firebase, mais nous n'allons pas créer son profil.
+                    // Nous devons le déconnecter immédiatement.
+                    await signOut(auth);
+                    return; // Arrêter le processus
+                }
                 
                 const profile = await fetchUserProfile(user.uid);
                 if (!profile) {
