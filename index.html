@@ -104,8 +104,8 @@
     <div id="app-wrapper" class="relative flex h-full min-h-screen">
         
         <!-- Sidebar (Menu principal) -->
-        <!-- Modifié: Couleurs sombres -->
-        <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 flex flex-col w-64 bg-slate-800 text-slate-200 border-r border-slate-700 transition-transform duration-300 ease-in-out -translate-x-full md:relative md:translate-x-0 md:hidden">
+        <!-- Modifié: Couleurs sombres + Structure + Rendu PC Uniquement -->
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 flex-col w-64 bg-slate-800 text-slate-200 border-r border-slate-700 hidden md:flex">
             <!-- Logo -->
             <div class="flex items-center justify-center h-16 px-4 border-b border-slate-700">
                 <i data-lucide="book-open-check" class="h-8 w-8 text-indigo-500"></i>
@@ -119,42 +119,34 @@
                     <i data-lucide="home" class="h-5 w-5 mr-3"></i>
                     Accueil
                 </a>
-                <a href="#create" class="flex items-center px-3 py-2 text-slate-300 rounded-md hover:bg-slate-700 hover:text-indigo-400 transition-colors duration-200" data-page-id="create-page">
-                    <i data-lucide="plus-circle" class="h-5 w-5 mr-3"></i>
-                    Partager un cours
+                <a href="#foryou" class="flex items-center px-3 py-2 text-slate-300 rounded-md hover:bg-slate-700 hover:text-indigo-400 transition-colors duration-200" data-page-id="foryou-page">
+                    <i data-lucide="sparkles" class="h-5 w-5 mr-3"></i>
+                    Pour toi
                 </a>
-                <a href="#users" class="flex items-center px-3 py-2 text-slate-300 rounded-md hover:bg-slate-700 hover:text-indigo-400 transition-colors duration-200" data-page-id="users-page">
-                    <i data-lucide="users" class="h-5 w-5 mr-3"></i>
-                    Utilisateurs
+                <a href="#subscriptions" class="flex items-center px-3 py-2 text-slate-300 rounded-md hover:bg-slate-700 hover:text-indigo-400 transition-colors duration-200" data-page-id="subscriptions-page">
+                    <i data-lucide="rss" class="h-5 w-5 mr-3"></i>
+                    Abonnements
                 </a>
-                <!-- Les catégories seront insérées ici par JS -->
+                <a href="#profile" id="sidebar-profile-link" class="flex items-center px-3 py-2 text-slate-300 rounded-md hover:bg-slate-700 hover:text-indigo-400 transition-colors duration-200" data-page-id="profile-page">
+                    <i data-lucide="user" class="h-5 w-5 mr-3"></i>
+                    Mon compte
+                </a>
+                <!-- Les catégories ont été retirées de la navigation principale -->
             </nav>
             
             <!-- Zone d'authentification (bas de sidebar) -->
-            <div id="auth-info-sidebar" class="p-4 border-t border-slate-700">
-                <!-- Contenu mis à jour par JS (Bouton Connexion ou Infos utilisateur) -->
-            </div>
+            <!-- SUPPRIMÉ: Remplacé par "Mon Compte" dans la nav -->
         </aside>
 
         <!-- Contenu principal -->
         <div class="flex-1 flex flex-col w-full">
             <!-- Header (barre du haut sur mobile) -->
-            <!-- Modifié: Couleurs sombres -->
-            <header class="sticky top-0 z-20 bg-slate-800 shadow-lg md:hidden border-b border-slate-700">
-                <div class="flex items-center justify-between px-4 h-16">
-                    <button id="mobile-menu-button" class="text-slate-400 hover:text-slate-200 transition-colors duration-200">
-                        <i data-lucide="menu" class="h-6 w-6"></i>
-                    </button>
-                    <div class="flex items-center">
-                        <i data-lucide="book-open-check" class="h-6 w-6 text-indigo-500"></i>
-                        <h1 class="ml-2 text-xl font-bold text-slate-100">Révise</h1>
-                    </div>
-                    <div class="w-6"></div> <!-- Espaceur -->
-                </div>
-            </header>
+            <!-- MODIFIÉ: Supprimé, remplacé par la barre de navigation en bas -->
+            <!-- <header class="sticky top-0 z-20 bg-slate-800 shadow-lg md:hidden border-b border-slate-700"> ... </header> -->
 
             <!-- Zone d'affichage des pages -->
-            <main id="main-content" class="flex-1 p-4 md:p-8 bg-slate-900 overflow-y-auto">
+            <!-- MODIFIÉ: Ajout de padding en bas (pb-20) pour la nav mobile -->
+            <main id="main-content" class="flex-1 p-4 md:p-8 bg-slate-900 overflow-y-auto pb-20 md:pb-8">
                 
                 <!-- Page de chargement -->
                 <section id="loading-page" class="page-content active">
@@ -169,15 +161,25 @@
 
                 <!-- Page d'accueil -->
                 <section id="home-page" class="page-content">
-                    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                        <h2 class="text-3xl font-bold text-slate-100">Ressources Récentes</h2>
-                        <!-- Barre de recherche Accueil -->
-                        <!-- Modifié: Style sombre -->
-                        <div class="relative w-full md:w-72">
-                            <input type="search" id="home-search-input" placeholder="Rechercher une ressource..." class="w-full pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-400 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400"></i>
+                    <!-- ANCIENNE SECTION (JUSTIFY-BETWEEN) SUPPRIMÉE -->
+                    
+                    <!-- NOUVELLE SECTION DE RECHERCHE CENTRÉE -->
+                    <div class="text-center mb-10">
+                        <h2 class="text-4xl font-bold text-slate-100 mb-4">
+                            Que souhaitez-vous apprendre ?
+                        </h2>
+                        <!-- Barre de recherche (réutilisant l'ID) -->
+                        <div class="relative max-w-xl mx-auto">
+                            <input type="search" id="home-search-input" placeholder="Rechercher une ressource, un cours, un auteur..." class="w-full pl-12 pr-4 py-3 text-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-400 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                            <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-slate-400"></i>
                         </div>
                     </div>
+                    
+                    <!-- TITRE POUR LES RESSOURCES EN DESSOUS -->
+                    <h3 class="text-3xl font-bold text-slate-100 mb-6">
+                        Ressources Récentes
+                    </h3>
+                    
                     <div id="home-resources-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <!-- Les cartes de ressources seront insérées ici -->
                     </div>
@@ -267,6 +269,13 @@
                                     Enregistrer
                                 </button>
                             </div>
+                            
+                            <!-- NOUVEAU: Bouton Déconnexion -->
+                            <hr class="my-6 border-slate-700">
+                            <button type="button" id="logout-btn-profile" class="w-full text-left flex items-center justify-center py-2 px-4 rounded-md text-sm text-slate-300 hover:bg-red-900 hover:text-white transition-colors duration-150 border border-slate-700 hover:border-red-800">
+                                <i data-lucide="log-out" class="h-4 w-4 mr-2"></i>
+                                Déconnexion
+                            </button>
                         </form>
                     </div>
                 </section>
@@ -434,8 +443,28 @@
                     </div>
                 </section>
                 
-                <!-- Page de Création (Éditeur) -->
-                <section id="create-page" class="page-content">
+                <!-- NOUVELLE PAGE: Pour Toi -->
+                <section id="foryou-page" class="page-content">
+                    <h2 class="text-3xl font-bold text-slate-100 mb-6">Pour toi</h2>
+                    <div class="bg-slate-800 p-8 rounded-lg shadow-xl text-center">
+                        <i data-lucide="construct" class="h-16 w-16 text-indigo-400 mx-auto mb-4"></i>
+                        <h3 class="text-2xl font-bold text-slate-100 mb-2">En construction</h3>
+                        <p class="text-slate-300">Cette section vous proposera bientôt des ressources personnalisées.</p>
+                    </div>
+                </section>
+                
+                <!-- NOUVELLE PAGE: Abonnements -->
+                <section id="subscriptions-page" class="page-content">
+                    <h2 class="text-3xl font-bold text-slate-100 mb-6">Abonnements</h2>
+                    <div class="bg-slate-800 p-8 rounded-lg shadow-xl text-center">
+                        <i data-lucide="construct" class="h-16 w-16 text-indigo-400 mx-auto mb-4"></i>
+                        <h3 class="text-2xl font-bold text-slate-100 mb-2">En construction</h3>
+                        <p class="text-slate-300">Cette section affichera bientôt les dernières ressources de vos abonnements.</p>
+                    </div>
+                </section>
+
+                <!-- Page: Détail de la Ressource -->
+                <section id="resource-detail-page" class="page-content">
                     <!-- Modifié: Style sombre -->
                     <div class="bg-slate-800 p-6 rounded-lg shadow-xl">
                         <h2 class="text-3xl font-bold text-slate-100 mb-6">Partager un cours</h2>
@@ -602,6 +631,27 @@
     </div>
 
 
+    <!-- NOUVELLE Barre de Navigation Mobile (en bas) -->
+    <nav id="mobile-bottom-nav" class="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-slate-800 border-t border-slate-700 flex justify-around items-center h-16">
+        <a href="#home" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-indigo-400 w-1/4">
+            <i data-lucide="home" class="h-6 w-6"></i>
+            <span class="text-xs font-medium">Accueil</span>
+        </a>
+        <a href="#foryou" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-slate-400 hover:text-indigo-400 w-1/4">
+            <i data-lucide="sparkles" class="h-6 w-6"></i>
+            <span class="text-xs font-medium">Pour toi</span>
+        </a>
+        <a href="#subscriptions" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-slate-400 hover:text-indigo-400 w-1/4">
+            <i data-lucide="rss" class="h-6 w-6"></i>
+            <span class="text-xs font-medium">Abonnements</span>
+        </a>
+        <a href="#profile" id="mobile-profile-link" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-slate-400 hover:text-indigo-400 w-1/4">
+            <i data-lucide="user" class="h-6 w-6"></i>
+            <span class="text-xs font-medium">Mon compte</span>
+        </a>
+    </nav>
+
+
     <!-- Toast (Notification) -->
     <div id="toast"></div>
 
@@ -692,9 +742,9 @@
         
         // --- Éléments DOM ---
         const sidebar = document.getElementById('sidebar');
-        const authInfoSidebar = document.getElementById('auth-info-sidebar');
+        // SUPPRIMÉ: authInfoSidebar
         const sidebarNav = document.getElementById('sidebar-nav');
-        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        // SUPPRIMÉ: mobileMenuButton
         
         // Pages
         const homePage = document.getElementById('home-page');
@@ -706,6 +756,11 @@
         const resourceDetailPage = document.getElementById('resource-detail-page');
         const editProfilePage = document.getElementById('edit-profile-page'); 
         const usersPage = document.getElementById('users-page'); 
+        const forYouPage = document.getElementById('foryou-page'); // NOUVEAU
+        const subscriptionsPage = document.getElementById('subscriptions-page'); // NOUVEAU
+        const sidebarProfileLink = document.getElementById('sidebar-profile-link'); // NOUVEAU
+        const mobileProfileLink = document.getElementById('mobile-profile-link'); // NOUVEAU
+        const mobileNavLinks = document.querySelectorAll('.mobile-nav-link'); // NOUVEAU
 
         // Conteneurs de page
         const homeResourcesContainer = document.getElementById('home-resources-container');
@@ -915,13 +970,35 @@
                 return;
             }
             
-            if (sidebar.classList.contains('translate-x-0')) {
-                sidebar.classList.add('-translate-x-full');
-            }
+            // SUPPRIMÉ: Gestion de la sidebar mobile
+            // if (sidebar.classList.contains('translate-x-0')) {
+            //     sidebar.classList.add('-translate-x-full');
+            // }
 
             homeSearchInput.value = '';
             categorySearchInput.value = '';
             usersSearchInput.value = ''; 
+
+            // NOUVEAU: Gérer le style actif des liens de navigation mobile
+            mobileNavLinks.forEach(link => {
+                // Utiliser getAttribute pour obtenir la valeur exacte, y compris #profile
+                const linkHref = link.getAttribute('href');
+                const linkHash = linkHref.split('?id=')[0];
+                
+                if (linkHash === page) {
+                    link.classList.remove('text-slate-400');
+                    link.classList.add('text-indigo-400');
+                } else {
+                    link.classList.remove('text-indigo-400');
+                    link.classList.add('text-slate-400');
+                }
+                
+                // Cas spécial pour "Mon Compte" (doit être actif pour #profile, #edit-profile)
+                if ((page === '#profile' || page === '#edit-profile') && linkHref.startsWith('#profile')) {
+                    link.classList.remove('text-slate-400');
+                    link.classList.add('text-indigo-400');
+                }
+            });
 
             switch (page) {
                 case '#home':
@@ -971,6 +1048,13 @@
                 case '#resource':
                     showPage('resource-detail-page');
                     await renderResourceDetail(param);
+                    break;
+                // NOUVEAUX CAS
+                case '#foryou':
+                    showPage('foryou-page');
+                    break;
+                case '#subscriptions':
+                    showPage('subscriptions-page');
                     break;
                 default:
                     location.hash = '#home';
@@ -1616,6 +1700,15 @@
                         }
                     });
                 }
+                
+                // NOUVEAU: Écouteur pour le bouton de déconnexion
+                const logoutBtnProfile = document.getElementById('logout-btn-profile');
+                if (logoutBtnProfile) {
+                    logoutBtnProfile.addEventListener('click', async () => {
+                        await signOut(auth);
+                        showToast("Vous êtes déconnecté.", "info");
+                    });
+                }
 
             } catch (error) {
                 console.error("Erreur loadProfileForEdit:", error);
@@ -1730,37 +1823,23 @@
                 // Utilisateur connecté
                 sidebar.classList.remove('md:hidden'); // Afficher la sidebar
                 
-                const photoUrl = currentUserProfile?.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUserProfile?.username || 'User')}&background=random&color=fff`;
-                
-                // Modifié: Couleurs sombres
-                authInfoSidebar.innerHTML = `
-                    <div class="flex items-center">
-                        <img src="${photoUrl}" alt="Profil" class="h-10 w-10 rounded-full">
-                        <div class="ml-3">
-                            <a href="#profile?id=${user.uid}" class="font-semibold text-slate-200 hover:text-indigo-400 transition-colors duration-150">${currentUserProfile?.username || 'Chargement...'}</a>
-                            <p class="text-sm text-slate-400">${user.email}</p>
-                        </div>
-                    </div>
-                    <button id="logout-btn" class="w-full text-left flex items-center mt-4 text-sm text-slate-300 hover:text-indigo-400 transition-colors duration-150">
-                        <i data-lucide="log-out" class="h-4 w-4 mr-2"></i>
-                        Déconnexion
-                    </button>
-                `;
-                document.getElementById('logout-btn').addEventListener('click', async () => {
-                    await signOut(auth);
-                    showToast("Vous êtes déconnecté.", "info");
-                });
+                // NOUVEAU: Mettre à jour les liens "Mon Compte"
+                sidebarProfileLink.href = `#profile?id=${user.uid}`;
+                mobileProfileLink.href = `#profile?id=${user.uid}`;
+
+                // SUPPRIMÉ: Toute la logique authInfoSidebar
+                // ...
+
             } else {
                 // Utilisateur déconnecté
                 sidebar.classList.add('md:hidden'); // Cacher la sidebar
                 
-                // Modifié: Couleurs sombres
-                authInfoSidebar.innerHTML = `
-                    <p class="text-sm text-slate-400 mb-2">Vous n'êtes pas connecté.</p>
-                    <a href="#auth" class="w-full flex items-center justify-center bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors duration-150">
-                        Connexion
-                    </a>
-                `;
+                // NOUVEAU: Mettre à jour les liens "Mon Compte" vers #auth
+                sidebarProfileLink.href = '#auth';
+                mobileProfileLink.href = '#auth';
+
+                // SUPPRIMÉ: Toute la logique authInfoSidebar
+                // ...
             }
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
@@ -2311,21 +2390,13 @@
         
         function loadCategories() {
             try {
-                categoriesData.forEach(cat => {
-                    const link = document.createElement('a');
-                    link.href = `#category?id=${encodeURIComponent(cat.name)}`;
-                    // Modifié: Style sombre + transitions
-                    link.className = 'flex items-center px-3 py-2 text-slate-300 rounded-md hover:bg-slate-700 hover:text-indigo-400 transition-colors duration-200';
-                    link.dataset.pageId = 'category-page';
-                    
-                    link.innerHTML = `
-                        <img src="${cat.icon || 'https://img.icons8.com/fluency/48/folder-invoices.png'}" alt="${cat.name}" class="h-5 w-5 mr-3">
-                        ${cat.name}
-                    `;
-                    sidebarNav.appendChild(link);
-                });
+                // SUPPRIMÉ: Ajout des liens de catégorie à la sidebar
+                // categoriesData.forEach(cat => {
+                //     ...
+                //     sidebarNav.appendChild(link);
+                // });
                 
-                // Remplir les menus déroulants
+                // Remplir les menus déroulants (CONSERVÉ)
                 const categorySelects = [categoryInput];
                 categorySelects.forEach(select => {
                     if (select) {
@@ -2418,9 +2489,10 @@
         
         // --- ÉCOUTEURS GLOBAUX ---
 
-        mobileMenuButton.addEventListener('click', () => {
-            sidebar.classList.toggle('-translate-x-full');
-        });
+        // SUPPRIMÉ
+        // mobileMenuButton.addEventListener('click', () => {
+        //     sidebar.classList.toggle('-translate-x-full');
+        // });
 
         window.addEventListener('hashchange', router);
         
