@@ -6,8 +6,6 @@
     <title>Révise</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide-dev@0.395.0"></script>
     
     <!-- Quill Editor CSS -->
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
@@ -109,6 +107,7 @@
         <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 flex-col w-64 bg-slate-800/70 backdrop-blur-lg text-slate-200 border-r border-white/10 hidden md:flex">
             <!-- Logo -->
             <div class="flex items-center justify-center h-16 px-4 border-b border-slate-700/50"> <!-- Bordure adoucie -->
+                <!-- NON MODIFIÉ: URL non fournie pour le logo -->
                 <i data-lucide="book-open-check" class="h-8 w-8 text-indigo-500"></i>
                 <h1 class="ml-3 text-2xl font-bold text-slate-100">Révise</h1>
             </div>
@@ -117,19 +116,23 @@
             <!-- Modifié: Couleurs sombres + transitions -->
             <nav id="sidebar-nav" class="flex-1 overflow-y-auto px-2 py-4 space-y-1">
                 <a href="#home" class="flex items-center px-3 py-2 text-slate-300 rounded-md hover:bg-slate-700 hover:text-indigo-400 transition-colors duration-200" data-page-id="home-page">
-                    <i data-lucide="home" class="h-5 w-5 mr-3"></i>
+                    <!-- MODIFIÉ -->
+                    <img src="https://img.icons8.com/fluency/1000/home.png" alt="Accueil" class="h-5 w-5 mr-3">
                     Accueil
                 </a>
                 <a href="#foryou" class="flex items-center px-3 py-2 text-slate-300 rounded-md hover:bg-slate-700 hover:text-indigo-400 transition-colors duration-200" data-page-id="foryou-page">
-                    <i data-lucide="sparkles" class="h-5 w-5 mr-3"></i>
+                    <!-- MODIFIÉ -->
+                    <img src="https://img.icons8.com/fluency/1000/for-you.png" alt="Pour toi" class="h-5 w-5 mr-3">
                     Pour toi
                 </a>
                 <a href="#subscriptions" class="flex items-center px-3 py-2 text-slate-300 rounded-md hover:bg-slate-700 hover:text-indigo-400 transition-colors duration-200" data-page-id="subscriptions-page">
-                    <i data-lucide="rss" class="h-5 w-5 mr-3"></i>
+                    <!-- MODIFIÉ -->
+                    <img src="https://img.icons8.com/fluency/1000/filled-star.png" alt="Abonnements" class="h-5 w-5 mr-3">
                     Abonnements
                 </a>
                 <a href="#profile" id="sidebar-profile-link" class="flex items-center px-3 py-2 text-slate-300 rounded-md hover:bg-slate-700 hover:text-indigo-400 transition-colors duration-200" data-page-id="profile-page">
-                    <i data-lucide="user" class="h-5 w-5 mr-3"></i>
+                    <!-- MODIFIÉ -->
+                    <img src="https://img.icons8.com/fluency/1000/user-male-circle--v1.png" alt="Mon compte" class="h-5 w-5 mr-3">
                     Mon compte
                 </a>
                 <!-- Les catégories ont été retirées de la navigation principale -->
@@ -173,7 +176,8 @@
                         <!-- Barre de recherche (réutilisant l'ID) -->
                         <div class="relative max-w-xl mx-auto">
                             <input type="search" id="home-search-input" placeholder="Rechercher une ressource, un cours, un auteur..." class="w-full pl-12 pr-4 py-3 text-lg bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-400 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                            <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-slate-400"></i>
+                            <!-- MODIFIÉ -->
+                            <img src="https://img.icons8.com/fluency/1000/search.png" alt="Rechercher" class="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6">
                         </div>
                     </div>
                     
@@ -195,7 +199,8 @@
                         <!-- Modifié: Style sombre -->
                         <div class="relative w-full md:w-72">
                             <input type="search" id="category-search-input" placeholder="Rechercher dans cette catégorie..." class="w-full pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-400 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400"></i>
+                            <!-- MODIFIÉ -->
+                            <img src="https://img.icons8.com/fluency/1000/search.png" alt="Rechercher" class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5">
                         </div>
                     </div>
                     <div id="category-resources-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -275,7 +280,8 @@
                             <!-- NOUVEAU: Bouton Déconnexion -->
                             <hr class="my-6 border-slate-700">
                             <button type="button" id="logout-btn-profile" class="w-full text-left flex items-center justify-center py-2 px-4 rounded-md text-sm text-slate-300 hover:bg-red-900 hover:text-white transition-colors duration-150 border border-slate-700 hover:border-red-800">
-                                <i data-lucide="log-out" class="h-4 w-4 mr-2"></i>
+                                <!-- MODIFIÉ -->
+                                <img src="https://img.icons8.com/fluency/1000/import.png" alt="Déconnexion" class="h-4 w-4 mr-2">
                                 Déconnexion
                             </button>
                         </form>
@@ -290,7 +296,8 @@
                         <!-- BARRE DE RECHERCHE -->
                         <div class="relative w-full md:w-72">
                             <input type="search" id="users-search-input" placeholder="Rechercher un utilisateur..." class="w-full pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 text-slate-100 placeholder-slate-400 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400"></i>
+                            <!-- MODIFIÉ -->
+                            <img src="https://img.icons8.com/fluency/1000/search.png" alt="Rechercher" class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5">
                         </div>
                         
                         <!-- FILTRE -->
@@ -316,6 +323,7 @@
                 <section id="auth-page" class="page-content max-w-md mx-auto mt-10">
                     
                     <div class="flex justify-center items-center mb-6">
+                        <!-- NON MODIFIÉ: URL non fournie pour le logo -->
                         <i data-lucide="book-open-check" class="h-10 w-10 text-indigo-500"></i>
                         <h1 class="ml-3 text-3xl font-bold text-slate-100">Révise</h1>
                     </div>
@@ -450,7 +458,8 @@
                     <h2 class="text-3xl font-bold text-slate-100 mb-6">Pour toi</h2>
                     <!-- Modifié: Effet Glass -->
                     <div class="bg-slate-800/60 backdrop-blur-md border border-slate-700/50 p-8 rounded-lg shadow-xl text-center">
-                        <i data-lucide="construct" class="h-16 w-16 text-indigo-400 mx-auto mb-4"></i>
+                        <!-- MODIFIÉ -->
+                        <img src="https://img.icons8.com/fluency/1000/crane.png" alt="En construction" class="h-16 w-16 mx-auto mb-4">
                         <h3 class="text-2xl font-bold text-slate-100 mb-2">En construction</h3>
                         <p class="text-slate-300">Cette section vous proposera bientôt des ressources personnalisées.</p>
                     </div>
@@ -459,11 +468,9 @@
                 <!-- NOUVELLE PAGE: Abonnements -->
                 <section id="subscriptions-page" class="page-content">
                     <h2 class="text-3xl font-bold text-slate-100 mb-6">Abonnements</h2>
-                    <!-- Modifié: Effet Glass -->
-                    <div class="bg-slate-800/60 backdrop-blur-md border border-slate-700/50 p-8 rounded-lg shadow-xl text-center">
-                        <i data-lucide="construct" class="h-16 w-16 text-indigo-400 mx-auto mb-4"></i>
-                        <h3 class="text-2xl font-bold text-slate-100 mb-2">En construction</h3>
-                        <p class="text-slate-300">Cette section affichera bientôt les dernières ressources de vos abonnements.</p>
+                    <!-- MODIFIÉ: Conteneur pour les ressources -->
+                    <div id="subscriptions-resources-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- Les ressources des abonnements seront insérées ici -->
                     </div>
                 </section>
 
@@ -639,19 +646,23 @@
     <!-- Modifié: Effet Glass -->
     <nav id="mobile-bottom-nav" class="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-slate-800/70 backdrop-blur-lg border-t border-white/10 flex justify-around items-center h-16">
         <a href="#home" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-indigo-400 w-1/4">
-            <i data-lucide="home" class="h-6 w-6"></i>
+            <!-- MODIFIÉ -->
+            <img src="https://img.icons8.com/fluency/1000/home.png" alt="Accueil" class="h-6 w-6">
             <span class="text-xs font-medium">Accueil</span>
         </a>
         <a href="#foryou" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-slate-400 hover:text-indigo-400 w-1/4">
-            <i data-lucide="sparkles" class="h-6 w-6"></i>
+            <!-- MODIFIÉ -->
+            <img src="https://img.icons8.com/fluency/1000/for-you.png" alt="Pour toi" class="h-6 w-6">
             <span class="text-xs font-medium">Pour toi</span>
         </a>
         <a href="#subscriptions" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-slate-400 hover:text-indigo-400 w-1/4">
-            <i data-lucide="rss" class="h-6 w-6"></i>
+            <!-- MODIFIÉ -->
+            <img src="https://img.icons8.com/fluency/1000/filled-star.png" alt="Abonnements" class="h-6 w-6">
             <span class="text-xs font-medium">Abonnements</span>
         </a>
         <a href="#profile" id="mobile-profile-link" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-slate-400 hover:text-indigo-400 w-1/4">
-            <i data-lucide="user" class="h-6 w-6"></i>
+            <!-- MODIFIÉ -->
+            <img src="https://img.icons8.com/fluency/1000/user-male-circle--v1.png" alt="Mon compte" class="h-6 w-6">
             <span class="text-xs font-medium">Mon compte</span>
         </a>
     </nav>
@@ -725,23 +736,23 @@
         const BADGE_DEFINITIONS = {
             "staff": {
                 name: "Staff",
-                image: "https://img.icons8.com/fluency/1000/discord-stuff-badge.png"
+                "icon": "https://img.icons8.com/fluency/48/police-badge.png"
             },
             "testeur": {
                 name: "Testeur",
-                image: "https://img.icons8.com/fluency/1000/discord-hypesquad-events-badge.png"
+                "icon": "https://img.icons8.com/fluency/48/test-tube.png"
             },
             "moderateur": {
                 name: "Modérateur",
-                image: "https://img.icons8.com/fluency/1000/discord-moderator-program-alumni-badge.png"
+                "icon": "https://img.icons8.com/fluency/48/scales.png"
             },
             "actif": {
                 name: "Membre Actif",
-                image: "https://img.icons8.com/fluency/1000/star.png" 
+                "icon": "https://img.icons8.com/fluency/48/star.png"
             },
             "grandaide": {
                 name: "Merci!",
-                image: "https://img.icons8.com/fluency/1000/lifebuoy.png" 
+                "icon": "https://img.icons8.com/fluency/48/like.png"
             }
         };
         
@@ -774,6 +785,7 @@
         const profileContainer = document.getElementById('profile-container');
         const resourceDetailContainer = document.getElementById('resource-detail-container');
         const usersContainer = document.getElementById('users-container'); 
+        const subscriptionsResourcesContainer = document.getElementById('subscriptions-resources-container'); // NOUVEAU
         
         // Barres de recherche
         const homeSearchInput = document.getElementById('home-search-input');
@@ -1060,6 +1072,7 @@
                     break;
                 case '#subscriptions':
                     showPage('subscriptions-page');
+                    await renderSubscriptionsPage(); // MODIFIÉ
                     break;
                 default:
                     location.hash = '#home';
@@ -1112,6 +1125,272 @@
             }
         }
 
+        // --- NOUVELLES FONCTIONS DE RENDU (CORRECTION DE BUG) ---
+
+        function createResourceCard(resource, author) {
+            const card = document.createElement('div');
+            // Modifié: Style sombre + animations + Effet Glass
+            card.className = 'bg-slate-800/60 backdrop-blur-md border border-slate-700/50 rounded-lg shadow-lg overflow-hidden transition-all duration-300 ease-in-out hover:shadow-xl hover:-translate-y-1 cursor-pointer';
+            
+            card.addEventListener('click', (e) => {
+                // Empêcher la navigation si on clique sur un lien à l'intérieur (ex: tag, auteur)
+                if (e.target.closest('a') || e.target.closest('button')) {
+                    return;
+                }
+                location.hash = `#resource?id=${resource.id}`;
+            });
+
+            const photoUrl = author.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(author.username)}&background=random&color=fff`;
+            const certIcon = author.certification ? `
+                <img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="h-4 w-4 ml-1">
+            ` : '';
+            
+            // Image de couverture
+            const coverImage = resource.imageUrl ? `
+                <img src="${resource.imageUrl}" alt="${escapeHTML(resource.title)}" class="w-full h-40 object-cover">
+            ` : '';
+
+            // Modifié: Couleurs sombres
+            card.innerHTML = `
+                ${coverImage}
+                <div class="p-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-semibold uppercase text-indigo-400">${escapeHTML(resource.category)}</span>
+                        <span class="text-xs text-slate-400">${new Date(resource.createdAt.toDate()).toLocaleDateString('fr-FR')}</span>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-100 mb-2 truncate" title="${escapeHTML(resource.title)}">
+                        ${escapeHTML(resource.title)}
+                    </h3>
+                    
+                    <div class="flex items-center justify-between mt-4">
+                        <!-- Auteur -->
+                        <a href="#profile?id=${author.uid}" class="flex items-center group">
+                            <img src="${photoUrl}" alt="${author.username}" class="h-8 w-8 rounded-full group-hover:ring-2 group-hover:ring-indigo-500 transition-all duration-200">
+                            <div class="ml-2">
+                                <span class="text-sm font-medium text-slate-200 group-hover:text-indigo-400">${author.username}</span>
+                            </div>
+                            ${certIcon}
+                        </a>
+                        
+                        <!-- Stats -->
+                        <div class="flex items-center space-x-3 text-sm text-slate-400">
+                            <div class="flex items-center">
+                                <!-- MODIFIÉ -->
+                                <img src="https://img.icons8.com/fluency/1000/vision.png" alt="Vues" class="h-4 w-4 mr-1">
+                                <span>${formatNumber(resource.views || 0)}</span>
+                            </div>
+                            <div class="flex items-center">
+                                <!-- MODIFIÉ -->
+                                <img src="https://img.icons8.com/fluency/1000/thumb-up.png" alt="Likes" class="h-4 w-4 mr-1">
+                                <span>${formatNumber(resource.likes?.length || 0)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return card;
+        }
+        
+        async function renderResourceDetail(resourceId) {
+            if (!resourceId) {
+                resourceDetailContainer.innerHTML = '<p class="text-red-500">Aucun ID de ressource fourni.</p>';
+                return;
+            }
+            
+            resourceDetailContainer.innerHTML = '<p class="text-slate-400">Chargement de la ressource...</p>';
+            
+            try {
+                // Incrémenter la vue (sans attendre la fin)
+                const resourceRef = doc(db, resourcesCollectionPath, resourceId);
+                updateDoc(resourceRef, { views: increment(1) }).catch(err => console.warn("Erreur incrémentation vue:", err));
+                
+                // Trouver la ressource dans le cache
+                let resource = allResources.find(r => r.id === resourceId);
+                
+                // Si pas dans le cache, la fetch (cas d'un lien direct)
+                if (!resource) {
+                    const docSnap = await getDoc(resourceRef);
+                    if (docSnap.exists()) {
+                        resource = { id: docSnap.id, ...docSnap.data() };
+                        // Mettre à jour le cache
+                        if (!allResources.find(r => r.id === resourceId)) {
+                            allResources.push(resource);
+                        }
+                    } else {
+                        resourceDetailContainer.innerHTML = '<p class="text-red-500">Ressource introuvable.</p>';
+                        return;
+                    }
+                }
+                
+                // Mettre à jour le cache local avec +1 vue
+                resource.views = (resource.views || 0) + 1;
+                
+                // Trouver l'auteur
+                let author = allUsersData[resource.authorId];
+                if (!author) {
+                    author = await fetchUserProfile(resource.authorId);
+                    if (!author) {
+                        author = { username: "Utilisateur inconnu", uid: "unknown", photoURL: "" };
+                    }
+                }
+                
+                const photoUrl = author.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(author.username)}&background=random&color=fff`;
+                const certIcon = author.certification ? `<img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="h-5 w-5 ml-1">` : '';
+                
+                // Gérer les votes
+                const hasLiked = resource.likes?.includes(currentUserId);
+                const hasDisliked = resource.dislikes?.includes(currentUserId);
+                
+                // MODIFIÉ: Rétablissement des <img>
+                resourceDetailContainer.innerHTML = `
+                    <!-- Titre et Catégorie -->
+                    <span class="text-sm font-semibold uppercase text-indigo-400">${escapeHTML(resource.category)} > ${escapeHTML(resource.subcategory)}</span>
+                    <h1 class="text-4xl font-bold text-slate-100 mt-2 mb-6">${escapeHTML(resource.title)}</h1>
+                    
+                    <!-- Infos Auteur -->
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 p-4 bg-slate-700/50 rounded-lg">
+                        <a href="#profile?id=${author.uid}" class="flex items-center group mb-4 sm:mb-0">
+                            <img src="${photoUrl}" alt="${author.username}" class="h-12 w-12 rounded-full group-hover:ring-2 group-hover:ring-indigo-500 transition-all duration-200">
+                            <div class="ml-3">
+                                <div class="flex items-center">
+                                    <span class="text-lg font-medium text-slate-200 group-hover:text-indigo-400">${author.username}</span>
+                                    ${certIcon}
+                                </div>
+                                <span class="text-sm text-slate-400">${new Date(resource.createdAt.toDate()).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                            </div>
+                        </a>
+                        
+                        <!-- Stats (Vues, Likes, Dislikes) -->
+                        <div class="flex items-center space-x-4 text-slate-300">
+                            <div class="flex items-center" title="${resource.views || 0} vues">
+                                <!-- MODIFIÉ -->
+                                <img src="https://img.icons8.com/fluency/1000/vision.png" alt="Vues" class="h-5 w-5 mr-2">
+                                <span class="font-medium">${formatNumber(resource.views || 0)}</span>
+                            </div>
+                            
+                            <!-- Bouton Like -->
+                            <button id="detail-like-btn" class="flex items-center transition-transform duration-200 hover:scale-110">
+                                <img src="https://img.icons8.com/fluency/48/facebook-like.png" class="like-icon h-7 w-7 ${!hasLiked ? 'grayscale' : ''}" alt="Like">
+                                <span class="like-count ml-1.5 font-medium">${formatNumber(resource.likes?.length || 0)}</span>
+                            </button>
+                            
+                            <!-- Bouton Dislike -->
+                            <button id="detail-dislike-btn" class="flex items-center transition-transform duration-200 hover:scale-110">
+                                <img src="https://img.icons8.com/fluency/48/thumbs-down.png" class="dislike-icon h-7 w-7 ${!hasDisliked ? 'grayscale' : ''}" alt="Dislike">
+                                <span class="dislike-count ml-1.5 font-medium">${formatNumber(resource.dislikes?.length || 0)}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <hr class="my-8 border-slate-700">
+
+                    <!-- Contenu de la ressource (Prose) -->
+                    <div class="prose max-w-none">
+                        <div class="ql-snow">
+                            <div class="ql-editor">
+                                ${resource.textContentHtml}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-8 border-slate-700">
+                    
+                    <!-- Bouton de signalement -->
+                    <div class="flex justify-end">
+                        <button id="report-resource-btn" class="flex items-center text-sm text-slate-500 hover:text-red-500 transition-colors duration-200">
+                            <!-- MODIFIÉ -->
+                            <img src="https://img.icons8.com/fluency/48/high-priority--v1.png" alt="Signaler" class="h-4 w-4 mr-2">
+                            Signaler cette ressource
+                        </button>
+                    </div>
+                `;
+                
+                // Gérer les écouteurs pour like/dislike/report
+                const likeBtn = document.getElementById('detail-like-btn');
+                const dislikeBtn = document.getElementById('detail-dislike-btn');
+                const reportBtn = document.getElementById('report-resource-btn');
+
+                if (likeBtn && dislikeBtn) {
+                    likeBtn.addEventListener('click', () => toggleLike(resourceId, likeBtn, dislikeBtn));
+                    dislikeBtn.addEventListener('click', () => toggleDislike(resourceId, dislikeBtn, likeBtn));
+                }
+                
+                if (reportBtn) {
+                    reportBtn.addEventListener('click', () => {
+                        currentReportResourceId = resourceId;
+                        currentReportAuthorId = author.uid;
+                        reportReason.value = '';
+                        reportComment.value = '';
+                        reportModal.classList.remove('hidden');
+                    });
+                }
+
+            } catch (error) {
+                console.error("Erreur renderResourceDetail:", error);
+                resourceDetailContainer.innerHTML = '<p class="text-red-500">Erreur lors de l\'affichage de la ressource.</p>';
+            } finally {
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+        }
+        
+        function renderResources(container, filters = {}, searchTerm = '') {
+            if (!container) return;
+
+            let filteredResources = [...allResources]; // Start with all resources
+
+            // 1. Appliquer le filtre de catégorie
+            if (filters.category) {
+                filteredResources = filteredResources.filter(r => r.category === filters.category);
+            }
+
+            // 2. Appliquer le terme de recherche
+            const lowerSearchTerm = searchTerm.toLowerCase().trim();
+            if (lowerSearchTerm) {
+                filteredResources = filteredResources.filter(resource => {
+                    const author = allUsersData[resource.authorId];
+                    const authorName = author ? author.username.toLowerCase() : '';
+                    
+                    return (
+                        resource.title.toLowerCase().includes(lowerSearchTerm) ||
+                        resource.category.toLowerCase().includes(lowerSearchTerm) ||
+                        resource.subcategory.toLowerCase().includes(lowerSearchTerm) ||
+                        authorName.includes(lowerSearchTerm)
+                    );
+                });
+            }
+
+            // 3. Vider le conteneur
+            container.innerHTML = '';
+
+            // 4. Afficher les résultats ou un message "aucun résultat"
+            if (filteredResources.length === 0) {
+                if (searchTerm) {
+                    container.innerHTML = `<p class="text-slate-400 col-span-full">Aucune ressource ne correspond à "${escapeHTML(searchTerm)}".</p>`;
+                } else if (filters.category) {
+                    container.innerHTML = `<p class="text-slate-400 col-span-full">Aucune ressource dans cette catégorie pour le moment.</p>`;
+                } else {
+                    container.innerHTML = `<p class="text-slate-400 col-span-full">Aucune ressource à afficher.</p>`;
+                }
+                return; // Pas besoin d'appeler Lucide
+            }
+
+            // 5. Créer et ajouter les cartes
+            filteredResources.forEach(resource => {
+                const author = allUsersData[resource.authorId];
+                if (author) { // Sécurité
+                    const card = createResourceCard(resource, author);
+                    container.appendChild(card);
+                }
+            });
+
+            // 6. Mettre à jour les icônes
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
         async function loadAndDisplayResources(container, filters = {}) {
             if (!container) return;
             container.innerHTML = '<p class="text-slate-400">Chargement des ressources...</p>';
@@ -1126,267 +1405,77 @@
             }
         }
         
-        function renderResources(container, filters = {}, searchTerm = '') {
-            if (!container) return;
-            
-            let resourcesToDisplay = [...allResources];
-            
-            if (filters.category) {
-                resourcesToDisplay = resourcesToDisplay.filter(
-                    res => res.category === filters.category
-                );
-            }
-            
-            const search = searchTerm.toLowerCase().trim();
-            if (search) {
-                resourcesToDisplay = resourcesToDisplay.filter(res => {
-                    const author = allUsersData[res.authorId];
-                    return (
-                        res.title.toLowerCase().includes(search) ||
-                        res.category.toLowerCase().includes(search) ||
-                        res.subcategory.toLowerCase().includes(search) ||
-                        (author && author.username.toLowerCase().includes(search)) ||
-                        res.textContent.toLowerCase().includes(search)
-                    );
-                });
-            }
+        // NOUVELLE FONCTION: PAGE ABONNEMENTS
+        async function renderSubscriptionsPage() {
+            if (!subscriptionsResourcesContainer) return;
 
-            if (resourcesToDisplay.length === 0) {
-                if (search) {
-                    container.innerHTML = `<p class="text-slate-400">Aucune ressource ne correspond à "${searchTerm}".</p>`;
-                } else if (filters.category) {
-                    container.innerHTML = '<p class="text-slate-400">Aucune ressource trouvée dans cette catégorie.</p>';
-                } else {
-                    container.innerHTML = '<p class="text-slate-400">Aucune ressource publiée pour le moment.</p>';
-                }
-                return;
-            }
-
-            container.innerHTML = '';
-            resourcesToDisplay.forEach(resource => {
-                const author = allUsersData[resource.authorId];
-                const card = createResourceCard(resource, author);
-                container.appendChild(card);
-            });
-            
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
-        }
-
-        function createResourceCard(resource, author) {
-            const card = document.createElement('div');
-            // Modifié: Style sombre + animations + Effet Glass
-            card.className = 'bg-slate-800/60 backdrop-blur-md border border-slate-700/50 rounded-lg shadow-lg overflow-hidden transition-all duration-300 ease-in-out hover:shadow-xl hover:-translate-y-1 cursor-pointer';
-            
-            card.addEventListener('click', (e) => {
-                if (e.target.closest('a') || e.target.closest('button')) {
-                    return;
-                }
-                location.hash = `#resource?id=${resource.id}`;
-            });
-            
-            let imageHtml = '';
-            if (resource.imageUrl) {
-                imageHtml = `<img src="${resource.imageUrl}" alt="${resource.title}" class="h-48 w-full object-cover">`;
-            }
-
-            const liked = resource.likes?.includes(currentUserId);
-            const disliked = resource.dislikes?.includes(currentUserId);
-            const likeIconSrc = "https://img.icons8.com/fluency/48/facebook-like.png";
-            const dislikeIconSrc = "https://img.icons8.com/fluency/48/thumbs-down.png";
-            const viewIconSrc = "https://img.icons8.com/fluency/48/visible.png";
-
-            // Modifié: Couleurs sombres
-            card.innerHTML = `
-                ${imageHtml}
-                <div class="p-6">
-                    <span class="text-xs font-semibold text-indigo-400 uppercase">${resource.category} > ${resource.subcategory}</span>
-                    <a href="#resource?id=${resource.id}" class="block text-2xl font-bold text-slate-100 mt-2 mb-3 hover:text-indigo-400 transition-colors duration-200">
-                        ${resource.title}
-                    </a>
-                    
-                    <div class="text-slate-300 text-sm mb-4">
-                        Par <a href="#profile?id=${author?.uid || ''}" class="font-medium text-indigo-400 hover:underline">${author?.username || 'Utilisateur inconnu'}</a>
-                    </div>
-                    
-                    <div class="flex items-center justify-between text-slate-400">
-                        <!-- Likes/Dislikes -->
-                        <div class="flex items-center space-x-3">
-                            <button class="like-btn flex items-center space-x-1 hover:text-indigo-400 transition-colors duration-200" data-id="${resource.id}">
-                                <img src="${likeIconSrc}" alt="Like" class="h-5 w-5 ${liked ? '' : 'grayscale'}">
-                                <span class="like-count text-sm font-medium">${formatNumber(resource.likes?.length || 0)}</span>
-                            </button>
-                            <button class="dislike-btn flex items-center space-x-1 hover:text-red-500 transition-colors duration-200" data-id="${resource.id}">
-                                <img src="${dislikeIconSrc}" alt="Dislike" class="h-5 w-5 ${disliked ? '' : 'grayscale'}">
-                                <span class="dislike-count text-sm font-medium">${formatNumber(resource.dislikes?.length || 0)}</span>
-                            </button>
-                        </div>
-                        
-                        <!-- Vues -->
-                        <div class="flex items-center space-x-1">
-                            <img src="${viewIconSrc}" alt="Vues" class="h-5 w-5 opacity-70">
-                            <span class="view-count text-sm font-medium">${formatNumber(resource.views || 0)}</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            card.querySelector('.like-btn').addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (!currentUserId) { showToast("Vous devez être connecté.", "error"); location.hash = '#auth'; return; }
-                toggleLike(resource.id, e.currentTarget, card.querySelector('.dislike-btn'));
-            });
-            card.querySelector('.dislike-btn').addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (!currentUserId) { showToast("Vous devez être connecté.", "error"); location.hash = '#auth'; return; }
-                toggleDislike(resource.id, e.currentTarget, card.querySelector('.like-btn'));
-            });
-
-            return card;
-        }
-
-        // --- NOUVELLE FONCTION: AFFICHAGE DÉTAILLÉ ---
-        async function renderResourceDetail(resourceId) {
-            if (!resourceId) {
-                resourceDetailContainer.innerHTML = 'Aucune ressource spécifiée.';
-                return;
-            }
-            resourceDetailContainer.innerHTML = '<p class="text-slate-400">Chargement de la ressource...</p>';
-            
-            try {
-                // Mettre à jour le compteur de vues (sans attendre la fin)
-                const resourceRef = doc(db, resourcesCollectionPath, resourceId);
-                updateDoc(resourceRef, { views: increment(1) });
-
-                await fetchAllResourcesOnce();
-                
-                const resource = allResources.find(r => r.id === resourceId);
-                const author = resource ? allUsersData[resource.authorId] : null;
-                
-                if (!resource || !author) {
-                    resourceDetailContainer.innerHTML = 'Ressource ou auteur introuvable.';
-                    return;
-                }
-                
-                // Mettre à jour le compteur de vues dans le cache local
-                resource.views = (resource.views || 0) + 1;
-
-                let imageHtml = '';
-                if (resource.imageUrl) {
-                    imageHtml = `<img src="${resource.imageUrl}" alt="${resource.title}" class="w-full h-64 object-cover rounded-lg mb-6 shadow-lg">`;
-                }
-                
-                const liked = resource.likes?.includes(currentUserId);
-                const disliked = resource.dislikes?.includes(currentUserId);
-                const likeIconSrc = "https://img.icons8.com/fluency/48/facebook-like.png";
-                const dislikeIconSrc = "https://img.icons8.com/fluency/48/thumbs-down.png";
-                const viewIconSrc = "https://img.icons8.com/fluency/48/visible.png";
-                const backIconSrc = "https://img.icons8.com/fluency/48/back.png";
-                
-                const certIcon = author.certification ? `
-                    <img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="h-5 w-5 ml-1">
-                ` : '';
-                
-                const authorPhotoUrl = author.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(author.username)}&background=random`;
-
-                // Modifié: Couleurs sombres + AJOUT BOUTON SIGNALEMENT
-                resourceDetailContainer.innerHTML = `
-                    <button onclick="history.back()" class="flex items-center text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors duration-150 mb-6">
-                        <img src="${backIconSrc}" alt="Retour" class="h-5 w-5 mr-1">
-                        Retour
-                    </button>
-                    
-                    ${imageHtml}
-                    
-                    <!-- MODIFIÉ: Ajout du bouton signaler -->
-                    <div class="flex justify-between items-start">
-                        <h1 class="text-4xl font-bold text-slate-100 mb-4">${resource.title}</h1>
-                        <button id="open-report-modal-btn" 
-                                data-resource-id="${resource.id}" 
-                                data-author-id="${resource.authorId}" 
-                                class="flex-shrink-0 flex items-center text-sm text-slate-400 hover:text-red-500 transition-colors duration-150 p-2 rounded-lg bg-slate-700 hover:bg-slate-600">
-                            <i data-lucide="shield-alert" class="h-4 w-4 mr-1"></i>
-                            Signaler
-                        </button>
-                    </div>
-                    
-                    <span class="text-sm font-semibold text-indigo-400 uppercase">${resource.category} > ${resource.subcategory}</span>
-                    
-                    <!-- NOUVELLE CARTE AUTEUR AMÉLIORÉE -->
-                    <div class="flex items-center bg-slate-700 p-4 rounded-lg my-6">
-                        <img src="${authorPhotoUrl}" alt="${author.username}" class="h-12 w-12 rounded-full mr-4">
-                        <div>
-                            <div class="flex items-center">
-                                <a href="#profile?id=${author.uid}" class="text-lg font-bold text-slate-100 hover:underline">${author.username}</a>
-                                ${certIcon}
-                            </div>
-                            <span class="text-sm text-slate-300">${formatNumber(author.followerCount || 0)} Abonné${(author.followerCount || 0) !== 1 ? 's' : ''}</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Stats (Likes/Dislikes/Vues) -->
-                    <div class="flex items-center space-x-6 text-slate-400 border-y border-slate-700 py-4 mb-6">
-                        <button class="like-btn flex items-center space-x-1 hover:text-indigo-400 transition-colors duration-150" data-id="${resource.id}">
-                            <img src="${likeIconSrc}" alt="Like" class="h-6 w-6 ${liked ? '' : 'grayscale'}">
-                            <span class="like-count text-base font-medium">${formatNumber(resource.likes?.length || 0)}</span>
-                        </button>
-                        <button class="dislike-btn flex items-center space-x-1 hover:text-red-500 transition-colors duration-150" data-id="${resource.id}">
-                            <img src="${dislikeIconSrc}" alt="Dislike" class="h-6 w-6 ${disliked ? '' : 'grayscale'}">
-                            <span class="dislike-count text-base font-medium">${formatNumber(resource.dislikes?.length || 0)}</span>
-                        </button>
-                        <div class="flex items-center space-x-1">
-                            <img src="${viewIconSrc}" alt="Vues" class="h-6 w-6 opacity-70">
-                            <span class="view-count text-base font-medium">${formatNumber(resource.views || 0)}</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Contenu du cours (formaté) -->
-                    <div class="prose max-w-none ql-editor">
-                        ${resource.textContentHtml}
+            // 1. Vérifier si l'utilisateur est abonné à qqn
+            if (!currentUserProfile || !currentUserProfile.following || currentUserProfile.following.length === 0) {
+                subscriptionsResourcesContainer.innerHTML = `
+                    <div class="col-span-full bg-slate-800/60 backdrop-blur-md border border-slate-700/50 p-8 rounded-lg shadow-xl text-center">
+                        <!-- MODIFIÉ: Remplacement de 'users' (URL non fournie) -->
+                        <img src="https://img.icons8.com/fluency/1000/users-group.png" alt="Abonnements vides" class="h-16 w-16 mx-auto mb-4">
+                        <h3 class="text-2xl font-bold text-slate-100 mb-2">Vos abonnements sont vides</h3>
+                        <p class="text-slate-300">Vous n'êtes abonné à personne pour le moment. Les ressources de vos créateurs favoris apparaîtront ici.</p>
+                        <a href="#users" class="mt-4 inline-block bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors duration-200">
+                            Découvrir des utilisateurs
+                        </a>
                     </div>
                 `;
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+                return;
+            }
+
+            subscriptionsResourcesContainer.innerHTML = '<p class="text-slate-400 col-span-full">Chargement des ressources de vos abonnements...</p>';
+
+            try {
+                // 2. S'assurer que toutes les ressources sont chargées
+                await fetchAllResourcesOnce();
                 
-                // CORRECTION: S'assurer que les icônes sont rendues
+                const followingList = currentUserProfile.following;
+                
+                // 3. Filtrer les ressources
+                let subscriptionResources = allResources.filter(resource => 
+                    followingList.includes(resource.authorId)
+                );
+                
+                // 4. Trier (allResources est déjà trié, mais re-tri pour la sécurité)
+                subscriptionResources.sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
+
+                // 5. Rendre les ressources
+                if (subscriptionResources.length === 0) {
+                    subscriptionsResourcesContainer.innerHTML = `
+                        <div class="col-span-full bg-slate-800/60 backdrop-blur-md border border-slate-700/50 p-8 rounded-lg shadow-xl text-center">
+                            <!-- MODIFIÉ: Remplacement de 'inbox' (URL non fournie) -->
+                            <img src="https://img.icons8.com/fluency/1000/empty-box.png" alt="Rien de neuf" class="h-16 w-16 mx-auto mb-4">
+                            <h3 class="text-2xl font-bold text-slate-100 mb-2">Rien de neuf</h3>
+                            <p class="text-slate-300">Vos abonnements n'ont pas encore publié de nouvelles ressources.</p>
+                        </div>
+                    `;
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+                    return;
+                }
+
+                subscriptionsResourcesContainer.innerHTML = '';
+                subscriptionResources.forEach(resource => {
+                    const author = allUsersData[resource.authorId];
+                    if (author) { // Sécurité: ne pas afficher si l'auteur est introuvable
+                        const card = createResourceCard(resource, author);
+                        subscriptionsResourcesContainer.appendChild(card);
+                    }
+                });
+                
                 if (typeof lucide !== 'undefined') {
                     lucide.createIcons();
                 }
 
-                // --- AJOUT DES ÉCOUTEURS POUR LE SIGNALEMENT ---
-                
-                resourceDetailContainer.querySelector('.like-btn').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    if (!currentUserId) { showToast("Vous devez être connecté.", "error"); location.hash = '#auth'; return; }
-                    toggleLike(resource.id, e.currentTarget, resourceDetailContainer.querySelector('.dislike-btn'));
-                });
-                resourceDetailContainer.querySelector('.dislike-btn').addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    if (!currentUserId) { showToast("Vous devez être connecté.", "error"); location.hash = '#auth'; return; }
-                    toggleDislike(resource.id, e.currentTarget, resourceDetailContainer.querySelector('.like-btn'));
-                });
-                
-                // NOUVEL ÉCOUTEUR
-                const reportBtn = resourceDetailContainer.querySelector('#open-report-modal-btn');
-                if (reportBtn) {
-                    reportBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        if (!currentUserId) { showToast("Vous devez être connecté pour signaler.", "error"); location.hash = '#auth'; return; }
-                        
-                        // Stocker les IDs pour la soumission
-                        currentReportResourceId = reportBtn.dataset.resourceId;
-                        currentReportAuthorId = reportBtn.dataset.authorId;
-
-                        // Réinitialiser le formulaire
-                        reportForm.reset();
-                        
-                        // Ouvrir le modal
-                        reportModal.classList.remove('hidden');
-                    });
-                }
-
             } catch (error) {
-                console.error("Erreur renderResourceDetail:", error);
-                resourceDetailContainer.innerHTML = 'Erreur lors du chargement de la ressource.';
+                console.error("Erreur renderSubscriptionsPage:", error);
+                subscriptionsResourcesContainer.innerHTML = '<p class="text-red-500 col-span-full">Erreur lors du chargement des abonnements.</p>';
             }
         }
         
@@ -1541,7 +1630,7 @@
                         if (badgeInfo) {
                             badgesHtml += `
                                 <div class="flex flex-col items-center text-center">
-                                    <img src="${badgeInfo.image}" alt="${badgeInfo.name}" class="h-12 w-12" title="${badgeInfo.name}">
+                                    <img src="${badgeInfo.icon}" alt="${badgeInfo.name}" class="h-12 w-12">
                                     <span class="text-xs font-medium text-slate-300 mt-1">${badgeInfo.name}</span>
                                 </div>
                             `;
@@ -2036,8 +2125,9 @@
             const liked = resource.likes?.includes(currentUserId);
             const disliked = resource.dislikes?.includes(currentUserId);
             
-            const likeIcon = likeBtn.querySelector('img');
-            const dislikeIcon = dislikeBtn.querySelector('img');
+            // MODIFIÉ: Sélectionne les <img>
+            const likeIcon = likeBtn.querySelector('img.like-icon');
+            const dislikeIcon = dislikeBtn.querySelector('img.dislike-icon');
             const likeCountSpan = likeBtn.querySelector('.like-count');
             const dislikeCountSpan = dislikeBtn.querySelector('.dislike-count');
 
@@ -2047,16 +2137,19 @@
                 if (liked) {
                     updates.likes = arrayRemove(currentUserId);
                     resource.likes = resource.likes.filter(id => id !== currentUserId);
+                    // MODIFIÉ: Change les classes
                     likeIcon.classList.add('grayscale');
                 } else {
                     updates.likes = arrayUnion(currentUserId);
                     if (!resource.likes) resource.likes = [];
                     resource.likes.push(currentUserId);
+                    // MODIFIÉ: Change les classes
                     likeIcon.classList.remove('grayscale');
                     
                     if (disliked) {
                         updates.dislikes = arrayRemove(currentUserId);
                         resource.dislikes = resource.dislikes.filter(id => id !== currentUserId);
+                        // MODIFIÉ: Change les classes
                         dislikeIcon.classList.add('grayscale');
                     }
                 }
@@ -2079,8 +2172,9 @@
             const liked = resource.likes?.includes(currentUserId);
             const disliked = resource.dislikes?.includes(currentUserId);
             
-            const likeIcon = likeBtn.querySelector('img');
-            const dislikeIcon = dislikeBtn.querySelector('img');
+            // MODIFIÉ: Sélectionne les <img>
+            const likeIcon = likeBtn.querySelector('img.like-icon');
+            const dislikeIcon = dislikeBtn.querySelector('img.dislike-icon');
             const likeCountSpan = likeBtn.querySelector('.like-count');
             const dislikeCountSpan = dislikeBtn.querySelector('.dislike-count');
 
@@ -2090,16 +2184,19 @@
                 if (disliked) {
                     updates.dislikes = arrayRemove(currentUserId);
                     resource.dislikes = resource.dislikes.filter(id => id !== currentUserId);
+                    // MODIFIÉ: Change les classes
                     dislikeIcon.classList.add('grayscale');
                 } else {
                     updates.dislikes = arrayUnion(currentUserId);
                     if (!resource.dislikes) resource.dislikes = [];
                     resource.dislikes.push(currentUserId);
+                    // MODIFIÉ: Change les classes
                     dislikeIcon.classList.remove('grayscale');
                     
                     if (liked) {
                         updates.likes = arrayRemove(currentUserId);
                         resource.likes = resource.likes.filter(id => id !== currentUserId);
+                        // MODIFIÉ: Change les classes
                         likeIcon.classList.add('grayscale');
                     }
                 }
