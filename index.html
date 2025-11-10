@@ -105,9 +105,10 @@
         
         <!-- Sidebar (Menu principal) -->
         <!-- Modifié: Couleurs sombres + Structure + Rendu PC Uniquement -->
-        <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 flex-col w-64 bg-slate-800 text-slate-200 border-r border-slate-700 hidden md:flex">
+        <!-- MODIFIÉ: Effet Glassmorphism -->
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 flex-col w-64 bg-slate-800/70 backdrop-blur-lg text-slate-200 border-r border-white/10 hidden md:flex">
             <!-- Logo -->
-            <div class="flex items-center justify-center h-16 px-4 border-b border-slate-700">
+            <div class="flex items-center justify-center h-16 px-4 border-b border-slate-700/50"> <!-- Bordure adoucie -->
                 <i data-lucide="book-open-check" class="h-8 w-8 text-indigo-500"></i>
                 <h1 class="ml-3 text-2xl font-bold text-slate-100">Révise</h1>
             </div>
@@ -139,7 +140,8 @@
         </aside>
 
         <!-- Contenu principal -->
-        <div class="flex-1 flex flex-col w-full">
+        <!-- MODIFIÉ: md:ml-64 pour corriger le bug de superposition -->
+        <div class="flex-1 flex flex-col w-full md:ml-64">
             <!-- Header (barre du haut sur mobile) -->
             <!-- MODIFIÉ: Supprimé, remplacé par la barre de navigation en bas -->
             <!-- <header class="sticky top-0 z-20 bg-slate-800 shadow-lg md:hidden border-b border-slate-700"> ... </header> -->
@@ -203,16 +205,16 @@
 
                 <!-- Page de Profil -->
                 <section id="profile-page" class="page-content">
-                    <!-- Modifié: Style sombre -->
-                    <div id="profile-container" class="bg-slate-800 p-8 rounded-lg shadow-xl max-w-4xl mx-auto">
+                    <!-- Modifié: Style sombre + Effet Glass -->
+                    <div id="profile-container" class="bg-slate-800/60 backdrop-blur-md border border-slate-700/50 p-8 rounded-lg shadow-xl max-w-4xl mx-auto">
                         <!-- Le contenu du profil sera inséré ici -->
                     </div>
                 </section>
                 
                 <!-- Page: Édition de Profil -->
                 <section id="edit-profile-page" class="page-content">
-                    <!-- Modifié: Style sombre -->
-                    <div class="bg-slate-800 p-8 rounded-lg shadow-xl max-w-lg mx-auto">
+                    <!-- Modifié: Style sombre + Effet Glass -->
+                    <div class="bg-slate-800/60 backdrop-blur-md border border-slate-700/50 p-8 rounded-lg shadow-xl max-w-lg mx-auto">
                         <h2 class="text-3xl font-bold text-slate-100 mb-6">Éditer le profil</h2>
                         <form id="edit-profile-form">
                             <!-- Données Publiques -->
@@ -304,8 +306,8 @@
 
                 <!-- Page: Détail de la Ressource -->
                 <section id="resource-detail-page" class="page-content">
-                    <!-- Modifié: Style sombre -->
-                    <div id="resource-detail-container" class="bg-slate-800 p-6 md:p-10 rounded-lg shadow-xl max-w-4xl mx-auto">
+                    <!-- Modifié: Style sombre + Effet Glass -->
+                    <div id="resource-detail-container" class="bg-slate-800/60 backdrop-blur-md border border-slate-700/50 p-6 md:p-10 rounded-lg shadow-xl max-w-4xl mx-auto">
                         <!-- Le contenu de la ressource sera injecté ici par JS -->
                     </div>
                 </section>
@@ -320,8 +322,8 @@
                     
                     <!-- Formulaire de Connexion -->
                     <div id="login-view">
-                        <!-- Modifié: Style sombre -->
-                        <form id="login-form" class="bg-slate-800 p-8 rounded-lg shadow-xl">
+                        <!-- Modifié: Style sombre + Effet Glass -->
+                        <form id="login-form" class="bg-slate-800/60 backdrop-blur-md border border-slate-700/50 p-8 rounded-lg shadow-xl">
                             <h2 class="text-2xl font-bold text-center text-slate-100 mb-6">Connexion</h2>
                             
                             <div class="mb-4">
@@ -348,8 +350,8 @@
 
                     <!-- Formulaire d'Inscription en 3 Étapes -->
                     <div id="signup-view" class="hidden">
-                        <!-- Modifié: Style sombre -->
-                        <form id="signup-form" class="bg-slate-800 p-8 rounded-lg shadow-xl">
+                        <!-- Modifié: Style sombre + Effet Glass -->
+                        <form id="signup-form" class="bg-slate-800/60 backdrop-blur-md border border-slate-700/50 p-8 rounded-lg shadow-xl">
                             <h2 class="text-2xl font-bold text-center text-slate-100 mb-4">Créer un compte</h2>
                             
                             <!-- Modifié: Style sombre -->
@@ -446,7 +448,8 @@
                 <!-- NOUVELLE PAGE: Pour Toi -->
                 <section id="foryou-page" class="page-content">
                     <h2 class="text-3xl font-bold text-slate-100 mb-6">Pour toi</h2>
-                    <div class="bg-slate-800 p-8 rounded-lg shadow-xl text-center">
+                    <!-- Modifié: Effet Glass -->
+                    <div class="bg-slate-800/60 backdrop-blur-md border border-slate-700/50 p-8 rounded-lg shadow-xl text-center">
                         <i data-lucide="construct" class="h-16 w-16 text-indigo-400 mx-auto mb-4"></i>
                         <h3 class="text-2xl font-bold text-slate-100 mb-2">En construction</h3>
                         <p class="text-slate-300">Cette section vous proposera bientôt des ressources personnalisées.</p>
@@ -456,7 +459,8 @@
                 <!-- NOUVELLE PAGE: Abonnements -->
                 <section id="subscriptions-page" class="page-content">
                     <h2 class="text-3xl font-bold text-slate-100 mb-6">Abonnements</h2>
-                    <div class="bg-slate-800 p-8 rounded-lg shadow-xl text-center">
+                    <!-- Modifié: Effet Glass -->
+                    <div class="bg-slate-800/60 backdrop-blur-md border border-slate-700/50 p-8 rounded-lg shadow-xl text-center">
                         <i data-lucide="construct" class="h-16 w-16 text-indigo-400 mx-auto mb-4"></i>
                         <h3 class="text-2xl font-bold text-slate-100 mb-2">En construction</h3>
                         <p class="text-slate-300">Cette section affichera bientôt les dernières ressources de vos abonnements.</p>
@@ -465,8 +469,8 @@
 
                 <!-- Page: Détail de la Ressource -->
                 <section id="resource-detail-page" class="page-content">
-                    <!-- Modifié: Style sombre -->
-                    <div class="bg-slate-800 p-6 rounded-lg shadow-xl">
+                    <!-- Modifié: Style sombre + Effet Glass -->
+                    <div class="bg-slate-800/60 backdrop-blur-md border border-slate-700/50 p-6 rounded-lg shadow-xl">
                         <h2 class="text-3xl font-bold text-slate-100 mb-6">Partager un cours</h2>
                         <!-- Conteneur de l'éditeur Quill (styles sombres via CSS) -->
                         <div id="editor-container"></div>
@@ -481,9 +485,9 @@
     </div>
     
     <!-- Modal (Pop-up) pour les métadonnées de la ressource (caché par défaut) -->
-    <!-- Modifié: Style sombre -->
+    <!-- Modifié: Style sombre + Effet Glass -->
     <div id="metadata-modal" class="fixed inset-0 z-40 bg-black bg-opacity-80 flex items-center justify-center hidden">
-        <div class="bg-slate-800 p-8 rounded-lg shadow-xl max-w-lg w-full m-4">
+        <div class="bg-slate-800/70 backdrop-blur-lg border border-slate-700/50 p-8 rounded-lg shadow-xl max-w-lg w-full m-4">
             <h2 class="text-2xl font-bold text-slate-100 mb-6">Finaliser la ressource</h2>
             <form id="create-resource-form">
                 <div class="mb-4">
@@ -524,9 +528,9 @@
     </div>
 
     <!-- MODAL GÉNÉRIQUE: Pour URL (Image, Vidéo, Lien) -->
-    <!-- Modifié: Style sombre -->
+    <!-- Modifié: Style sombre + Effet Glass -->
     <div id="quill-url-modal" class="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center hidden">
-        <div class="bg-slate-800 p-6 rounded-lg shadow-xl max-w-md w-full m-4">
+        <div class="bg-slate-800/70 backdrop-blur-lg border border-slate-700/50 p-6 rounded-lg shadow-xl max-w-md w-full m-4">
             <h2 id="quill-url-modal-title" class="text-xl font-bold text-slate-100 mb-4">Insérer un lien</h2>
             <div class="mb-4">
                 <label for="quill-url-input" class="block text-sm font-medium text-slate-300 mb-1">Coller l'URL</label>
@@ -544,9 +548,9 @@
     </div>
     
     <!-- MODAL: Pour Formules Mathématiques -->
-    <!-- Modifié: Style sombre -->
+    <!-- Modifié: Style sombre + Effet Glass -->
     <div id="formula-modal" class="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center hidden">
-        <div class="bg-slate-800 p-6 rounded-lg shadow-xl max-w-md w-full m-4">
+        <div class="bg-slate-800/70 backdrop-blur-lg border border-slate-700/50 p-6 rounded-lg shadow-xl max-w-md w-full m-4">
             <h2 class="text-xl font-bold text-slate-100 mb-4">Insérer une formule (format LaTeX)</h2>
             <div class="mb-4">
                 <label for="formula-input" class="block text-sm font-medium text-slate-300 mb-1">Formule</label>
@@ -564,9 +568,9 @@
     </div>
     
     <!-- MODAL: Demande de Certification -->
-    <!-- Modifié: Style sombre -->
+    <!-- Modifié: Style sombre + Effet Glass -->
     <div id="certification-modal" class="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center hidden">
-        <div class="bg-slate-800 p-6 rounded-lg shadow-xl max-w-lg w-full m-4">
+        <div class="bg-slate-800/70 backdrop-blur-lg border border-slate-700/50 p-6 rounded-lg shadow-xl max-w-lg w-full m-4">
             <form id="certification-form">
                 <h2 class="text-xl font-bold text-slate-100 mb-4">Demander la certification</h2>
                 <p class="text-sm text-slate-400 mb-4">Veuillez expliquer pourquoi vous devriez être certifié et évaluer la qualité de vos contributions actuelles.</p>
@@ -594,9 +598,9 @@
     </div>
 
     <!-- NOUVEAU MODAL: Signalement de Contenu -->
-    <!-- Modifié: Style sombre -->
+    <!-- Modifié: Style sombre + Effet Glass -->
     <div id="report-modal" class="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center hidden">
-        <div class="bg-slate-800 p-6 rounded-lg shadow-xl max-w-lg w-full m-4">
+        <div class="bg-slate-800/70 backdrop-blur-lg border border-slate-700/50 p-6 rounded-lg shadow-xl max-w-lg w-full m-4">
             <form id="report-form">
                 <h2 class="text-xl font-bold text-slate-100 mb-4">Signaler un contenu</h2>
                 <p class="text-sm text-slate-400 mb-4">Aidez-nous à comprendre le problème. Qu'est-ce qui ne va pas avec cette ressource ?</p>
@@ -632,7 +636,8 @@
 
 
     <!-- NOUVELLE Barre de Navigation Mobile (en bas) -->
-    <nav id="mobile-bottom-nav" class="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-slate-800 border-t border-slate-700 flex justify-around items-center h-16">
+    <!-- Modifié: Effet Glass -->
+    <nav id="mobile-bottom-nav" class="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-slate-800/70 backdrop-blur-lg border-t border-white/10 flex justify-around items-center h-16">
         <a href="#home" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-indigo-400 w-1/4">
             <i data-lucide="home" class="h-6 w-6"></i>
             <span class="text-xs font-medium">Accueil</span>
@@ -1171,8 +1176,8 @@
 
         function createResourceCard(resource, author) {
             const card = document.createElement('div');
-            // Modifié: Style sombre + animations
-            card.className = 'bg-slate-800 rounded-lg shadow-lg overflow-hidden transition-all duration-300 ease-in-out hover:shadow-xl hover:-translate-y-1 cursor-pointer';
+            // Modifié: Style sombre + animations + Effet Glass
+            card.className = 'bg-slate-800/60 backdrop-blur-md border border-slate-700/50 rounded-lg shadow-lg overflow-hidden transition-all duration-300 ease-in-out hover:shadow-xl hover:-translate-y-1 cursor-pointer';
             
             card.addEventListener('click', (e) => {
                 if (e.target.closest('a') || e.target.closest('button')) {
@@ -1452,8 +1457,8 @@
         function createUserCard(profile) {
             const card = document.createElement('a');
             card.href = `#profile?id=${profile.uid}`;
-            // Modifié: Style sombre + animation
-            card.className = 'bg-slate-800 rounded-lg shadow-lg overflow-hidden p-4 flex items-center space-x-4 transition-all duration-200 hover:shadow-xl hover:bg-slate-700';
+            // Modifié: Style sombre + animation + Effet Glass
+            card.className = 'bg-slate-800/60 backdrop-blur-md border border-slate-700/50 rounded-lg shadow-lg overflow-hidden p-4 flex items-center space-x-4 transition-all duration-200 hover:shadow-xl hover:bg-slate-700';
             
             const photoUrl = profile.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username)}&background=random&color=fff`;
             
