@@ -534,7 +534,7 @@
         </div>
     </div>
     
-    <!-- NOUVEAU MODAL: Demande de Certification -->
+    <!-- MODAL: Demande de Certification -->
     <!-- Modifié: Style sombre -->
     <div id="certification-modal" class="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center hidden">
         <div class="bg-slate-800 p-6 rounded-lg shadow-xl max-w-lg w-full m-4">
@@ -558,6 +558,43 @@
                     </button>
                     <button type="submit" id="submit-cert-form" class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors duration-150">
                         Envoyer la demande
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- NOUVEAU MODAL: Signalement de Contenu -->
+    <!-- Modifié: Style sombre -->
+    <div id="report-modal" class="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center hidden">
+        <div class="bg-slate-800 p-6 rounded-lg shadow-xl max-w-lg w-full m-4">
+            <form id="report-form">
+                <h2 class="text-xl font-bold text-slate-100 mb-4">Signaler un contenu</h2>
+                <p class="text-sm text-slate-400 mb-4">Aidez-nous à comprendre le problème. Qu'est-ce qui ne va pas avec cette ressource ?</p>
+                
+                <div class="mb-4">
+                    <label for="report-reason" class="block text-sm font-medium text-slate-300 mb-1">Raison</label>
+                    <select id="report-reason" required class="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-slate-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">-- Choisir une raison --</option>
+                        <option value="Spam">Spam ou publicité</option>
+                        <option value="Inapproprié">Contenu inapproprié (haine, nudité...)</option>
+                        <option value="Désinformation">Désinformation / Fausse information</option>
+                        <option value="Harcèlement">Harcèlement</option>
+                        <option value="Autre">Autre (précisez ci-dessous)</option>
+                    </select>
+                </div>
+                
+                <div class="mb-6">
+                    <label for="report-comment" class="block text-sm font-medium text-slate-300 mb-1">Commentaires (optionnel, mais requis pour "Autre")</label>
+                    <textarea id="report-comment" rows="4" placeholder="Donnez plus de détails..." class="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-slate-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                </div>
+                
+                <div class="flex justify-end space-x-4">
+                    <button type="button" id="cancel-report-btn" class="bg-slate-600 text-slate-200 py-2 px-4 rounded-md hover:bg-slate-500 transition-colors duration-150">
+                        Annuler
+                    </button>
+                    <button type="submit" id="submit-report-btn" class="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition-colors duration-150">
+                        Envoyer le signalement
                     </button>
                 </div>
             </form>
@@ -620,6 +657,8 @@
         const publicUsersCollectionPath = `artifacts/${appId}/public/data/users`;
         const privateUsersCollectionPath = `artifacts/${appId}/users`;
         const resourcesCollectionPath = `artifacts/${appId}/public/data/resources`;
+        // NOUVEAU CHEMIN
+        const reportsCollectionPath = `artifacts/${appId}/public/data/reports`;
 
         // --- Listes de données ---
         const CLASSES_LIST = [
@@ -746,12 +785,20 @@
         const insertFormulaBtn = document.getElementById('insert-formula-btn');
         const toast = document.getElementById('toast');
         
-        // NOUVEAUX ÉLÉMENTS DOM (Modal Certification)
+        // ÉLÉMENTS DOM (Modal Certification)
         const certificationModal = document.getElementById('certification-modal');
         const certificationForm = document.getElementById('certification-form');
         const cancelCertBtn = document.getElementById('cancel-cert-btn');
         const certMotivation = document.getElementById('cert-motivation');
         const certQualityInput = document.getElementById('cert-quality'); 
+
+        // NOUVEAUX ÉLÉMENTS DOM (Modal Signalement)
+        const reportModal = document.getElementById('report-modal');
+        const reportForm = document.getElementById('report-form');
+        const cancelReportBtn = document.getElementById('cancel-report-btn');
+        const submitReportBtn = document.getElementById('submit-report-btn');
+        const reportReason = document.getElementById('report-reason');
+        const reportComment = document.getElementById('report-comment');
 
         // --- État de l'application ---
         let currentUserId = null;
@@ -763,6 +810,10 @@
         let allUsersData = {};
         
         let tempSignupData = {};
+        
+        // NOUVEL ÉTAT
+        let currentReportResourceId = null;
+        let currentReportAuthorId = null;
 
         // --- Données des catégories (MISES À JOUR AVEC ICONS8) ---
         categoriesData = [
@@ -1150,7 +1201,7 @@
                 
                 const authorPhotoUrl = author.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(author.username)}&background=random`;
 
-                // Modifié: Couleurs sombres
+                // Modifié: Couleurs sombres + AJOUT BOUTON SIGNALEMENT
                 resourceDetailContainer.innerHTML = `
                     <button onclick="history.back()" class="flex items-center text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors duration-150 mb-6">
                         <img src="${backIconSrc}" alt="Retour" class="h-5 w-5 mr-1">
@@ -1159,7 +1210,18 @@
                     
                     ${imageHtml}
                     
-                    <h1 class="text-4xl font-bold text-slate-100 mb-4">${resource.title}</h1>
+                    <!-- MODIFIÉ: Ajout du bouton signaler -->
+                    <div class="flex justify-between items-start">
+                        <h1 class="text-4xl font-bold text-slate-100 mb-4">${resource.title}</h1>
+                        <button id="open-report-modal-btn" 
+                                data-resource-id="${resource.id}" 
+                                data-author-id="${resource.authorId}" 
+                                class="flex-shrink-0 flex items-center text-sm text-slate-400 hover:text-red-500 transition-colors duration-150 p-2 rounded-lg bg-slate-700 hover:bg-slate-600">
+                            <i data-lucide="shield-alert" class="h-4 w-4 mr-1"></i>
+                            Signaler
+                        </button>
+                    </div>
+                    
                     <span class="text-sm font-semibold text-indigo-400 uppercase">${resource.category} > ${resource.subcategory}</span>
                     
                     <!-- NOUVELLE CARTE AUTEUR AMÉLIORÉE -->
@@ -1195,7 +1257,14 @@
                         ${resource.textContentHtml}
                     </div>
                 `;
+                
+                // CORRECTION: S'assurer que les icônes sont rendues
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
 
+                // --- AJOUT DES ÉCOUTEURS POUR LE SIGNALEMENT ---
+                
                 resourceDetailContainer.querySelector('.like-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (!currentUserId) { showToast("Vous devez être connecté.", "error"); location.hash = '#auth'; return; }
@@ -1206,6 +1275,25 @@
                     if (!currentUserId) { showToast("Vous devez être connecté.", "error"); location.hash = '#auth'; return; }
                     toggleDislike(resource.id, e.currentTarget, resourceDetailContainer.querySelector('.like-btn'));
                 });
+                
+                // NOUVEL ÉCOUTEUR
+                const reportBtn = resourceDetailContainer.querySelector('#open-report-modal-btn');
+                if (reportBtn) {
+                    reportBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (!currentUserId) { showToast("Vous devez être connecté pour signaler.", "error"); location.hash = '#auth'; return; }
+                        
+                        // Stocker les IDs pour la soumission
+                        currentReportResourceId = reportBtn.dataset.resourceId;
+                        currentReportAuthorId = reportBtn.dataset.authorId;
+
+                        // Réinitialiser le formulaire
+                        reportForm.reset();
+                        
+                        // Ouvrir le modal
+                        reportModal.classList.remove('hidden');
+                    });
+                }
 
             } catch (error) {
                 console.error("Erreur renderResourceDetail:", error);
@@ -1580,7 +1668,7 @@
             location.hash = `#profile?id=${currentUserId}`;
         });
         
-        // NOUVEAUX ÉCOUTEURS: Modal de Certification
+        // ÉCOUTEURS: Modal de Certification
         
         cancelCertBtn.addEventListener('click', () => {
             certificationModal.classList.add('hidden');
@@ -2269,6 +2357,66 @@
                 console.error("Erreur chargement catégories:", error);
             }
         }
+        
+        // --- NOUVEAUX ÉCOUTEURS POUR MODAL SIGNALEMENT ---
+        
+        cancelReportBtn.addEventListener('click', () => {
+            reportModal.classList.add('hidden');
+            currentReportResourceId = null;
+            currentReportAuthorId = null;
+        });
+
+        reportForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!currentReportResourceId || !currentUserId) {
+                showToast("Erreur: Impossible d'identifier la ressource ou l'utilisateur.", "error");
+                return;
+            }
+
+            const reason = reportReason.value;
+            const comment = reportComment.value.trim();
+
+            if (!reason) {
+                showToast("Veuillez sélectionner une raison.", "error");
+                return;
+            }
+            if (reason === 'Autre' && comment.length < 10) {
+                showToast("Veuillez préciser la raison dans les commentaires (10 car. min).", "error");
+                return;
+            }
+
+            submitReportBtn.disabled = true;
+            submitReportBtn.textContent = "Envoi...";
+
+            try {
+                const resource = allResources.find(r => r.id === currentReportResourceId);
+                
+                await addDoc(collection(db, reportsCollectionPath), {
+                    resourceId: currentReportResourceId,
+                    reporterId: currentUserId,
+                    reportedAuthorId: currentReportAuthorId,
+                    reason: reason,
+                    comment: comment,
+                    createdAt: Timestamp.now(),
+                    status: "pending",
+                    resourceTitle: resource?.title || "Titre inconnu" // Ajoute le titre pour la modération
+                });
+
+                showToast("Signalement envoyé. Merci pour votre aide.", "success");
+                reportModal.classList.add('hidden');
+
+            } catch (error) {
+                console.error("Erreur envoi signalement:", error);
+                showToast("Une erreur est survenue.", "error");
+            } finally {
+                submitReportBtn.disabled = false;
+                submitReportBtn.textContent = "Envoyer le signalement";
+                currentReportResourceId = null;
+                currentReportAuthorId = null;
+            }
+        });
+        
+        // --- ÉCOUTEURS GLOBAUX ---
 
         mobileMenuButton.addEventListener('click', () => {
             sidebar.classList.toggle('-translate-x-full');
