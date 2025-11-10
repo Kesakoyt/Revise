@@ -115,6 +115,14 @@
             <!-- Navigation principale -->
             <!-- Modifié: Couleurs sombres + transitions -->
             <nav id="sidebar-nav" class="flex-1 overflow-y-auto px-2 py-4 space-y-1">
+                <!-- NOUVEAU: Bouton Poster -->
+                <div class="px-3 py-2">
+                    <button id="open-post-modal-desktop" class="w-full flex items-center justify-center bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors duration-200 shadow-lg">
+                        <img src="https://img.icons8.com/fluency/1000/add--v1.png" alt="Poster" class="h-5 w-5 mr-2">
+                        Poster
+                    </button>
+                </div>
+                
                 <a href="#home" class="flex items-center px-3 py-2 text-slate-300 rounded-md hover:bg-slate-700 hover:text-indigo-400 transition-colors duration-200" data-page-id="home-page">
                     <!-- MODIFIÉ -->
                     <img src="https://img.icons8.com/fluency/1000/home.png" alt="Accueil" class="h-5 w-5 mr-3">
@@ -474,8 +482,9 @@
                     </div>
                 </section>
 
-                <!-- Page: Détail de la Ressource -->
-                <section id="resource-detail-page" class="page-content">
+                <!-- Page: Création de Ressource (Éditeur) -->
+                <!-- CORRECTION: L'ID était "resource-detail-page", changé en "create-page" -->
+                <section id="create-page" class="page-content">
                     <!-- Modifié: Style sombre + Effet Glass -->
                     <div class="bg-slate-800/60 backdrop-blur-md border border-slate-700/50 p-6 rounded-lg shadow-xl">
                         <h2 class="text-3xl font-bold text-slate-100 mb-6">Partager un cours</h2>
@@ -533,14 +542,45 @@
             </form>
         </div>
     </div>
-
+    
+    <!-- NOUVEAU MODAL: Options de Publication -->
+    <div id="post-options-modal" class="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center hidden">
+        <div class="bg-slate-800/70 backdrop-blur-lg border border-slate-700/50 p-6 rounded-lg shadow-xl max-w-md w-full m-4">
+            <h2 class="text-xl font-bold text-slate-100 mb-6">Que souhaitez-vous poster ?</h2>
+            
+            <div class="space-y-4">
+                <button id="post-short-btn" class="w-full flex items-center text-left p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
+                    <img src="https://img.icons8.com/fluency/1000/for-you.png" alt="Poster un court" class="h-10 w-10 mr-4">
+                    <div>
+                        <span class="text-lg font-semibold text-slate-100">Poster un court</span>
+                        <p class="text-sm text-slate-400">Partage rapide (Bientôt disponible)</p>
+                    </div>
+                </button>
+                
+                <a href="#create" id="post-fiche-link" class="w-full flex items-center text-left p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
+                    <img src="https://img.icons8.com/fluency/48/document.png" alt="Fiche de révision" class="h-10 w-10 mr-4">
+                    <div>
+                        <span class="text-lg font-semibold text-slate-100">Poster une fiche de révision</span>
+                        <p class="text-sm text-slate-400">Ouvrir l'éditeur de cours complet</p>
+                    </div>
+                </a>
+            </div>
+            
+            <div class="flex justify-end mt-6">
+                <button type="button" id="close-post-options-modal-btn" class="bg-slate-600 text-slate-200 py-2 px-4 rounded-md hover:bg-slate-500 transition-colors duration-150">
+                    Annuler
+                </button>
+            </div>
+        </div>
+    </div>
+    
     <!-- MODAL GÉNÉRIQUE: Pour URL (Image, Vidéo, Lien) -->
     <!-- Modifié: Style sombre + Effet Glass -->
     <div id="quill-url-modal" class="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center hidden">
         <div class="bg-slate-800/70 backdrop-blur-lg border border-slate-700/50 p-6 rounded-lg shadow-xl max-w-md w-full m-4">
             <h2 id="quill-url-modal-title" class="text-xl font-bold text-slate-100 mb-4">Insérer un lien</h2>
             <div class="mb-4">
-                <label for="quill-url-input" class="block text-sm font-medium text-slate-300 mb-1">Coller l'URL</label>
+                <label for="quill-url-input" class="block text-sm font-medium text-slate-300 mb-1">URL</label>
                 <input type="url" id="quill-url-input" placeholder="https://..." class="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-slate-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <div class="flex justify-end space-x-4">
@@ -561,7 +601,7 @@
             <h2 class="text-xl font-bold text-slate-100 mb-4">Insérer une formule (format LaTeX)</h2>
             <div class="mb-4">
                 <label for="formula-input" class="block text-sm font-medium text-slate-300 mb-1">Formule</label>
-                <textarea id="formula-input" rows="4" placeholder="\frac{-b \pm \sqrt{b^2-4ac}}{2a}" class="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-slate-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-mono"></textarea>
+                <input type="text" id="formula-input" placeholder="\frac{a}{b}" class="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-slate-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <div class="flex justify-end space-x-4">
                 <button type="button" id="cancel-formula-btn" class="bg-slate-600 text-slate-200 py-2 px-4 rounded-md hover:bg-slate-500 transition-colors duration-150">
@@ -573,26 +613,28 @@
             </div>
         </div>
     </div>
-    
+
     <!-- MODAL: Demande de Certification -->
     <!-- Modifié: Style sombre + Effet Glass -->
     <div id="certification-modal" class="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center hidden">
         <div class="bg-slate-800/70 backdrop-blur-lg border border-slate-700/50 p-6 rounded-lg shadow-xl max-w-lg w-full m-4">
             <form id="certification-form">
                 <h2 class="text-xl font-bold text-slate-100 mb-4">Demander la certification</h2>
-                <p class="text-sm text-slate-400 mb-4">Veuillez expliquer pourquoi vous devriez être certifié et évaluer la qualité de vos contributions actuelles.</p>
-                
+                <p class="text-sm text-slate-400 mb-4">Expliquez pourquoi vous devriez être certifié (ex: statut de professeur, expérience...).</p>
                 <div class="mb-4">
-                    <label for="cert-motivation" class="block text-sm font-medium text-slate-300 mb-1">Vos motivations (20 caractères min.)</label>
-                    <textarea id="cert-motivation" rows="4" placeholder="Expliquez pourquoi vous demandez la certification..." class="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-slate-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    <label for="cert-motivation" class="block text-sm font-medium text-slate-300 mb-1">Vos motivations (20 car. min)</label>
+                    <textarea id="cert-motivation" rows="3" required class="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-slate-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
                 </div>
-                
-                <div class="mb-6">
-                    <label for="cert-quality" class="block text-sm font-medium text-slate-300 mb-1">Évaluez la qualité de votre contenu (ex: 3/5, 4/5...)</label>
-                    <input type="text" id="cert-quality" placeholder="ex: 4/5, Bon..." class="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-slate-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                <div class="mb-4">
+                    <label for="cert-quality" class="block text-sm font-medium text-slate-300 mb-1">Comment évaluez-vous la qualité de votre contenu ?</label>
+                    <select id="cert-quality" required class="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-slate-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">-- Sélectionner --</option>
+                        <option value="tres-haute">Très haute (qualité professionnelle)</option>
+                        <option value="haute">Haute (bien recherché)</option>
+                        <option value="moyenne">Moyenne (notes personnelles)</option>
+                    </select>
                 </div>
-                
-                <div class="flex justify-end space-x-4">
+                <div class="flex justify-end space-x-4 mt-6">
                     <button type="button" id="cancel-cert-btn" class="bg-slate-600 text-slate-200 py-2 px-4 rounded-md hover:bg-slate-500 transition-colors duration-150">
                         Annuler
                     </button>
@@ -610,29 +652,28 @@
         <div class="bg-slate-800/70 backdrop-blur-lg border border-slate-700/50 p-6 rounded-lg shadow-xl max-w-lg w-full m-4">
             <form id="report-form">
                 <h2 class="text-xl font-bold text-slate-100 mb-4">Signaler un contenu</h2>
-                <p class="text-sm text-slate-400 mb-4">Aidez-nous à comprendre le problème. Qu'est-ce qui ne va pas avec cette ressource ?</p>
+                <p class="text-sm text-slate-400 mb-4">Aidez-nous à garder la plateforme sécurisée. Ce signalement est anonyme.</p>
                 
                 <div class="mb-4">
-                    <label for="report-reason" class="block text-sm font-medium text-slate-300 mb-1">Raison</label>
+                    <label for="report-reason" class="block text-sm font-medium text-slate-300 mb-1">Raison du signalement</label>
                     <select id="report-reason" required class="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-slate-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                        <option value="">-- Choisir une raison --</option>
-                        <option value="Spam">Spam ou publicité</option>
-                        <option value="Inapproprié">Contenu inapproprié (haine, nudité...)</option>
-                        <option value="Désinformation">Désinformation / Fausse information</option>
-                        <option value="Harcèlement">Harcèlement</option>
-                        <option value="Autre">Autre (précisez ci-dessous)</option>
+                        <option value="">-- Sélectionner une raison --</option>
+                        <option value="inapproprie">Contenu inapproprié (haine, etc.)</option>
+                        <option value="spam">Spam ou publicité</option>
+                        <option value="faux">Fausse information / Erroné</option>
+                        <option value="plagiat">Plagiat / Non-respect des droits</option>
+                        <option value="autre">Autre...</option>
                     </select>
                 </div>
-                
-                <div class="mb-6">
-                    <label for="report-comment" class="block text-sm font-medium text-slate-300 mb-1">Commentaires (optionnel, mais requis pour "Autre")</label>
-                    <textarea id="report-comment" rows="4" placeholder="Donnez plus de détails..." class="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-slate-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                <div class="mb-4">
+                    <label for="report-comment" class="block text-sm font-medium text-slate-300 mb-1">Commentaires (optionnel, requis si "Autre")</label>
+                    <textarea id="report-comment" rows="3" placeholder="Donnez plus de détails..." class="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-slate-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
                 </div>
                 
-                <div class="flex justify-end space-x-4">
+                <div class="flex justify-end space-x-4 mt-6">
                     <button type="button" id="cancel-report-btn" class="bg-slate-600 text-slate-200 py-2 px-4 rounded-md hover:bg-slate-500 transition-colors duration-150">
                         Annuler
-                    </button>
+                    </d>
                     <button type="submit" id="submit-report-btn" class="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition-colors duration-150">
                         Envoyer le signalement
                     </button>
@@ -643,24 +684,32 @@
 
 
     <!-- NOUVELLE Barre de Navigation Mobile (en bas) -->
-    <!-- Modifié: Effet Glass -->
+    <!-- Modifié: Effet Glass + 5 BOUTONS -->
     <nav id="mobile-bottom-nav" class="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-slate-800/70 backdrop-blur-lg border-t border-white/10 flex justify-around items-center h-16">
-        <a href="#home" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-indigo-400 w-1/4">
+        <a href="#home" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-indigo-400 w-1/5">
             <!-- MODIFIÉ -->
             <img src="https://img.icons8.com/fluency/1000/home.png" alt="Accueil" class="h-6 w-6">
             <span class="text-xs font-medium">Accueil</span>
         </a>
-        <a href="#foryou" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-slate-400 hover:text-indigo-400 w-1/4">
+        <a href="#foryou" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-slate-400 hover:text-indigo-400 w-1/5">
             <!-- MODIFIÉ -->
             <img src="https://img.icons8.com/fluency/1000/for-you.png" alt="Pour toi" class="h-6 w-6">
             <span class="text-xs font-medium">Pour toi</span>
         </a>
-        <a href="#subscriptions" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-slate-400 hover:text-indigo-400 w-1/4">
+        
+        <!-- NOUVEAU: Bouton Poster Mobile -->
+        <button id="open-post-modal-mobile" class="flex flex-col items-center justify-center p-2 w-1/5">
+            <div class="bg-indigo-600 p-3 rounded-full shadow-lg -mt-4 border-4 border-slate-900">
+                <img src="https://img.icons8.com/fluency/1000/add--v1.png" alt="Poster" class="h-6 w-6">
+            </div>
+        </button>
+
+        <a href="#subscriptions" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-slate-400 hover:text-indigo-400 w-1/5">
             <!-- MODIFIÉ -->
             <img src="https://img.icons8.com/fluency/1000/filled-star.png" alt="Abonnements" class="h-6 w-6">
             <span class="text-xs font-medium">Abonnements</span>
         </a>
-        <a href="#profile" id="mobile-profile-link" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-slate-400 hover:text-indigo-400 w-1/4">
+        <a href="#profile" id="mobile-profile-link" class="mobile-nav-link flex flex-col items-center justify-center p-2 text-slate-400 hover:text-indigo-400 w-1/5">
             <!-- MODIFIÉ -->
             <img src="https://img.icons8.com/fluency/1000/user-male-circle--v1.png" alt="Mon compte" class="h-6 w-6">
             <span class="text-xs font-medium">Mon compte</span>
@@ -871,6 +920,14 @@
         const submitReportBtn = document.getElementById('submit-report-btn');
         const reportReason = document.getElementById('report-reason');
         const reportComment = document.getElementById('report-comment');
+
+        // NOUVEAUX ÉLÉMENTS DOM (Modal Post)
+        const postOptionsModal = document.getElementById('post-options-modal');
+        const openPostModalDesktop = document.getElementById('open-post-modal-desktop');
+        const openPostModalMobile = document.getElementById('open-post-modal-mobile');
+        const closePostOptionsModalBtn = document.getElementById('close-post-options-modal-btn');
+        const postShortBtn = document.getElementById('post-short-btn');
+        const postFicheLink = document.getElementById('post-fiche-link');
 
         // --- État de l'application ---
         let currentUserId = null;
@@ -2588,6 +2645,33 @@
                 currentReportAuthorId = null;
             }
         });
+        
+        // --- NOUVEAUX ÉCOUTEURS POUR MODAL OPTIONS POST ---
+
+        function openPostModal() {
+            postOptionsModal.classList.remove('hidden');
+        }
+        function closePostModal() {
+            postOptionsModal.classList.add('hidden');
+        }
+
+        if(openPostModalDesktop) openPostModalDesktop.addEventListener('click', openPostModal);
+        if(openPostModalMobile) openPostModalMobile.addEventListener('click', openPostModal);
+        if(closePostOptionsModalBtn) closePostOptionsModalBtn.addEventListener('click', closePostModal);
+
+        if(postShortBtn) {
+            postShortBtn.addEventListener('click', () => {
+                showToast("La fonction 'Poster un court' arrive bientôt !", "info");
+                // closePostModal(); // On laisse ouvert pour voir l'autre option
+            });
+        }
+
+        if(postFicheLink) {
+            postFicheLink.addEventListener('click', () => {
+                closePostModal();
+                // Le href="#create" s'occupe de la navigation
+            });
+        }
         
         // --- ÉCOUTEURS GLOBAUX ---
 
