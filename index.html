@@ -1100,7 +1100,8 @@
                 return result.endsWith('.0') ? (num / 1000).toFixed(0) + 'k' : result + 'k';
             }
             const result = (num / 1000000).toFixed(1);
-            return result.endsWith('.0') ? (num / 1000000).toFixed(0) + 'M' : result + 'k';
+            // CORRIGÉ: "k" a été remplacé par "M"
+            return result.endsWith('.0') ? (num / 1000000).toFixed(0) + 'M' : result + 'M';
         }
 
         function showPage(pageId) {
