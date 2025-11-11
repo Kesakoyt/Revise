@@ -96,6 +96,106 @@
         .ql-snow .ql-picker-label { color: #d1d5db !important; }
         .ql-snow .ql-picker-item:hover, .ql-snow .ql-picker-item.ql-selected { background-color: #4b5563 !important; }
         .ql-snow .ql-picker-options { background-color: #374151; border-color: #4b5563; }
+
+        /* ---- STYLES POUR LE FLUX "SHORTS" (FAITS) ---- */
+        #foryou-feed-container {
+            /* On mobile, prend la hauteur visible */
+            height: calc(100vh - 4rem - 4rem); /* 100vh - top padding - nav mobile */
+            width: 100%;
+            max-width: 500px; /* Largeur max type "téléphone" */
+            margin: auto;
+            overflow-y: scroll;
+            /* Snap scrolling */
+            scroll-snap-type: y mandatory;
+            scroll-behavior: smooth;
+            border-radius: 0.5rem; /* rounded-lg */
+
+        }
+        /* NOUVEAU: Cacher la barre de défilement (ré-ajouté) */
+        #foryou-feed-container::-webkit-scrollbar {
+            display: none;
+        }
+        #foryou-feed-container {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+
+
+        @media (min-width: 768px) { /* md breakpoint */
+            #foryou-feed-container {
+                /* Sur PC, hauteur fixe dans le conteneur */
+                height: 75vh;
+            }
+        }
+        
+        .short-slide {
+            height: 100%; /* Chaque slide prend la hauteur totale du conteneur */
+            width: 100%;
+            scroll-snap-align: start; /* Aligne le snap en haut */
+            /* Layout flex pour le contenu */
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* Centre le fait verticalement */
+            position: relative;
+            padding: 1.5rem; /* 24px */
+            /* Fond Glassmorphism */
+            background-color: rgba(30, 41, 59, 0.5); /* bg-slate-800/50 */
+            border: 1px solid rgba(255, 255, 255, 0.1); /* border-white/10 */
+        }
+        /* Positionne la première slide pour le snap */
+        .short-slide:first-child {
+            border-top-left-radius: 0.5rem;
+            border-top-right-radius: 0.5rem;
+        }
+        .short-slide:last-child {
+            border-bottom-left-radius: 0.5rem;
+            border-bottom-right-radius: 0.5rem;
+        }
+
+        .short-action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            transition: transform 0.2s ease;
+        }
+        .short-action-btn:hover {
+            transform: scale(1.1);
+        }
+        .short-action-btn img {
+            height: 2rem; /* 32px */
+            width: 2rem; /* 32px */
+        }
+        .short-action-btn span {
+            font-size: 0.75rem; /* 12px */
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        /* NOUVEAU: Style pour le bouton S'abonner dans le flux */
+        .short-subscribe-btn {
+            font-size: 0.875rem; /* text-sm */
+            font-weight: 600; /* font-semibold */
+            padding: 0.25rem 0.75rem; /* py-1 px-3 */
+            border-radius: 0.5rem; /* rounded-lg */
+            margin-left: 0.75rem; /* ml-3 */
+            transition: all 0.2s ease;
+            background-color: #6366f1; /* bg-indigo-600 */
+            color: white;
+            white-space: nowrap; /* Empêche le texte de sauter à la ligne */
+        }
+        .short-subscribe-btn:hover {
+            background-color: #4f46e5; /* hover:bg-indigo-700 */
+        }
+        /* Classe ajoutée par toggleSubscription() */
+        .short-subscribe-btn.subscribed {
+            background-color: #4b5563; /* bg-slate-600 */
+            color: #d1d5db; /* text-slate-300 */
+        }
+        .short-subscribe-btn.subscribed:hover {
+            background-color: #6b7280; /* hover:bg-slate-500 */
+        }
     </style>
 </head>
 <body class="h-full font-sans antialiased text-slate-200"> <!-- Modifié: Fond/Texte -->
@@ -464,12 +564,9 @@
                 <!-- NOUVELLE PAGE: Pour Toi -->
                 <section id="foryou-page" class="page-content">
                     <h2 class="text-3xl font-bold text-slate-100 mb-6">Pour toi</h2>
-                    <!-- Modifié: Effet Glass -->
-                    <div class="bg-slate-800/60 backdrop-blur-md border border-slate-700/50 p-8 rounded-lg shadow-xl text-center">
-                        <!-- MODIFIÉ -->
-                        <img src="https://img.icons8.com/fluency/1000/crane.png" alt="En construction" class="h-16 w-16 mx-auto mb-4">
-                        <h3 class="text-2xl font-bold text-slate-100 mb-2">En construction</h3>
-                        <p class="text-slate-300">Cette section vous proposera bientôt des ressources personnalisées.</p>
+                    <!-- NOUVEAU: Conteneur du flux -->
+                    <div id="foryou-feed-container" class="bg-slate-900/70 border border-slate-700/50">
+                        <!-- Les slides des "Faits" seront injectés ici par JS -->
                     </div>
                 </section>
                 
@@ -549,11 +646,12 @@
             <h2 class="text-xl font-bold text-slate-100 mb-6">Que souhaitez-vous poster ?</h2>
             
             <div class="space-y-4">
+                <!-- MODIFIÉ: Bouton pour les "Faits" (Shorts) -->
                 <button id="post-short-btn" class="w-full flex items-center text-left p-4 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors">
-                    <img src="https://img.icons8.com/fluency/1000/for-you.png" alt="Poster un court" class="h-10 w-10 mr-4">
+                    <img src="https://img.icons8.com/fluency/1000/for-you.png" alt="Poster un Fait" class="h-10 w-10 mr-4">
                     <div>
-                        <span class="text-lg font-semibold text-slate-100">Poster un court</span>
-                        <p class="text-sm text-slate-400">Partage rapide (Bientôt disponible)</p>
+                        <span class="text-lg font-semibold text-slate-100">Poster un fait (Short)</span>
+                        <p class="text-sm text-slate-400">Partage rapide (Max 280 car.)</p>
                     </div>
                 </button>
                 
@@ -682,6 +780,28 @@
         </div>
     </div>
 
+    <!-- NOUVEAU MODAL: Création de Short (Fait) -->
+    <div id="create-short-modal" class="fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center hidden">
+        <div class="bg-slate-800/70 backdrop-blur-lg border border-slate-700/50 p-6 rounded-lg shadow-xl max-w-lg w-full m-4">
+            <form id="create-short-form">
+                <h2 class="text-xl font-bold text-slate-100 mb-4">Partager un fait (Short)</h2>
+                <div class="mb-4">
+                    <label for="short-text-input" class="block text-sm font-medium text-slate-300 mb-1">Votre fait "nerd" (280 car. max)</label>
+                    <textarea id="short-text-input" rows="5" required maxlength="280" class="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-slate-100 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ex: Les loutres de mer se tiennent la main quand elles dorment pour ne pas s'éloigner..."></textarea>
+                    <p id="short-char-count" class="text-right text-sm text-slate-400 mt-1">0 / 280</p>
+                </div>
+                <div class="flex justify-end space-x-4 mt-6">
+                    <button type="button" id="cancel-create-short-btn" class="bg-slate-600 text-slate-200 py-2 px-4 rounded-md hover:bg-slate-500 transition-colors duration-150">
+                        Annuler
+                    </button>
+                    <button type="submit" id="submit-create-short-btn" class="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors duration-150">
+                        Publier
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 
     <!-- NOUVELLE Barre de Navigation Mobile (en bas) -->
     <!-- Modifié: Effet Glass + 5 BOUTONS -->
@@ -774,6 +894,8 @@
         const resourcesCollectionPath = `artifacts/${appId}/public/data/resources`;
         // NOUVEAU CHEMIN
         const reportsCollectionPath = `artifacts/${appId}/public/data/reports`;
+        // NOUVEAU CHEMIN POUR LES SHORTS (SUPPRIMÉ)
+        // const shortsCollectionPath = `artifacts/${appId}/public/data/shorts`;
 
         // --- Listes de données ---
         const CLASSES_LIST = [
@@ -835,6 +957,7 @@
         const resourceDetailContainer = document.getElementById('resource-detail-container');
         const usersContainer = document.getElementById('users-container'); 
         const subscriptionsResourcesContainer = document.getElementById('subscriptions-resources-container'); // NOUVEAU
+        const forYouFeedContainer = document.getElementById('foryou-feed-container'); // NOUVEAU
         
         // Barres de recherche
         const homeSearchInput = document.getElementById('home-search-input');
@@ -929,6 +1052,14 @@
         const postShortBtn = document.getElementById('post-short-btn');
         const postFicheLink = document.getElementById('post-fiche-link');
 
+        // NOUVEAUX ÉLÉMENTS DOM (Modal Création Short)
+        const createShortModal = document.getElementById('create-short-modal');
+        const createShortForm = document.getElementById('create-short-form');
+        const cancelCreateShortBtn = document.getElementById('cancel-create-short-btn');
+        const submitCreateShortBtn = document.getElementById('submit-create-short-btn');
+        const shortTextInput = document.getElementById('short-text-input');
+        const shortCharCount = document.getElementById('short-char-count');
+
         // --- État de l'application ---
         let currentUserId = null;
         let currentUserProfile = null;
@@ -937,12 +1068,15 @@
         let currentQuillHandler = null;
         let allResources = [];
         let allUsersData = {};
+        // let allShortsCache = []; // NOUVEAU: Cache pour les shorts (SUPPRIMÉ, fusionné avec allResources)
         
         let tempSignupData = {};
         
         // NOUVEL ÉTAT
         let currentReportResourceId = null;
         let currentReportAuthorId = null;
+        let currentReportType = 'resource'; // NOUVEAU: 'resource' ou 'short'
+        let viewObserver = null; // NOUVEAU: Pour l'IntersectionObserver
 
         // --- Données des catégories (MISES À JOUR AVEC ICONS8) ---
         categoriesData = [
@@ -1126,6 +1260,7 @@
                 // NOUVEAUX CAS
                 case '#foryou':
                     showPage('foryou-page');
+                    await loadAndRenderShortsFeed(); // NOUVEAU
                     break;
                 case '#subscriptions':
                     showPage('subscriptions-page');
@@ -1135,6 +1270,26 @@
                     location.hash = '#home';
                     break;
             }
+        }
+        
+        // --- NOUVELLE FONCTION: COPIER DANS LE PRESSE-PAPIER (POUR PARTAGE) ---
+        function copyTextToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed"; // Cache le textarea
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                // Utilise la commande dépréciée mais compatible iframe
+                document.execCommand('copy');
+                showToast("Copié dans le presse-papiers !", "success");
+            } catch (err) {
+                console.error("Erreur copie:", err);
+                showToast("Erreur lors de la copie.", "error");
+            }
+            document.body.removeChild(textArea);
         }
 
         // --- RENDU DES RESSOURCES ---
@@ -1181,6 +1336,266 @@
                 throw error;
             }
         }
+        
+        // --- NOUVELLES FONCTIONS DE RENDU (FLUX POUR TOI) ---
+
+        async function fetchAllShortsAndAuthors() {
+            // CETTE FONCTION EST MAINTENANT OBSOLÈTE car fetchAllResourcesOnce() récupère tout
+            // Nous la laissons vide pour éviter les erreurs, mais elle n'est plus appelée
+            return true;
+        }
+        
+        // NOUVELLE FONCTION: Gère l'incrémentation des vues pour les shorts
+        function incrementShortView(resourceId) {
+            // MODIFIÉ: La limite de sessionStorage a été retirée pour compter chaque vue.
+            // if (!sessionStorage.getItem(`viewed_${resourceId}`)) {
+                const resourceRef = doc(db, resourcesCollectionPath, resourceId);
+                updateDoc(resourceRef, { views: increment(1) }).catch(err => {
+                    console.warn("Erreur incrémentation vue short:", err);
+                });
+                
+                // Marquer comme vu dans cette session
+                // sessionStorage.setItem(`viewed_${resourceId}`, 'true'); // MODIFIÉ: Ligne retirée
+
+                // Mettre à jour le cache local (important pour que le compteur s'update si on re-scrolle)
+                const resource = allResources.find(r => r.id === resourceId);
+                if (resource) {
+                    resource.views = (resource.views || 0) + 1;
+                    // Mettre à jour le DOM si le slide est toujours là
+                    const slide = forYouFeedContainer.querySelector(`.short-slide[data-resource-id="${resourceId}"]`);
+                    if (slide) {
+                        const viewCountSpan = slide.querySelector('[data-action="views"] span');
+                        if (viewCountSpan) {
+                            viewCountSpan.textContent = formatNumber(resource.views);
+                        }
+                    }
+                }
+            // } // MODIFIÉ: Accolade retirée
+        }
+
+        function createShortSlide(shortData, authorData) {
+            const slide = document.createElement('div');
+            // MODIFIÉ: L'ID est maintenant un ID de ressource
+            slide.className = 'short-slide';
+            slide.setAttribute('data-resource-id', shortData.id);
+            slide.setAttribute('data-author-id', authorData.uid); // Pour le signalement
+
+            const photoUrl = authorData.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(authorData.username)}&background=random&color=fff`;
+            const certIcon = authorData.certification ? `<img src="https://img.icons8.com/fluency/48/verified-badge--v1.png" alt="Certifié" class="h-5 w-5 ml-1">` : '';
+
+            // Gestion des votes
+            const hasLiked = shortData.likes?.includes(currentUserId);
+            const hasDisliked = shortData.dislikes?.includes(currentUserId);
+
+            // NOUVEAU: Logique pour le bouton S'abonner
+            const isCurrentUserProfile = currentUserId === authorData.uid;
+            const isSubscribed = currentUserProfile?.following?.includes(authorData.uid);
+            let subscribeBtnHtml = '';
+            if (!isCurrentUserProfile) {
+                subscribeBtnHtml = `
+                    <button class="short-subscribe-btn ${isSubscribed ? 'subscribed' : ''}" data-action="subscribe" data-author-id="${authorData.uid}">
+                        ${isSubscribed ? 'Abonné' : "S'abonner"}
+                    </button>
+                `;
+            }
+
+            slide.innerHTML = `
+                <!-- Contenu Principal (au centre) -->
+                <div class="flex-1 flex items-center justify-center">
+                    <p class="text-2xl font-semibold text-slate-100 text-center">${escapeHTML(shortData.text)}</p>
+                </div>
+                
+                <!-- Actions (côté droit) -->
+                <div class="absolute right-4 bottom-24 flex flex-col space-y-4">
+                    <button class="short-action-btn like-btn" data-action="like">
+                        <img src="https://img.icons8.com/fluency/48/facebook-like.png" class="like-icon h-8 w-8 ${!hasLiked ? 'grayscale' : ''}" alt="Like">
+                        <span class="like-count">${formatNumber(shortData.likes?.length || 0)}</span>
+                    </button>
+                    <button class="short-action-btn dislike-btn" data-action="dislike">
+                        <img src="https://img.icons8.com/fluency/48/thumbs-down.png" class="dislike-icon h-8 w-8 ${!hasDisliked ? 'grayscale' : ''}" alt="Dislike">
+                        <span class="dislike-count">${formatNumber(shortData.dislikes?.length || 0)}</span>
+                    </button>
+                    <button class="short-action-btn" data-action="share">
+                        <img src="https://img.icons8.com/fluency/48/share-rounded.png" alt="Share">
+                        <span>Copier</span>
+                    </button>
+                    <button class="short-action-btn" data-action="report">
+                        <img src="https://img.icons8.com/fluency/48/high-priority--v1.png" alt="Report">
+                    </button>
+                    <!-- NOUVEAU: Compteur de vues -->
+                    <div class="short-action-btn" data-action="views">
+                        <img src="https://img.icons8.com/fluency/1000/vision.png" alt="Vues" class="h-8 w-8 opacity-80">
+                        <span>${formatNumber(shortData.views || 0)}</span>
+                    </div>
+                </div>
+
+                <!-- Infos Auteur (en bas) -->
+                <!-- MODIFIÉ: Changé en <div> pour contenir le lien ET le bouton -->
+                <div class="absolute bottom-4 left-4 flex items-center group">
+                    <a href="#profile?id=${authorData.uid}" class="flex items-center transition-opacity hover:opacity-80">
+                        <img src="${photoUrl}" alt="${authorData.username}" class="h-10 w-10 rounded-full border-2 border-slate-500 group-hover:ring-2 group-hover:ring-indigo-500 transition-all duration-200">
+                        <div class="ml-2 flex items-center">
+                            <span class="font-semibold text-slate-100 group-hover:text-indigo-400 transition-colors">${authorData.username}</span>
+                            ${certIcon}
+                        </div>
+                    </a>
+                    <!-- NOUVEAU: Bouton S'abonner inséré ici -->
+                    ${subscribeBtnHtml}
+                </div>
+            `;
+            return slide;
+        }
+
+        async function loadAndRenderShortsFeed() {
+            if (!forYouFeedContainer) return;
+            
+            forYouFeedContainer.innerHTML = `
+                <div class="short-slide" style="justify-content: center; align-items: center;">
+                    <svg class="animate-spin h-8 w-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="text-slate-300 mt-2">Chargement du flux...</p>
+                </div>
+            `;
+            
+            try {
+                // MODIFIÉ: Appelle la fonction principale qui charge TOUT
+                await fetchAllResourcesOnce();
+                
+                // V1: Ordre aléatoire
+                // MODIFIÉ: Filtre allResources pour ne garder que les 'short'
+                const shuffledShorts = [...allResources]
+                    .filter(r => r.type === 'short')
+                    .sort(() => 0.5 - Math.random());
+                
+                if (shuffledShorts.length === 0) {
+                    forYouFeedContainer.innerHTML = `
+                        <div class="short-slide" style="justify-content: center; align-items: center;">
+                            <img src="https://img.icons8.com/fluency/1000/empty-box.png" alt="Flux vide" class="h-16 w-16 mx-auto mb-4">
+                            <h3 class="text-2xl font-bold text-slate-100 mb-2">Flux un peu vide</h3>
+                            <p class="text-slate-300 text-center">Aucun "fait" n'a été publié pour le moment. Soyez le premier !</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                forYouFeedContainer.innerHTML = ''; // Vider le conteneur
+                
+                // NOUVEAU: Déconnecter l'ancien observer s'il existe
+                if (viewObserver) {
+                    viewObserver.disconnect();
+                }
+
+                // NOUVEAU: Créer l'IntersectionObserver
+                const observerOptions = {
+                    root: forYouFeedContainer, // Le conteneur scrollable
+                    rootMargin: '0px',
+                    threshold: 0.75 // Déclenché quand 75% du slide est visible
+                };
+
+                viewObserver = new IntersectionObserver((entries, observer) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const slide = entry.target;
+                            const resourceId = slide.dataset.resourceId;
+                            if (resourceId) {
+                                incrementShortView(resourceId);
+                                // La logique `sessionStorage` dans incrementShortView()
+                                // empêche les incréments multiples.
+                            }
+                        }
+                    });
+                }, observerOptions);
+
+                
+                shuffledShorts.forEach(short => {
+                    const author = allUsersData[short.authorId];
+                    if (author) {
+                        const slide = createShortSlide(short, author);
+                        forYouFeedContainer.appendChild(slide);
+                        viewObserver.observe(slide); // NOUVEAU: Observer le slide
+                    } else {
+                        console.warn(`Auteur introuvable pour le short ${short.id}`);
+                    }
+                });
+
+                // Ajouter un écouteur d'événement unique au conteneur
+                // (Retire l'ancien s'il existe pour éviter les doublons)
+                forYouFeedContainer.removeEventListener('click', handleShortsFeedClick);
+                forYouFeedContainer.addEventListener('click', handleShortsFeedClick);
+
+            } catch (error) {
+                console.error("Erreur loadAndRenderShortsFeed:", error);
+                forYouFeedContainer.innerHTML = `
+                    <div class="short-slide" style="justify-content: center; align-items: center;">
+                        <p class="text-red-500">Erreur lors du chargement du flux.</p>
+                    </div>
+                `;
+            }
+        }
+
+        // NOUVELLE FONCTION: Gère les clics sur le flux
+        async function handleShortsFeedClick(e) {
+            const actionButton = e.target.closest('.short-action-btn');
+            const subscribeButton = e.target.closest('.short-subscribe-btn'); // NOUVEAU
+
+            // NOUVEAU: Gérer le clic sur S'abonner
+            if (subscribeButton) {
+                const authorId = subscribeButton.dataset.authorId;
+                if (authorId) {
+                    toggleSubscription(authorId, subscribeButton);
+                }
+                return; // C'était un clic sur s'abonner, on arrête
+            }
+            
+            if (!actionButton) return; // N'était pas un clic sur un bouton d'action
+            
+            const action = actionButton.dataset.action;
+            const slide = actionButton.closest('.short-slide');
+            // MODIFIÉ: On récupère l'ID de ressource
+            const resourceId = slide.dataset.resourceId;
+            const authorId = slide.dataset.authorId;
+            // MODIFIÉ: On cherche les boutons like/dislike pour les passer aux fonctions standard
+            const likeBtn = slide.querySelector('.like-btn');
+            const dislikeBtn = slide.querySelector('.dislike-btn');
+
+            switch (action) {
+                case 'like':
+                    // MODIFIÉ: Appelle la fonction standard toggleLike
+                    toggleLike(resourceId, likeBtn, dislikeBtn);
+                    break;
+                case 'dislike':
+                    // MODIFIÉ: Appelle la fonction standard toggleDislike
+                    toggleDislike(resourceId, dislikeBtn, likeBtn);
+                    break;
+                case 'share':
+                    const textToCopy = slide.querySelector('p.text-2xl').textContent.trim();
+                    copyTextToClipboard(textToCopy);
+                    break;
+                case 'report':
+                    currentReportResourceId = resourceId; // On réutilise la variable
+                    currentReportAuthorId = authorId;
+                    currentReportType = 'short'; // On définit le type
+                    reportReason.value = '';
+                    reportComment.value = '';
+                    reportModal.classList.remove('hidden');
+                    break;
+                case 'views':
+                    // Ne fait rien, c'est juste un affichage
+                    break;
+            }
+        }
+        
+        // NOUVELLES FONCTIONS: Like/Dislike pour les Shorts (similaires aux ressources)
+        // MODIFIÉ: Ces fonctions sont supprimées car elles sont remplacées
+        // par toggleLike() et toggleDislike() standards
+        /*
+        async function toggleShortLike(shortId, slide) { ... }
+        async function toggleShortDislike(shortId, slide) { ... }
+        */
+        
+        // --- FIN DES NOUVELLES FONCTIONS (FLUX) ---
 
         // --- NOUVELLES FONCTIONS DE RENDU (CORRECTION DE BUG) ---
 
@@ -1376,6 +1791,7 @@
                     reportBtn.addEventListener('click', () => {
                         currentReportResourceId = resourceId;
                         currentReportAuthorId = author.uid;
+                        currentReportType = 'resource'; // DÉFINIT LE TYPE
                         reportReason.value = '';
                         reportComment.value = '';
                         reportModal.classList.remove('hidden');
@@ -1395,7 +1811,8 @@
         function renderResources(container, filters = {}, searchTerm = '') {
             if (!container) return;
 
-            let filteredResources = [...allResources]; // Start with all resources
+            // MODIFIÉ: Filtre pour n'afficher que les 'resource' (ou les anciens sans type)
+            let filteredResources = [...allResources].filter(r => r.type === 'resource' || !r.type);
 
             // 1. Appliquer le filtre de catégorie
             if (filters.category) {
@@ -2032,6 +2449,7 @@
                 currentUserProfile = null;
                 allResources = [];
                 allUsersData = {};
+                // allShortsCache = []; // NOUVEAU: Vider le cache des shorts (SUPPRIMÉ)
                 updateAuthUI(null);
                 location.hash = '#auth';
                 showPage('auth-page'); // Forcer l'affichage
@@ -2099,6 +2517,7 @@
             const password = document.getElementById('login-password').value;
             try {
                 await signInWithEmailAndPassword(auth, email, password);
+                // allShortsCache = []; // NOUVEAU: Vider le cache au login (SUPPRIMÉ)
                 showToast("Connexion réussie !", "success");
             } catch (error) {
                 console.error("Erreur Connexion:", error);
@@ -2295,7 +2714,12 @@
                     }
                     
                     subBtn.textContent = 'S\'abonner';
-                    subBtn.className = 'px-4 py-2 rounded-md font-semibold transition-colors duration-200 bg-indigo-600 text-white hover:bg-indigo-700';
+                    // MODIFIÉ: Gère le bouton short ou le bouton profil
+                    if (subBtn.classList.contains('short-subscribe-btn')) {
+                        subBtn.classList.remove('subscribed');
+                    } else {
+                        subBtn.className = 'px-4 py-2 rounded-md font-semibold transition-colors duration-200 bg-indigo-600 text-white hover:bg-indigo-700';
+                    }
                 } else {
                     // S'abonner
                     await updateDoc(currentUserRef, { following: arrayUnion(targetUserId) });
@@ -2307,7 +2731,12 @@
                     }
                     
                     subBtn.textContent = 'Abonné';
-                    subBtn.className = 'px-4 py-2 rounded-md font-semibold transition-colors duration-200 bg-slate-600 text-slate-200 hover:bg-slate-500';
+                    // MODIFIÉ: Gère le bouton short ou le bouton profil
+                    if (subBtn.classList.contains('short-subscribe-btn')) {
+                        subBtn.classList.add('subscribed');
+                    } else {
+                        subBtn.className = 'px-4 py-2 rounded-md font-semibold transition-colors duration-200 bg-slate-600 text-slate-200 hover:bg-slate-500';
+                    }
                 }
                 
                 // Mettre à jour le compteur d'abonnés sur la page de profil (si visible)
@@ -2500,11 +2929,13 @@
                     createdAt: Timestamp.now(),
                     likes: [],
                     dislikes: [],
-                    views: 0
+                    views: 0,
+                    type: 'resource' // MODIFIÉ: Ajout du type
                 };
 
                 const docRef = await addDoc(collection(db, resourcesCollectionPath), newResource);
                 
+                // AJOUT AU CACHE LOCAL
                 newResource.id = docRef.id;
                 allResources.unshift(newResource);
                 
@@ -2598,6 +3029,8 @@
 
         reportForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            
+            // Note: currentReportResourceId est utilisé pour 'resourceId' OU 'shortId'
             if (!currentReportResourceId || !currentUserId) {
                 showToast("Erreur: Impossible d'identifier la ressource ou l'utilisateur.", "error");
                 return;
@@ -2610,7 +3043,7 @@
                 showToast("Veuillez sélectionner une raison.", "error");
                 return;
             }
-            if (reason === 'Autre' && comment.length < 10) {
+            if (reason === 'autre' && comment.length < 10) { // 'autre' est la valeur dans le HTML
                 showToast("Veuillez préciser la raison dans les commentaires (10 car. min).", "error");
                 return;
             }
@@ -2619,18 +3052,28 @@
             submitReportBtn.textContent = "Envoi...";
 
             try {
-                const resource = allResources.find(r => r.id === currentReportResourceId);
-                
-                await addDoc(collection(db, reportsCollectionPath), {
-                    resourceId: currentReportResourceId,
+                // MODIFIÉ: Gère les deux types de signalement
+                let reportData = {
                     reporterId: currentUserId,
                     reportedAuthorId: currentReportAuthorId,
                     reason: reason,
                     comment: comment,
                     createdAt: Timestamp.now(),
                     status: "pending",
-                    resourceTitle: resource?.title || "Titre inconnu" // Ajoute le titre pour la modération
-                });
+                    type: currentReportType
+                };
+
+                if (currentReportType === 'resource') {
+                    const resource = allResources.find(r => r.id === currentReportResourceId);
+                    reportData.resourceId = currentReportResourceId;
+                    reportData.contentPreview = resource ? resource.title : "Titre inconnu";
+                } else if (currentReportType === 'short') {
+                    const short = allShortsCache.find(s => s.id === currentReportResourceId);
+                    reportData.shortId = currentReportResourceId;
+                    reportData.contentPreview = short ? short.text.substring(0, 100) + '...' : "Contenu inconnu";
+                }
+
+                await addDoc(collection(db, reportsCollectionPath), reportData);
 
                 showToast("Signalement envoyé. Merci pour votre aide.", "success");
                 reportModal.classList.add('hidden');
@@ -2661,8 +3104,12 @@
 
         if(postShortBtn) {
             postShortBtn.addEventListener('click', () => {
-                showToast("La fonction 'Poster un court' arrive bientôt !", "info");
-                // closePostModal(); // On laisse ouvert pour voir l'autre option
+                // MODIFIÉ: Ouvre le nouveau modal
+                closePostModal();
+                shortTextInput.value = ''; // Vider le champ
+                shortCharCount.textContent = '0 / 280';
+                createShortModal.classList.remove('hidden');
+                shortTextInput.focus();
             });
         }
 
@@ -2670,6 +3117,73 @@
             postFicheLink.addEventListener('click', () => {
                 closePostModal();
                 // Le href="#create" s'occupe de la navigation
+            });
+        }
+        
+        // NOUVEAUX ÉCOUTEURS POUR MODAL CRÉATION SHORT
+        if(cancelCreateShortBtn) {
+            cancelCreateShortBtn.addEventListener('click', () => {
+                createShortModal.classList.add('hidden');
+            });
+        }
+
+        if (shortTextInput) {
+            shortTextInput.addEventListener('input', () => {
+                const count = shortTextInput.value.length;
+                shortCharCount.textContent = `${count} / 280`;
+            });
+        }
+        
+        if(createShortForm) {
+            createShortForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const text = shortTextInput.value.trim();
+
+                if (text.length === 0) {
+                    showToast("Le fait ne peut pas être vide.", "error");
+                    return;
+                }
+                if (text.length > 280) {
+                    showToast("Le fait dépasse la limite de 280 caractères.", "error");
+                    return;
+                }
+
+                submitCreateShortBtn.disabled = true;
+                submitCreateShortBtn.textContent = "Publication...";
+
+                try {
+                    const newShort = {
+                        authorId: currentUserId,
+                        text: text, // Le contenu du short est stocké ici
+                        createdAt: Timestamp.now(),
+                        likes: [],
+                        dislikes: [],
+                        views: 0,
+                        type: 'short' // MODIFIÉ: Ajout du type
+                    };
+
+                    // MODIFIÉ: Utilise resourcesCollectionPath
+                    const docRef = await addDoc(collection(db, resourcesCollectionPath), newShort);
+                    
+                    // Ajout au cache local (allResources)
+                    newShort.id = docRef.id;
+                    allResources.unshift(newShort);
+
+                    showToast("Fait publié avec succès !", "success");
+                    createShortModal.classList.add('hidden');
+                    
+                    // Si on est sur la page "Pour toi", la rafraîchir
+                    if (location.hash === '#foryou') {
+                        await loadAndRenderShortsFeed();
+                    }
+
+                } catch (error) {
+                    console.error("Erreur publication short:", error);
+                    showToast("Erreur lors de la publication.", "error");
+                } finally {
+                    submitCreateShortBtn.disabled = false;
+                    submitCreateShortBtn.textContent = "Publier";
+                }
             });
         }
         
