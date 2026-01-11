@@ -1,3 +1,4 @@
+// js/firebase.js
 const firebaseConfig = {
     apiKey: "AIzaSyD0J27oBxUbZG4ucVJG8kPLuG21nP7mAck",
     authDomain: "revise-61c6b.firebaseapp.com",
@@ -8,8 +9,10 @@ const firebaseConfig = {
     measurementId: "G-RTXCZMXX5Y"
 };
 
-// Initialisation globale
+// On utilise 'firebase' directement car les scripts sont chargés dans index.html
 firebase.initializeApp(firebaseConfig);
+
+// Variables globales
 window.db = firebase.firestore();
 window.auth = firebase.auth();
 window.googleProvider = new firebase.auth.GoogleAuthProvider();
