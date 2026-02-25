@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explorer - Revise</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .search-bar {
+            width: 100%;
+            padding: 16px 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            color: var(--text-main);
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .search-bar input {
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            width: 100%;
+            outline: none;
+            font-size: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar glass-panel">
+            <div class="sidebar-header">
+                <i class="ph-fill ph-student glow-icon"></i>
+                <h1 class="brand">Revise</h1>
+            </div>
+
+            <ul class="nav-links">
+                <li><a href="index.html" class="nav-item"><i class="ph ph-house"></i><span>Accueil</span></a></li>
+                <li><a href="explore.html" class="nav-item active"><i
+                            class="ph ph-compass"></i><span>Explorer</span></a></li>
+                <li><a href="profile.html" class="nav-item" id="nav-profile"><i
+                            class="ph ph-user"></i><span>Profil</span></a></li>
+                <li><a href="bookmarks.html" class="nav-item"><i
+                            class="ph ph-bookmark-simple"></i><span>Sauvegardés</span></a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-header glass-panel">
+                <h2>Explorer</h2>
+            </header>
+
+            <div class="search-bar glass-panel mt-4">
+                <i class="ph ph-magnifying-glass" style="color: var(--text-muted); font-size: 20px;"></i>
+                <input type="text" placeholder="Rechercher des posts, des matières ou des utilisateurs...">
+            </div>
+
+            <div class="feed-container">
+                <div class="content-box glass-panel" style="text-align: center; padding: 40px;">
+                    <i class="ph ph-rocket" style="font-size: 48px; color: var(--primary); margin-bottom: 16px;"></i>
+                    <h3 style="margin-bottom: 8px;">Découvrez de nouveaux contenus</h3>
+                    <p style="color: var(--text-muted);">La page d'exploration est en cours de construction.</p>
+                </div>
+            </div>
+        </main>
+
+        <aside class="right-panel">
+        </aside>
+    </div>
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>

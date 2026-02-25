@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Revise - L'Essentiel pour Réussir</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar glass-panel">
+            <div class="sidebar-header">
+                <i class="ph-fill ph-student glow-icon"></i>
+                <h1 class="brand">Revise</h1>
+            </div>
+            
+            <ul class="nav-links">
+                <li>
+                    <a href="index.html" class="nav-item active">
+                        <i class="ph ph-house"></i>
+                        <span>Accueil</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="explore.html" class="nav-item">
+                        <i class="ph ph-compass"></i>
+                        <span>Explorer</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="profile.html" class="nav-item" id="nav-profile">
+                        <i class="ph ph-user"></i>
+                        <span>Profil</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="bookmarks.html" class="nav-item">
+                        <i class="ph ph-bookmark-simple"></i>
+                        <span>Sauvegardés</span>
+                    </a>
+                </li>
+            </ul>
+
+            <button class="btn btn-primary btn-block create-post-btn" id="openCreateModalBtn">
+                <i class="ph ph-pencil-simple"></i>
+                <span>Créer un Post</span>
+            </button>
+
+            <div class="user-menu" id="userMenu">
+                <!-- User menu injected by JS or fallback -->
+                <div class="user-avatar-placeholder"></div>
+                <div class="user-info-mini">
+                    <span class="username">Connexion...</span>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-header glass-panel">
+                <h2>Fil d'actualité</h2>
+                <div class="header-actions">
+                    <button class="icon-btn"><i class="ph ph-bell"></i></button>
+                    <button class="icon-btn theme-toggle" id="themeToggle"><i class="ph ph-moon"></i></button>
+                </div>
+            </header>
+
+            <div class="feed-container" id="feedContainer">
+                <!-- Posts will be dynamically injected here -->
+                
+                <!-- Placeholder Post for design display -->
+                <article class="post-card glass-panel">
+                    <div class="post-header">
+                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Avatar" class="post-avatar">
+                        <div class="post-meta">
+                            <h3 class="post-author">Marie Curie</h3>
+                            <span class="post-time">Il y a 2 heures • Mathématiques</span>
+                        </div>
+                        <button class="icon-btn more-btn"><i class="ph ph-dots-three"></i></button>
+                    </div>
+                    <div class="post-content">
+                        <p>Voici une excellente fiche récapitulative sur les intégrales et les dérivées pour le bac ! N'hésitez pas si vous avez des questions sur un point précis. 📚✍️</p>
+                        <img src="https://images.unsplash.com/photo-1635372722656-389f87a941b7?q=80&w=1000&auto=format&fit=crop" alt="Math notes" class="post-image">
+                    </div>
+                    <div class="post-actions">
+                        <button class="action-btn like-btn">
+                            <i class="ph ph-heart"></i>
+                            <span>1.2k</span>
+                        </button>
+                        <button class="action-btn comment-btn">
+                            <i class="ph ph-chat-circle"></i>
+                            <span>45</span>
+                        </button>
+                        <button class="action-btn share-btn">
+                            <i class="ph ph-share-network"></i>
+                        </button>
+                        <button class="action-btn save-btn ml-auto">
+                            <i class="ph ph-bookmark-simple"></i>
+                        </button>
+                    </div>
+                </article>
+
+                <!-- YouTube Video Example -->
+                <article class="post-card glass-panel">
+                    <div class="post-header">
+                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka" alt="Avatar" class="post-avatar">
+                        <div class="post-meta">
+                            <h3 class="post-author">Professeur Tournesol</h3>
+                            <span class="post-time">Il y a 5 heures • Physique-Chimie</span>
+                        </div>
+                    </div>
+                    <div class="post-content">
+                        <p>Comprendre la relativité restreinte en 5 minutes ! Super vidéo explicative.</p>
+                        <div class="video-container">
+                            <!-- Placeholder iframe for design -->
+                            <div class="video-placeholder">
+                                <i class="ph-fill ph-play-circle video-icon"></i>
+                                <span>Vidéo YouTube</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="post-actions">
+                        <button class="action-btn like-btn liked">
+                            <i class="ph-fill ph-heart"></i>
+                            <span>4k</span>
+                        </button>
+                        <button class="action-btn comment-btn">
+                            <i class="ph ph-chat-circle"></i>
+                            <span>128</span>
+                        </button>
+                    </div>
+                </article>
+            </div>
+        </main>
+
+        <!-- Right Side Panel (Trending/Suggested) -->
+        <aside class="right-panel">
+            <div class="content-box glass-panel">
+                <h3>Sujets Tendances</h3>
+                <ul class="trending-list">
+                    <li>
+                        <span class="trend-tag">#BacPhilo</span>
+                        <span class="trend-count">12.5k posts</span>
+                    </li>
+                    <li>
+                        <span class="trend-tag">#PrepaMaths</span>
+                        <span class="trend-count">8.2k posts</span>
+                    </li>
+                    <li>
+                        <span class="trend-tag">#HistoireGeo</span>
+                        <span class="trend-count">5.1k posts</span>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="content-box glass-panel mt-4">
+                <h3>À suivre</h3>
+                <div class="suggested-user">
+                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex" alt="User" class="avatar-sm">
+                    <div class="user-info-sm">
+                        <span class="name">Alex Troms</span>
+                        <span class="subject">SVT</span>
+                    </div>
+                    <button class="btn btn-outline btn-sm">Suivre</button>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Create Post Modal -->
+    <div class="modal-overlay" id="createPostModal">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h2>Créer un Post</h2>
+                <button class="icon-btn close-modal" id="closeCreateModalBtn"><i class="ph ph-x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="create-post-user">
+                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=User" alt="You" class="avatar-sm" id="currentUserModalAvatar">
+                    <select class="subject-select" id="postSubject">
+                        <option value="general">Général</option>
+                        <option value="maths">Mathématiques</option>
+                        <option value="physique">Physique-Chimie</option>
+                        <option value="svt">SVT</option>
+                        <option value="philo">Philosophie</option>
+                        <option value="histoire">Histoire-Géo</option>
+                        <option value="langues">Langues</option>
+                    </select>
+                </div>
+                <textarea id="postTextSnippet" placeholder="Partagez vos révisions, posez une question..." rows="4" class="custom-textarea"></textarea>
+                
+                <div class="media-inputs">
+                    <div class="input-group">
+                        <i class="ph ph-image"></i>
+                        <input type="url" id="postImageUrl" placeholder="URL d'une image (optionnel)">
+                    </div>
+                    <div class="input-group">
+                        <i class="ph ph-youtube-logo"></i>
+                        <input type="url" id="postVideoUrl" placeholder="URL YouTube (optionnel)">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="submitPostBtn">Publier</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Scripts (Loaded as modules) -->
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/app.js"></script>
+    <script type="module" src="js/feed.js"></script>
+</body>
+</html>

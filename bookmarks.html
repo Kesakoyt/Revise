@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sauvegardés - Revise</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar glass-panel">
+            <div class="sidebar-header">
+                <i class="ph-fill ph-student glow-icon"></i>
+                <h1 class="brand">Revise</h1>
+            </div>
+
+            <ul class="nav-links">
+                <li><a href="index.html" class="nav-item"><i class="ph ph-house"></i><span>Accueil</span></a></li>
+                <li><a href="explore.html" class="nav-item"><i class="ph ph-compass"></i><span>Explorer</span></a></li>
+                <li><a href="profile.html" class="nav-item" id="nav-profile"><i
+                            class="ph ph-user"></i><span>Profil</span></a></li>
+                <li><a href="bookmarks.html" class="nav-item active"><i
+                            class="ph ph-bookmark-simple"></i><span>Sauvegardés</span></a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-header glass-panel">
+                <h2>Éléments Sauvegardés</h2>
+            </header>
+
+            <div class="feed-container">
+                <div class="content-box glass-panel" style="text-align: center; padding: 40px;">
+                    <i class="ph ph-bookmark" style="font-size: 48px; color: var(--primary); margin-bottom: 16px;"></i>
+                    <h3 style="margin-bottom: 8px;">Rien de sauvegardé pour l'instant</h3>
+                    <p style="color: var(--text-muted);">Cliquez sur l'icône marque-page d'un post pour le retrouver
+                        ici.</p>
+                </div>
+            </div>
+        </main>
+
+        <aside class="right-panel">
+        </aside>
+    </div>
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/app.js"></script>
+</body>
+
+</html>

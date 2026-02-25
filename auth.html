@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion - Revise</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Clash+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .auth-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .auth-card {
+            width: 100%;
+            max-width: 440px;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .auth-logo {
+            margin-bottom: 32px;
+            text-align: center;
+        }
+
+        .auth-logo i {
+            font-size: 48px;
+            color: var(--primary);
+            filter: drop-shadow(0 0 12px var(--primary-glow));
+            margin-bottom: 12px;
+        }
+
+        .auth-logo h1 {
+            font-size: 32px;
+        }
+
+        .auth-form {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .form-control {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-sm);
+            padding: 14px 16px;
+            color: var(--text-main);
+            font-size: 15px;
+            outline: none;
+            transition: all var(--transition-fast);
+        }
+
+        .form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px var(--primary-glow);
+        }
+
+        .auth-switch {
+            margin-top: 24px;
+            text-align: center;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .auth-switch a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .auth-switch a:hover {
+            text-decoration: underline;
+        }
+
+        .auth-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            padding: 12px;
+            border-radius: var(--border-radius-sm);
+            font-size: 14px;
+            text-align: center;
+            display: none;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            margin-bottom: 16px;
+        }
+
+        .btn-large {
+            padding: 14px;
+            font-size: 16px;
+            margin-top: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="auth-container">
+        <!-- Login Form -->
+        <div class="auth-card glass-panel" id="loginCard">
+            <div class="auth-logo">
+                <i class="ph-fill ph-student glow-icon"></i>
+                <h1 class="brand">Revise</h1>
+                <p style="color: var(--text-muted); margin-top: 8px;">Rejoignez le réseau</p>
+            </div>
+
+            <div class="auth-error" id="loginError">Message d'erreur</div>
+
+            <form class="auth-form" id="loginForm">
+                <div class="form-group">
+                    <label for="loginEmail">Adresse E-mail</label>
+                    <input type="email" id="loginEmail" class="form-control" placeholder="marie.curie@exemple.com"
+                        required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Mot de passe</label>
+                    <input type="password" id="loginPassword" class="form-control" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block btn-large">
+                    <span>Se connecter</span>
+                    <i class="ph-bold ph-arrow-right"></i>
+                </button>
+            </form>
+
+            <div class="auth-switch">
+                Nouveau ici ? <a id="showRegisterBtn">Créer un compte</a>
+            </div>
+        </div>
+
+        <!-- Register Form -->
+        <div class="auth-card glass-panel" id="registerCard" style="display: none;">
+            <div class="auth-logo">
+                <i class="ph-fill ph-student glow-icon"></i>
+                <h1 class="brand">Revise</h1>
+            </div>
+
+            <div class="auth-error" id="registerError">Message d'erreur</div>
+
+            <form class="auth-form" id="registerForm">
+                <div class="form-group">
+                    <label for="regUsername">Nom d'utilisateur</label>
+                    <input type="text" id="regUsername" class="form-control" placeholder="ProfTournesol12" required>
+                </div>
+                <div class="form-group">
+                    <label for="regEmail">Adresse E-mail</label>
+                    <input type="email" id="regEmail" class="form-control" placeholder="email@exemple.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="regPassword">Mot de passe (Min. 6 caractères)</label>
+                    <input type="password" id="regPassword" class="form-control" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block btn-large">
+                    <span>S'inscrire</span>
+                    <i class="ph-bold ph-user-plus"></i>
+                </button>
+            </form>
+
+            <div class="auth-switch">
+                Déjà un compte ? <a id="showLoginBtn">Se connecter</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/auth.js"></script>
+</body>
+
+</html>
