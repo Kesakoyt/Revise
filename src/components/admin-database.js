@@ -1,575 +1,370 @@
 /**
- * Admin Database Component
- * Raw collection inspector for Notes, Links, and Users with document JSON inspection,
- * pagination, search filtering, and deletion.
+ * Fiches & Cloud — admin "Database" app.
+ *
+ * Read/inspect/delete browser across the `notes`, `links`, `shortcuts` and
+ * `users` collections, with search, pagination and a JSON inspector.
  */
-import { FirestoreService } from '../services/firestore-service.js';
-import { EventBus, AppState, showToast } from '../app.js';
 
-// Module state
+import { FirestoreService } from '../services/firestore-service.js';
+import { EventBus, AppState, showToast, iconImg } from '../app.js';
+
+const PAGE_SIZE = 10;
+
 const state = {
   container: null,
-  activeTab: 'notes', // 'notes' | 'links' | 'users'
-  searchQuery: '',
-  notes: [],
-  links: [],
-  users: [],
-  userMap: {}, // uid -> user profile
-  isLoading: false,
-  expandedDocId: null,
-  currentPage: 1,
-  pageSize: 10
+  tab: 'notes',       // notes | links | shortcuts | users
+  query: '',
+  page: 1,
+  expandedId: null,
+  data: { notes: [], links: [], shortcuts: [], users: [] },
+  userMap: {}
 };
 
-/**
- * Renders Admin Database panel
- * @param {HTMLElement} container 
- * @param {Object} params 
- */
-export async function render(container, params = {}) {
+/** @param {HTMLElement} container */
+export async function render(container) {
   state.container = container;
-  container.classList.add('admin-database-container');
+  container.classList.add('admin-container');
 
-  // Render initial layout
+  const tab = (id, label) => `
+    <button class="tab-btn ${state.tab === id ? 'tab-btn--active' : ''}" data-tab="${id}">
+      ${label} <span class="tab-badge" data-count="${id}">0</span>
+    </button>`;
+
   container.innerHTML = `
-    <div class="admin-database">
-      <!-- Header -->
-      <div class="admin-database__header">
-        <div class="admin-database__title-wrap">
-          <img src="https://img.icons8.com/fluency/28/database.png" alt="" />
-          <h2>Database Explorer</h2>
-          <span class="badge badge--admin">Admin Only</span>
+    <div class="admin-app">
+      <div class="admin-app__header">
+        <div class="admin-app__title">
+          ${iconImg('database', { size: 24, alt: '' })}
+          <h2>Base de données</h2>
+          <span class="badge badge--admin">Admin</span>
         </div>
-        <div class="admin-database__header-actions">
-          <button class="btn btn--secondary" id="db-refresh-btn" title="Refresh collection data">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M23 4v6h-6"></path>
-              <path d="M1 20v-6h6"></path>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-            </svg>
-            <span>Refresh</span>
-          </button>
+        <button class="btn btn--secondary" id="ad-refresh">${iconImg('refresh', { size: 16, alt: '' })}<span>Rafraîchir</span></button>
+      </div>
+
+      <div class="admin-app__toolbar">
+        <div class="tabs-row">
+          ${tab('notes', 'Fiches')}
+          ${tab('links', 'Liens')}
+          ${tab('shortcuts', 'Raccourcis')}
+          ${tab('users', 'Utilisateurs')}
+        </div>
+        <div class="search-field">
+          ${iconImg('search', { size: 16, alt: '', className: 'search-field__icon' })}
+          <input type="text" class="input input--search" id="ad-search" placeholder="Filtrer…" value="${escapeAttr(state.query)}">
         </div>
       </div>
 
-      <!-- Controls & Tabs -->
-      <div class="admin-database__controls">
-        <div class="admin-database__tabs">
-          <button class="tab-btn ${state.activeTab === 'notes' ? 'tab-btn--active' : ''}" data-tab="notes" id="tab-notes">
-            Notes <span class="tab-badge" id="db-notes-count">0</span>
-          </button>
-          <button class="tab-btn ${state.activeTab === 'links' ? 'tab-btn--active' : ''}" data-tab="links" id="tab-links">
-            Links <span class="tab-badge" id="db-links-count">0</span>
-          </button>
-          <button class="tab-btn ${state.activeTab === 'users' ? 'tab-btn--active' : ''}" data-tab="users" id="tab-users">
-            Users <span class="tab-badge" id="db-users-count">0</span>
-          </button>
-        </div>
-
-        <div class="admin-database__search">
-          <img src="https://img.icons8.com/fluency/16/search.png" alt="" class="search-icon" />
-          <input 
-            type="text" 
-            class="input input--search" 
-            id="db-search-input" 
-            placeholder="Filter current table..." 
-            value="${escapeHtml(state.searchQuery)}"
-          />
-        </div>
+      <div class="admin-app__body" id="ad-body">
+        <div class="loading-block"><span class="spinner"></span><p>Chargement des collections…</p></div>
       </div>
 
-      <!-- Table Container -->
-      <div class="admin-database__body" id="db-table-body">
-        <div class="admin-database__loading">
-          <div class="spinner"></div>
-          <p>Loading database collections...</p>
-        </div>
-      </div>
-
-      <!-- Pagination / Footer -->
-      <div class="admin-database__pagination" id="db-pagination-bar">
-        <span class="pagination-info" id="db-page-info">Page 1</span>
-        <div class="pagination-controls">
-          <button class="btn btn--icon btn--sm" id="db-prev-page" title="Previous Page">&laquo; Prev</button>
-          <button class="btn btn--icon btn--sm" id="db-next-page" title="Next Page">Next &raquo;</button>
+      <div class="pagination" id="ad-pagination">
+        <span class="pagination__info" id="ad-page-info">—</span>
+        <div class="pagination__controls">
+          <button class="btn btn--secondary btn--sm" id="ad-prev">&laquo; Précédent</button>
+          <button class="btn btn--secondary btn--sm" id="ad-next">Suivant &raquo;</button>
         </div>
       </div>
     </div>
   `;
 
-  setupListeners();
-  await loadAllData();
+  bind();
+  await loadAll();
 }
 
-/**
- * Sets up DOM event listeners
- */
-function setupListeners() {
-  const container = state.container;
-  if (!container) return;
+function bind() {
+  const c = state.container;
 
-  // Tabs
-  container.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const tab = e.currentTarget.dataset.tab;
-      if (state.activeTab === tab) return;
-      state.activeTab = tab;
-      state.currentPage = 1;
-      state.expandedDocId = null;
-
-      container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-btn--active'));
-      e.currentTarget.classList.add('tab-btn--active');
-
-      renderActiveTable();
+  c.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (state.tab === btn.dataset.tab) return;
+      state.tab = btn.dataset.tab;
+      state.page = 1;
+      state.expandedId = null;
+      c.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('tab-btn--active', b === btn));
+      renderTable();
     });
   });
 
-  // Search filter
-  const searchInput = container.querySelector('#db-search-input');
-  let searchTimer = null;
-  searchInput?.addEventListener('input', (e) => {
-    clearTimeout(searchTimer);
-    state.searchQuery = e.target.value.trim().toLowerCase();
-    searchTimer = setTimeout(() => {
-      state.currentPage = 1;
-      renderActiveTable();
-    }, 200);
+  let timer = null;
+  c.querySelector('#ad-search')?.addEventListener('input', e => {
+    clearTimeout(timer);
+    state.query = e.target.value.trim().toLowerCase();
+    timer = setTimeout(() => { state.page = 1; renderTable(); }, 200);
   });
 
-  // Refresh
-  container.querySelector('#db-refresh-btn')?.addEventListener('click', async () => {
-    await loadAllData();
-  });
-
-  // Pagination buttons
-  container.querySelector('#db-prev-page')?.addEventListener('click', () => {
-    if (state.currentPage > 1) {
-      state.currentPage--;
-      renderActiveTable();
-    }
-  });
-
-  container.querySelector('#db-next-page')?.addEventListener('click', () => {
-    const items = getActiveItemsFiltered();
-    const maxPages = Math.ceil(items.length / state.pageSize) || 1;
-    if (state.currentPage < maxPages) {
-      state.currentPage++;
-      renderActiveTable();
-    }
+  c.querySelector('#ad-refresh')?.addEventListener('click', loadAll);
+  c.querySelector('#ad-prev')?.addEventListener('click', () => { if (state.page > 1) { state.page--; renderTable(); } });
+  c.querySelector('#ad-next')?.addEventListener('click', () => {
+    const max = Math.max(1, Math.ceil(items().length / PAGE_SIZE));
+    if (state.page < max) { state.page++; renderTable(); }
   });
 }
 
-/**
- * Loads all collections from Firestore
- */
-async function loadAllData() {
-  const container = state.container;
-  const body = container?.querySelector('#db-table-body');
+async function loadAll() {
+  const body = state.container?.querySelector('#ad-body');
   if (!body) return;
+  body.innerHTML = `<div class="loading-block"><span class="spinner"></span><p>Chargement des collections…</p></div>`;
 
-  state.isLoading = true;
-  body.innerHTML = `
-    <div class="admin-database__loading">
-      <div class="spinner"></div>
-      <p>Loading database collections...</p>
-    </div>
-  `;
+  const safe = p => p.catch(err => { console.warn('[DB] collection failed:', err); return []; });
 
   try {
-    const [notes, links, users] = await Promise.all([
-      FirestoreService.getAllNotes().catch(err => {
-        console.warn('Failed to load notes:', err);
-        return [];
-      }),
-      FirestoreService.getAllLinks().catch(err => {
-        console.warn('Failed to load links:', err);
-        return [];
-      }),
-      FirestoreService.getAllUsers().catch(err => {
-        console.warn('Failed to load users:', err);
-        return [];
-      })
+    const [notes, links, shortcuts, users] = await Promise.all([
+      safe(FirestoreService.getAllNotes()),
+      safe(FirestoreService.getAllLinks()),
+      safe(FirestoreService.getAllShortcuts()),
+      safe(FirestoreService.getAllUsers())
     ]);
 
-    state.notes = notes || [];
-    state.links = links || [];
-    state.users = users || [];
+    state.data = { notes, links, shortcuts, users };
 
-    // Build user map for fast displayName lookup
     state.userMap = {};
-    state.users.forEach(u => {
-      state.userMap[u.id || u.uid] = u.displayName || u.email || 'User ' + (u.id || u.uid).substring(0, 5);
+    users.forEach(u => { state.userMap[u.id || u.uid] = u.displayName || u.email || `Utilisateur ${(u.id || u.uid).slice(0, 5)}`; });
+
+    ['notes', 'links', 'shortcuts', 'users'].forEach(id => {
+      const el = state.container.querySelector(`[data-count="${id}"]`);
+      if (el) el.textContent = state.data[id].length;
     });
 
-    // Update count badges
-    const notesCount = container.querySelector('#db-notes-count');
-    const linksCount = container.querySelector('#db-links-count');
-    const usersCount = container.querySelector('#db-users-count');
-
-    if (notesCount) notesCount.textContent = state.notes.length;
-    if (linksCount) linksCount.textContent = state.links.length;
-    if (usersCount) usersCount.textContent = state.users.length;
-
-    renderActiveTable();
+    renderTable();
   } catch (err) {
-    console.error('Error in loadAllData:', err);
-    body.innerHTML = `
-      <div class="empty-state">
-        <p class="empty-state__title">Failed to load collections</p>
-        <p class="empty-state__description">${escapeHtml(err.message)}</p>
-      </div>
-    `;
-  } finally {
-    state.isLoading = false;
+    console.error('[DB] load failed:', err);
+    body.innerHTML = `<div class="empty-state"><p class="empty-state__title">Chargement impossible</p><p class="empty-state__description">${escapeHtml(err.message)}</p></div>`;
   }
 }
 
-/**
- * Returns filtered items according to active tab and search query
- */
-function getActiveItemsFiltered() {
-  const q = state.searchQuery;
-  let items = [];
+/** Filtered rows for the active tab. */
+function items() {
+  const q = state.query;
+  const rows = state.data[state.tab] || [];
+  if (!q) return rows;
 
-  if (state.activeTab === 'notes') {
-    items = state.notes.filter(n => {
-      if (!q) return true;
-      const titleMatch = (n.title || '').toLowerCase().includes(q);
-      const subjectMatch = (n.subject || '').toLowerCase().includes(q);
-      const ownerMatch = (state.userMap[n.uid] || n.uid || '').toLowerCase().includes(q);
-      return titleMatch || subjectMatch || ownerMatch;
-    });
-  } else if (state.activeTab === 'links') {
-    items = state.links.filter(l => {
-      if (!q) return true;
-      const titleMatch = (l.title || '').toLowerCase().includes(q);
-      const urlMatch = (l.url || '').toLowerCase().includes(q);
-      const subjectMatch = (l.subject || '').toLowerCase().includes(q);
-      const ownerMatch = (state.userMap[l.uid] || l.uid || '').toLowerCase().includes(q);
-      return titleMatch || urlMatch || subjectMatch || ownerMatch;
-    });
-  } else {
-    items = state.users.filter(u => {
-      if (!q) return true;
-      const emailMatch = (u.email || '').toLowerCase().includes(q);
-      const nameMatch = (u.displayName || '').toLowerCase().includes(q);
-      const roleMatch = (u.role || '').toLowerCase().includes(q);
-      return emailMatch || nameMatch || roleMatch;
-    });
-  }
-
-  return items;
+  return rows.filter(row => {
+    const owner = state.userMap[row.uid] || row.uid || '';
+    return [row.title, row.label, row.subject, row.url, row.email, row.displayName, row.role, owner, row.action]
+      .filter(Boolean)
+      .some(v => String(v).toLowerCase().includes(q));
+  });
 }
 
-/**
- * Renders the table for the current tab with pagination
- */
-function renderActiveTable() {
-  const container = state.container;
-  const body = container?.querySelector('#db-table-body');
-  const pageInfo = container?.querySelector('#db-page-info');
-  const prevBtn = container?.querySelector('#db-prev-page');
-  const nextBtn = container?.querySelector('#db-next-page');
-
+function renderTable() {
+  const c = state.container;
+  const body = c?.querySelector('#ad-body');
+  const info = c?.querySelector('#ad-page-info');
+  const prev = c?.querySelector('#ad-prev');
+  const next = c?.querySelector('#ad-next');
   if (!body) return;
 
-  const allFiltered = getActiveItemsFiltered();
-  const total = allFiltered.length;
-  const maxPages = Math.ceil(total / state.pageSize) || 1;
+  const all = items();
+  const total = all.length;
+  const maxPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  state.page = Math.min(Math.max(1, state.page), maxPages);
 
-  if (state.currentPage > maxPages) state.currentPage = maxPages;
-  if (state.currentPage < 1) state.currentPage = 1;
+  const start = (state.page - 1) * PAGE_SIZE;
+  const pageRows = all.slice(start, start + PAGE_SIZE);
 
-  const startIndex = (state.currentPage - 1) * state.pageSize;
-  const pageItems = allFiltered.slice(startIndex, startIndex + state.pageSize);
+  if (info) info.textContent = total === 0 ? 'Aucun document' : `${start + 1}–${Math.min(start + PAGE_SIZE, total)} sur ${total}`;
+  if (prev) prev.disabled = state.page <= 1;
+  if (next) next.disabled = state.page >= maxPages;
 
-  if (pageInfo) {
-    pageInfo.textContent = `Showing ${total === 0 ? 0 : startIndex + 1}-${Math.min(startIndex + state.pageSize, total)} of ${total}`;
-  }
-  if (prevBtn) prevBtn.disabled = state.currentPage <= 1;
-  if (nextBtn) nextBtn.disabled = state.currentPage >= maxPages;
-
-  if (pageItems.length === 0) {
-    body.innerHTML = `
-      <div class="empty-state">
-        <p class="empty-state__title">No documents found</p>
-        <p class="empty-state__description">No documents matched your query in the ${state.activeTab} collection.</p>
-      </div>
-    `;
+  if (pageRows.length === 0) {
+    body.innerHTML = `<div class="empty-state"><p class="empty-state__title">Aucun document</p><p class="empty-state__description">Aucun document ne correspond dans « ${state.tab} ».</p></div>`;
     return;
   }
 
-  let tableHtml = '<div class="table-responsive"><table class="table">';
+  const render = {
+    notes: notesTable,
+    links: linksTable,
+    shortcuts: shortcutsTable,
+    users: usersTable
+  }[state.tab];
 
-  if (state.activeTab === 'notes') {
-    tableHtml += `
-      <thead>
-        <tr class="table__header">
-          <th>Title</th>
-          <th>Owner</th>
-          <th>Subject</th>
-          <th>Chars</th>
-          <th>Public</th>
-          <th>Created</th>
-          <th class="table__cell--actions">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-    `;
-
-    pageItems.forEach(note => {
-      const isExpanded = state.expandedDocId === note.id;
-      const ownerName = escapeHtml(state.userMap[note.uid] || note.uid || 'Anonymous');
-      const formattedDate = formatTimestamp(note.createdAt);
-
-      tableHtml += `
-        <tr class="table__row ${isExpanded ? 'table__row--expanded' : ''}" data-doc-id="${note.id}">
-          <td class="table__cell font-semibold" title="${escapeHtml(note.title)}">${escapeHtml(truncate(note.title || 'Untitled', 30))}</td>
-          <td class="table__cell text-secondary" title="${escapeHtml(note.uid)}">${ownerName}</td>
-          <td class="table__cell"><span class="badge badge--subject">${escapeHtml(note.subject || 'General')}</span></td>
-          <td class="table__cell">${(note.charCount || note.content?.length || 0).toLocaleString()}</td>
-          <td class="table__cell">${note.isPublic ? '<span class="badge badge--public">Yes</span>' : '<span class="text-tertiary">No</span>'}</td>
-          <td class="table__cell text-secondary">${formattedDate}</td>
-          <td class="table__cell table__cell--actions">
-            <button class="btn btn--sm btn-view-json" data-doc-id="${note.id}" title="Toggle JSON Inspector">JSON</button>
-            <button class="btn btn--sm btn--danger btn-delete-doc" data-doc-id="${note.id}" data-type="note" title="Delete Note">
-              <img src="https://img.icons8.com/fluency/14/delete.png" alt="Del" />
-            </button>
-          </td>
-        </tr>
-        ${isExpanded ? renderJsonRow(note, 7) : ''}
-      `;
-    });
-  } else if (state.activeTab === 'links') {
-    tableHtml += `
-      <thead>
-        <tr class="table__header">
-          <th>Title</th>
-          <th>URL</th>
-          <th>Owner</th>
-          <th>Subject</th>
-          <th>Created</th>
-          <th class="table__cell--actions">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-    `;
-
-    pageItems.forEach(link => {
-      const isExpanded = state.expandedDocId === link.id;
-      const ownerName = escapeHtml(state.userMap[link.uid] || link.uid || 'Anonymous');
-      const formattedDate = formatTimestamp(link.createdAt);
-
-      tableHtml += `
-        <tr class="table__row ${isExpanded ? 'table__row--expanded' : ''}" data-doc-id="${link.id}">
-          <td class="table__cell font-semibold" title="${escapeHtml(link.title)}">${escapeHtml(truncate(link.title || 'Untitled', 25))}</td>
-          <td class="table__cell">
-            <a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer" class="link-url-cell" title="${escapeHtml(link.url)}">
-              ${escapeHtml(truncate(link.url, 30))}
-            </a>
-          </td>
-          <td class="table__cell text-secondary">${ownerName}</td>
-          <td class="table__cell"><span class="badge badge--subject">${escapeHtml(link.subject || 'General')}</span></td>
-          <td class="table__cell text-secondary">${formattedDate}</td>
-          <td class="table__cell table__cell--actions">
-            <button class="btn btn--sm btn-view-json" data-doc-id="${link.id}" title="Toggle JSON Inspector">JSON</button>
-            <button class="btn btn--sm btn--danger btn-delete-doc" data-doc-id="${link.id}" data-type="link" title="Delete Link">
-              <img src="https://img.icons8.com/fluency/14/delete.png" alt="Del" />
-            </button>
-          </td>
-        </tr>
-        ${isExpanded ? renderJsonRow(link, 6) : ''}
-      `;
-    });
-  } else {
-    // Users
-    tableHtml += `
-      <thead>
-        <tr class="table__header">
-          <th>Email</th>
-          <th>Display Name</th>
-          <th>Role</th>
-          <th>Quota Used</th>
-          <th>Last Login</th>
-          <th class="table__cell--actions">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-    `;
-
-    pageItems.forEach(user => {
-      const isExpanded = state.expandedDocId === (user.id || user.uid);
-      const quotaPct = user.quotaLimit ? Math.round(((user.quotaUsed || 0) / user.quotaLimit) * 100) : 0;
-      const lastLoginFormatted = formatTimestamp(user.lastLogin);
-
-      tableHtml += `
-        <tr class="table__row ${isExpanded ? 'table__row--expanded' : ''}" data-doc-id="${user.id || user.uid}">
-          <td class="table__cell font-semibold">${escapeHtml(user.email || 'No email')}</td>
-          <td class="table__cell">${escapeHtml(user.displayName || 'No name')}</td>
-          <td class="table__cell">
-            <span class="badge ${user.role === 'admin' ? 'badge--admin' : 'badge--user'}">
-              ${escapeHtml(user.role || 'user')}
-            </span>
-          </td>
-          <td class="table__cell">
-            <div class="user-quota-mini">
-              <span>${(user.quotaUsed || 0).toLocaleString()} / ${(user.quotaLimit || 500000).toLocaleString()}</span>
-              <span class="text-tertiary">(${quotaPct}%)</span>
-            </div>
-          </td>
-          <td class="table__cell text-secondary">${lastLoginFormatted}</td>
-          <td class="table__cell table__cell--actions">
-            <button class="btn btn--sm btn-view-json" data-doc-id="${user.id || user.uid}" title="Toggle JSON Inspector">JSON</button>
-          </td>
-        </tr>
-        ${isExpanded ? renderJsonRow(user, 6) : ''}
-      `;
-    });
-  }
-
-  tableHtml += '</tbody></table></div>';
-  body.innerHTML = tableHtml;
-
-  // Row / Button click bindings
-  bindTableInteractions();
+  body.innerHTML = `<div class="table-wrap"><table class="table">${render(pageRows)}</table></div>`;
+  bindRows();
 }
 
-/**
- * Returns formatted JSON inspection subrow
- */
-function renderJsonRow(doc, colSpan) {
-  const cleanDoc = { ...doc };
-  // Convert timestamps to string preview for clean JSON display
-  for (const k in cleanDoc) {
-    if (cleanDoc[k]?.toDate && typeof cleanDoc[k].toDate === 'function') {
-      cleanDoc[k] = cleanDoc[k].toDate().toISOString();
-    }
-  }
-
-  const jsonStr = JSON.stringify(cleanDoc, null, 2);
-
+function notesTable(rows) {
   return `
-    <tr class="table__row--json-viewer">
-      <td colspan="${colSpan}">
-        <div class="json-inspector">
-          <div class="json-inspector__header">
-            <span>Document ID: <code>${escapeHtml(doc.id || doc.uid)}</code></span>
-            <button class="btn btn--sm btn-copy-json" data-json="${escapeHtml(jsonStr)}">Copy JSON</button>
+    <thead><tr class="table__head">
+      <th>Titre</th><th>Propriétaire</th><th>Matière</th><th>Car.</th><th>Publique</th><th>Créée</th><th class="table__cell--actions">Actions</th>
+    </tr></thead>
+    <tbody>${rows.map(n => `
+      <tr class="table__row" data-id="${n.id}">
+        <td class="table__cell table__cell--strong">${escapeHtml(truncate(n.title || 'Sans titre', 30))}</td>
+        <td class="table__cell">${escapeHtml(state.userMap[n.uid] || n.uid || '—')}</td>
+        <td class="table__cell"><span class="badge badge--subject">${escapeHtml(n.subject || 'Général')}</span></td>
+        <td class="table__cell">${(n.charCount ?? (n.content || '').length).toLocaleString('fr-FR')}</td>
+        <td class="table__cell">${n.isPublic ? '<span class="badge badge--public">Oui</span>' : '—'}</td>
+        <td class="table__cell table__cell--muted">${formatDate(n.createdAt)}</td>
+        <td class="table__cell table__cell--actions">
+          <button class="btn btn--sm btn-json" data-id="${n.id}">JSON</button>
+          <button class="btn btn--sm btn--danger btn-del" data-id="${n.id}" data-kind="note">Suppr.</button>
+        </td>
+      </tr>
+      ${state.expandedId === n.id ? jsonRow(n, 7) : ''}`).join('')}
+    </tbody>`;
+}
+
+function linksTable(rows) {
+  return `
+    <thead><tr class="table__head">
+      <th>Titre</th><th>URL</th><th>Propriétaire</th><th>Matière</th><th>Créé</th><th class="table__cell--actions">Actions</th>
+    </tr></thead>
+    <tbody>${rows.map(l => `
+      <tr class="table__row" data-id="${l.id}">
+        <td class="table__cell table__cell--strong">${escapeHtml(truncate(l.title || 'Sans titre', 24))}</td>
+        <td class="table__cell"><a href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(truncate(l.url, 28))}</a></td>
+        <td class="table__cell">${escapeHtml(state.userMap[l.uid] || l.uid || '—')}</td>
+        <td class="table__cell"><span class="badge badge--subject">${escapeHtml(l.subject || 'Général')}</span></td>
+        <td class="table__cell table__cell--muted">${formatDate(l.createdAt)}</td>
+        <td class="table__cell table__cell--actions">
+          <button class="btn btn--sm btn-json" data-id="${l.id}">JSON</button>
+          <button class="btn btn--sm btn--danger btn-del" data-id="${l.id}" data-kind="link">Suppr.</button>
+        </td>
+      </tr>
+      ${state.expandedId === l.id ? jsonRow(l, 6) : ''}`).join('')}
+    </tbody>`;
+}
+
+function shortcutsTable(rows) {
+  return `
+    <thead><tr class="table__head">
+      <th>Libellé</th><th>Icône</th><th>Action</th><th>Propriétaire</th><th class="table__cell--actions">Actions</th>
+    </tr></thead>
+    <tbody>${rows.map(s => `
+      <tr class="table__row" data-id="${s.id}">
+        <td class="table__cell table__cell--strong">${escapeHtml(s.label || '—')}</td>
+        <td class="table__cell">${escapeHtml(s.icon || '—')}</td>
+        <td class="table__cell">${escapeHtml(truncate(s.action || '—', 32))}</td>
+        <td class="table__cell">${escapeHtml(state.userMap[s.uid] || s.uid || '—')}</td>
+        <td class="table__cell table__cell--actions">
+          <button class="btn btn--sm btn-json" data-id="${s.id}">JSON</button>
+          <button class="btn btn--sm btn--danger btn-del" data-id="${s.id}" data-kind="shortcut">Suppr.</button>
+        </td>
+      </tr>
+      ${state.expandedId === s.id ? jsonRow(s, 5) : ''}`).join('')}
+    </tbody>`;
+}
+
+function usersTable(rows) {
+  return `
+    <thead><tr class="table__head">
+      <th>Email</th><th>Nom</th><th>Rôle</th><th>Quota</th><th>Dernière connexion</th><th class="table__cell--actions">Actions</th>
+    </tr></thead>
+    <tbody>${rows.map(u => {
+      const id = u.id || u.uid;
+      const pct = u.quotaLimit ? Math.round(((u.quotaUsed || 0) / u.quotaLimit) * 100) : 0;
+      return `
+      <tr class="table__row" data-id="${id}">
+        <td class="table__cell table__cell--strong">${escapeHtml(u.email || '—')}</td>
+        <td class="table__cell">${escapeHtml(u.displayName || '—')}</td>
+        <td class="table__cell"><span class="badge ${u.role === 'admin' ? 'badge--admin' : 'badge--user'}">${escapeHtml(u.role || 'user')}</span></td>
+        <td class="table__cell">${(u.quotaUsed || 0).toLocaleString('fr-FR')} / ${(u.quotaLimit || 500000).toLocaleString('fr-FR')} (${pct}%)</td>
+        <td class="table__cell table__cell--muted">${formatDate(u.lastLogin)}</td>
+        <td class="table__cell table__cell--actions">
+          <button class="btn btn--sm btn-json" data-id="${id}">JSON</button>
+        </td>
+      </tr>
+      ${state.expandedId === id ? jsonRow(u, 6) : ''}`;
+    }).join('')}
+    </tbody>`;
+}
+
+function jsonRow(doc, span) {
+  const clean = { ...doc };
+  for (const k in clean) {
+    if (clean[k]?.toDate && typeof clean[k].toDate === 'function') clean[k] = clean[k].toDate().toISOString();
+  }
+  const json = JSON.stringify(clean, null, 2);
+  const id = doc.id || doc.uid;
+  return `
+    <tr class="table__row--json">
+      <td colspan="${span}">
+        <div class="json-viewer">
+          <div class="json-viewer__head">
+            <span>ID : <code>${escapeHtml(id)}</code></span>
+            <button class="btn btn--sm btn-copy-json" data-json="${escapeAttr(json)}">Copier le JSON</button>
           </div>
-          <pre class="json-code"><code>${escapeHtml(jsonStr)}</code></pre>
+          <pre class="json-code"><code>${escapeHtml(json)}</code></pre>
         </div>
       </td>
-    </tr>
-  `;
+    </tr>`;
 }
 
-/**
- * Attaches row actions (JSON toggle, Copy, Delete)
- */
-function bindTableInteractions() {
-  const container = state.container;
-  if (!container) return;
+function bindRows() {
+  const c = state.container;
 
-  // Toggle JSON on button or row click
-  container.querySelectorAll('.btn-view-json').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+  c.querySelectorAll('.btn-json').forEach(btn => {
+    btn.addEventListener('click', e => {
       e.stopPropagation();
-      const docId = btn.dataset.docId;
-      state.expandedDocId = state.expandedDocId === docId ? null : docId;
-      renderActiveTable();
+      state.expandedId = state.expandedId === btn.dataset.id ? null : btn.dataset.id;
+      renderTable();
     });
   });
 
-  // Copy JSON
-  container.querySelectorAll('.btn-copy-json').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+  c.querySelectorAll('.btn-copy-json').forEach(btn => {
+    btn.addEventListener('click', e => {
       e.stopPropagation();
-      const raw = btn.dataset.json;
-      if (raw) {
-        navigator.clipboard.writeText(raw).then(() => {
-          showToast('JSON copied to clipboard', 'info');
-        }).catch(() => {
-          showToast('Could not copy JSON', 'error');
+      navigator.clipboard.writeText(btn.dataset.json)
+        .then(() => showToast('JSON copié.', 'success'))
+        .catch(() => showToast('Copie impossible.', 'error'));
+    });
+  });
+
+  c.querySelectorAll('.btn-del').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const { id, kind } = btn.dataset;
+      if (!confirm(`Supprimer définitivement ce document (${kind} : ${id}) ?`)) return;
+
+      try {
+        showToast('Suppression…', 'info');
+        if (kind === 'note') { await FirestoreService.deleteNote(id); state.data.notes = state.data.notes.filter(d => d.id !== id); EventBus.emit('note:deleted', { noteId: id }); }
+        else if (kind === 'link') { await FirestoreService.deleteLink(id); state.data.links = state.data.links.filter(d => d.id !== id); EventBus.emit('link:deleted', { linkId: id }); }
+        else if (kind === 'shortcut') { await FirestoreService.deleteShortcut(id); state.data.shortcuts = state.data.shortcuts.filter(d => d.id !== id); }
+
+        ['notes', 'links', 'shortcuts', 'users'].forEach(t => {
+          const el = c.querySelector(`[data-count="${t}"]`);
+          if (el) el.textContent = state.data[t].length;
         });
+
+        showToast('Document supprimé.', 'success');
+        renderTable();
+      } catch (err) {
+        console.error('[DB] delete failed:', err);
+        showToast(`Suppression échouée : ${err.message}`, 'error');
       }
     });
   });
-
-  // Delete document
-  container.querySelectorAll('.btn-delete-doc').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const docId = btn.dataset.docId;
-      const docType = btn.dataset.type;
-      await handleDeleteDoc(docId, docType);
-    });
-  });
 }
 
-/**
- * Handles deletion from table
- */
-async function handleDeleteDoc(docId, docType) {
-  if (!confirm(`Are you sure you want to permanently delete this ${docType} (${docId})?`)) {
-    return;
-  }
-
-  try {
-    showToast(`Deleting ${docType}...`, 'info');
-    if (docType === 'note') {
-      await FirestoreService.deleteNote(docId);
-      state.notes = state.notes.filter(n => n.id !== docId);
-      EventBus.emit('note:deleted', { noteId: docId });
-    } else if (docType === 'link') {
-      await FirestoreService.deleteLink(docId);
-      state.links = state.links.filter(l => l.id !== docId);
-      EventBus.emit('link:deleted', { linkId: docId });
-    }
-
-    showToast(`${docType} deleted successfully`, 'success');
-    renderActiveTable();
-  } catch (err) {
-    console.error('Failed to delete document:', err);
-    showToast(`Delete failed: ${err.message}`, 'error');
-  }
+function formatDate(ts) {
+  const ms = millis(ts);
+  return ms ? new Date(ms).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 }
+function millis(ts) {
+  if (!ts) return 0;
+  if (typeof ts.toDate === 'function') return ts.toDate().getTime();
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (ts.seconds) return ts.seconds * 1000;
+  if (ts instanceof Date) return ts.getTime();
+  return Number(ts) || 0;
+}
+function truncate(str, max) {
+  const s = String(str ?? '');
+  return s.length > max ? s.slice(0, max) + '…' : s;
+}
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function escapeAttr(str) { return escapeHtml(str); }
 
-/**
- * Destroy cleanup
- */
+/** Tear down. */
 export function destroy() {
   state.container = null;
-  state.notes = [];
-  state.links = [];
-  state.users = [];
+  state.data = { notes: [], links: [], shortcuts: [], users: [] };
   state.userMap = {};
-}
-
-/**
- * Helpers
- */
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-function truncate(str, max = 25) {
-  if (!str) return '';
-  return str.length > max ? str.substring(0, max) + '...' : str;
-}
-
-function formatTimestamp(ts) {
-  if (!ts) return '-';
-  let d;
-  if (ts.toDate) d = ts.toDate();
-  else if (ts.seconds) d = new Date(ts.seconds * 1000);
-  else d = new Date(ts);
-
-  if (isNaN(d.getTime())) return '-';
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  state.expandedId = null;
 }

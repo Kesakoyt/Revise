@@ -1,37 +1,31 @@
-# Dependencies
-node_modules/
-.pnp
-.pnp.js
+# ---------------------------------------------------------------------------
+# Fiches & Cloud — Git ignore rules
+# ---------------------------------------------------------------------------
 
-# Environment and sensitive credentials
+# Local environment / Firebase credentials (never commit real keys)
 src/env-config.js
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
 
-# Operating System Files
+# OS noise
 .DS_Store
 Thumbs.db
 desktop.ini
-*.directory
 
-# IDE and Editor directories
-.idea/
+# Editors
 .vscode/
-*.swp
-*.swo
-*~
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# Logs and Debugging
-logs
+# Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Build outputs and cache
-dist/
-build/
-.cache/
+# Dependencies (not required for this zero-build project, kept for safety)
+node_modules/

@@ -1,570 +1,346 @@
 /**
- * Markdown Editor Component
- * Split-view editor with live KaTeX math preview, quota validation, save/delete operations.
+ * Fiches & Cloud — Markdown editor.
+ *
+ * Split pane: Markdown source (left) and live HTML + KaTeX preview (right).
+ * Handles quota validation, save / delete and unsaved-change guards.
  */
+
 import { FirestoreService } from '../services/firestore-service.js';
 import { QuotaManager } from '../services/quota-manager.js';
 import { ConverterService } from '../services/converter-service.js';
-import { EventBus, AppState, showToast } from '../app.js';
+import { EventBus, AppState, showToast, iconImg } from '../app.js';
 
-// Internal module state
 const state = {
   container: null,
   panelId: null,
   noteId: null,
   initialContent: '',
   initialTitle: '',
-  initialCharCount: 0,
-  isSaving: false,
-  debounceTimer: null,
-  hasUnsavedChanges: false
+  initialChars: 0,
+  saving: false,
+  dirty: false,
+  previewTimer: null,
+  cleanup: []
 };
 
 /**
- * Renders Markdown Editor inside given container
- * @param {HTMLElement} container 
- * @param {Object} params - { noteId, importedContent, importedTitle, panelId }
+ * @param {HTMLElement} container
+ * @param {{noteId?:string, importedContent?:string, importedTitle?:string}} [params]
  */
 export async function render(container, params = {}) {
   state.container = container;
-  state.panelId = params.panelId || container.dataset?.panelId || container.closest('.workspace__panel')?.dataset?.panelId;
+  state.panelId = container.closest('.workspace__panel')?.dataset.panelId || null;
   state.noteId = params.noteId || null;
-  state.hasUnsavedChanges = false;
+  state.dirty = false;
 
   container.classList.add('editor-panel-container');
 
-  // Build skeleton UI
   container.innerHTML = `
     <div class="editor">
-      <!-- Toolbar -->
       <div class="editor__toolbar">
-        <div class="editor__meta-inputs">
-          <input 
-            type="text" 
-            class="input editor__input-title" 
-            id="editor-title" 
-            placeholder="Note title (required)..." 
-            value="" 
-            autocomplete="off"
-          />
-          <input 
-            type="text" 
-            class="input editor__input-subject" 
-            id="editor-subject" 
-            placeholder="Subject (e.g. Physics)" 
-            value="" 
-            autocomplete="off"
-          />
-          <input 
-            type="text" 
-            class="input editor__input-topic" 
-            id="editor-topic" 
-            placeholder="Topic (e.g. Thermodynamics)" 
-            value="" 
-            autocomplete="off"
-          />
-          <label class="editor__public-toggle" title="Make note publicly viewable by others">
-            <input type="checkbox" id="editor-is-public" />
-            <span class="toggle-slider"></span>
-            <span class="toggle-label">Public</span>
+        <div class="editor__meta">
+          <input type="text" class="input editor__title" id="ed-title" placeholder="Titre de la fiche (requis)…" autocomplete="off">
+          <input type="text" class="input editor__subject" id="ed-subject" placeholder="Matière (ex : Physique)" autocomplete="off">
+          <input type="text" class="input editor__topic" id="ed-topic" placeholder="Chapitre (ex : Thermodynamique)" autocomplete="off">
+          <label class="toggle" title="Rendre la fiche visible par tous">
+            <input type="checkbox" class="toggle__input" id="ed-public">
+            <span class="toggle__slider"></span>
+            <span class="toggle__label">Publique</span>
           </label>
         </div>
 
         <div class="editor__actions">
-          <div class="editor__char-counter" id="editor-char-counter">
-            0 chars
-          </div>
-          <button class="btn btn--secondary" id="editor-close-btn" title="Close editor panel">
-            Cancel
-          </button>
-          ${state.noteId ? `
-            <button class="btn btn--danger" id="editor-delete-btn" title="Delete this note">
-              <img src="https://img.icons8.com/fluency/16/delete.png" alt="" />
-              <span>Delete</span>
-            </button>
-          ` : ''}
-          <button class="btn btn--primary" id="editor-save-btn">
-            <img src="https://img.icons8.com/fluency/16/save.png" alt="" />
-            <span id="editor-save-label">Save</span>
-          </button>
+          <span class="editor__counter" id="ed-counter">0 car.</span>
+          <button type="button" class="btn btn--secondary" id="ed-cancel">Annuler</button>
+          ${state.noteId ? `<button type="button" class="btn btn--danger" id="ed-delete">${iconImg('delete', { size: 16, alt: '' })}<span>Supprimer</span></button>` : ''}
+          <button type="button" class="btn btn--primary" id="ed-save">${iconImg('save', { size: 16, alt: '' })}<span id="ed-save-label">Enregistrer</span></button>
         </div>
       </div>
 
-      <!-- Split View -->
       <div class="editor__split">
-        <!-- Editor Left Half -->
         <div class="editor__pane editor__pane--input">
-          <div class="editor__pane-header">
-            <span>Markdown Source</span>
-            <span class="editor__hint">Supports Markdown & KaTeX ($...$, $$...$$)</span>
+          <div class="editor__pane-head">
+            <span>Markdown</span>
+            <span class="editor__hint">Markdown &amp; KaTeX ($…$, $$…$$)</span>
           </div>
-          <textarea 
-            class="textarea editor__textarea" 
-            id="editor-textarea" 
-            placeholder="Write your note in Markdown here...&#10;&#10;## Examples:&#10;- Math: $E = mc^2$&#10;- Block Math:&#10;$$ \int_{0}^{\infty} e^{-x^2} dx = \frac{\sqrt{\pi}}{2} $$"
-            spellcheck="false"
-          ></textarea>
+          <textarea class="textarea editor__textarea" id="ed-content" spellcheck="false"
+            placeholder="Écrivez votre fiche en Markdown…&#10;&#10;## Exemples&#10;- Math : $E = mc^2$&#10;- Bloc :&#10;$$ \\int_0^{\\infty} e^{-x^2}\\,dx = \\frac{\\sqrt{\\pi}}{2} $$"></textarea>
         </div>
 
-        <!-- Resizer Divider -->
-        <div class="editor__divider" id="editor-split-divider"></div>
+        <div class="editor__divider" id="ed-divider" role="separator" aria-orientation="vertical" tabindex="0"></div>
 
-        <!-- Preview Right Half -->
         <div class="editor__pane editor__pane--preview">
-          <div class="editor__pane-header">
-            <span>Live Preview</span>
-            <span class="editor__status-badge" id="editor-preview-status">Synced</span>
+          <div class="editor__pane-head">
+            <span>Aperçu</span>
+            <span class="editor__status" id="ed-status">Synchronisé</span>
           </div>
-          <div class="editor__preview markdown-body" id="editor-preview-content"></div>
+          <div class="editor__preview markdown-body" id="ed-preview"></div>
         </div>
       </div>
     </div>
   `;
 
-  // Attach DOM Listeners
-  setupEditorListeners();
+  bindListeners();
 
-  // Load existing note data or imported content
   if (state.noteId) {
     await loadNote(state.noteId);
   } else if (params.importedContent) {
-    const textarea = container.querySelector('#editor-textarea');
-    const titleInput = container.querySelector('#editor-title');
-    if (textarea) textarea.value = params.importedContent;
-    if (titleInput && params.importedTitle) titleInput.value = params.importedTitle;
-    state.hasUnsavedChanges = true;
+    container.querySelector('#ed-content').value = params.importedContent;
+    if (params.importedTitle) container.querySelector('#ed-title').value = params.importedTitle;
+    state.dirty = true;
     updatePreview();
-    updateCharCounter();
+    updateCounter();
   } else {
     updatePreview();
-    updateCharCounter();
+    updateCounter();
   }
 }
 
-/**
- * Loads note data from Firestore
- * @param {string} noteId 
- */
 async function loadNote(noteId) {
-  const container = state.container;
-  if (!container) return;
-
   try {
-    showToast('Loading note...', 'info');
     const note = await FirestoreService.getNote(noteId);
+    if (!note) { showToast('Fiche introuvable.', 'error'); return; }
 
-    if (!note) {
-      showToast('Note not found', 'error');
-      return;
-    }
-
-    const titleInput = container.querySelector('#editor-title');
-    const subjectInput = container.querySelector('#editor-subject');
-    const topicInput = container.querySelector('#editor-topic');
-    const publicCheckbox = container.querySelector('#editor-is-public');
-    const textarea = container.querySelector('#editor-textarea');
-
-    if (titleInput) titleInput.value = note.title || '';
-    if (subjectInput) subjectInput.value = note.subject || '';
-    if (topicInput) topicInput.value = note.topic || '';
-    if (publicCheckbox) publicCheckbox.checked = !!note.isPublic;
-    if (textarea) textarea.value = note.content || '';
+    const c = state.container;
+    c.querySelector('#ed-title').value = note.title || '';
+    c.querySelector('#ed-subject').value = note.subject || '';
+    c.querySelector('#ed-topic').value = note.topic || '';
+    c.querySelector('#ed-public').checked = Boolean(note.isPublic);
+    c.querySelector('#ed-content').value = note.content || '';
 
     state.initialContent = note.content || '';
     state.initialTitle = note.title || '';
-    state.initialCharCount = note.charCount || note.content?.length || 0;
-    state.hasUnsavedChanges = false;
+    state.initialChars = note.charCount ?? (note.content || '').length;
+    state.dirty = false;
 
     updatePreview();
-    updateCharCounter();
+    updateCounter();
 
-    // Log access
     if (AppState.user?.uid) {
-      FirestoreService.logAccess({
-        uid: AppState.user.uid,
-        documentId: noteId,
-        documentType: 'note',
-        action: 'view'
-      }).catch(console.error);
+      FirestoreService.logAccess({ uid: AppState.user.uid, documentId: noteId, documentType: 'note', action: 'view' });
     }
   } catch (err) {
-    console.error('Failed to load note:', err);
-    showToast(`Failed to load note: ${err.message}`, 'error');
+    console.error('[Editor] load failed:', err);
+    showToast(`Chargement impossible : ${err.message}`, 'error');
   }
 }
 
-/**
- * Sets up editor input and button listeners
- */
-function setupEditorListeners() {
-  const container = state.container;
-  if (!container) return;
+function bindListeners() {
+  const c = state.container;
+  const content = c.querySelector('#ed-content');
 
-  const textarea = container.querySelector('#editor-textarea');
-  const titleInput = container.querySelector('#editor-title');
-  const saveBtn = container.querySelector('#editor-save-btn');
-  const deleteBtn = container.querySelector('#editor-delete-btn');
-  const closeBtn = container.querySelector('#editor-close-btn');
-
-  // Input debouncing for live preview
-  textarea?.addEventListener('input', () => {
-    state.hasUnsavedChanges = true;
-    updateCharCounter();
-    schedulePreviewUpdate();
+  content.addEventListener('input', () => {
+    state.dirty = true;
+    updateCounter();
+    schedulePreview();
   });
 
-  // Tab key support in textarea
-  textarea?.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      textarea.value = textarea.value.substring(0, start) + '  ' + textarea.value.substring(end);
-      textarea.selectionStart = textarea.selectionEnd = start + 2;
-      state.hasUnsavedChanges = true;
-      schedulePreviewUpdate();
-    }
+  // Tab inserts two spaces instead of moving focus.
+  content.addEventListener('keydown', e => {
+    if (e.key !== 'Tab') return;
+    e.preventDefault();
+    const { selectionStart: s, selectionEnd: en, value } = content;
+    content.value = value.slice(0, s) + '  ' + value.slice(en);
+    content.selectionStart = content.selectionEnd = s + 2;
+    state.dirty = true;
+    schedulePreview();
   });
 
-  titleInput?.addEventListener('input', () => {
-    state.hasUnsavedChanges = true;
-  });
+  c.querySelector('#ed-title').addEventListener('input', () => { state.dirty = true; });
+  c.querySelector('#ed-save').addEventListener('click', save);
+  c.querySelector('#ed-cancel').addEventListener('click', close);
+  c.querySelector('#ed-delete')?.addEventListener('click', remove);
 
-  // Save button
-  saveBtn?.addEventListener('click', async () => {
-    await handleSave();
-  });
+  // Ctrl/Cmd+S saves.
+  const onKey = e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
+  };
+  document.addEventListener('keydown', onKey);
+  state.cleanup.push(() => document.removeEventListener('keydown', onKey));
 
-  // Delete button
-  deleteBtn?.addEventListener('click', async () => {
-    await handleDelete();
-  });
-
-  // Close button
-  closeBtn?.addEventListener('click', () => {
-    handleClose();
-  });
-
-  // Split Divider Dragging (resizing editor and preview panes)
-  setupSplitResizer();
+  setupDivider();
 }
 
-/**
- * Resizer logic for split view
- */
-function setupSplitResizer() {
-  const container = state.container;
-  const divider = container?.querySelector('#editor-split-divider');
-  const splitContainer = container?.querySelector('.editor__split');
-  const leftPane = container?.querySelector('.editor__pane--input');
-  
-  if (!divider || !splitContainer || !leftPane) return;
+function setupDivider() {
+  const c = state.container;
+  const divider = c.querySelector('#ed-divider');
+  const split = c.querySelector('.editor__split');
+  const left = c.querySelector('.editor__pane--input');
+  let dragging = false;
 
-  let isDragging = false;
-
-  const onMouseDown = (e) => {
-    isDragging = true;
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
+  const onMove = e => {
+    if (!dragging) return;
+    const rect = split.getBoundingClientRect();
+    const pct = ((e.clientX - rect.left) / rect.width) * 100;
+    if (pct > 20 && pct < 80) left.style.flex = `0 0 ${pct}%`;
+  };
+  const onUp = () => {
+    dragging = false;
+    document.body.classList.remove('is-resizing');
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+  };
+  const onDown = () => {
+    dragging = true;
+    document.body.classList.add('is-resizing');
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   };
 
-  const onMouseMove = (e) => {
-    if (!isDragging) return;
-    const rect = splitContainer.getBoundingClientRect();
-    const offsetX = e.clientX - rect.left;
-    const percentage = (offsetX / rect.width) * 100;
-    if (percentage > 20 && percentage < 80) {
-      leftPane.style.flex = `0 0 ${percentage}%`;
-    }
-  };
-
-  const onMouseUp = () => {
-    if (isDragging) {
-      isDragging = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    }
-  };
-
-  divider.addEventListener('mousedown', onMouseDown);
-  window.addEventListener('mousemove', onMouseMove);
-  window.addEventListener('mouseup', onMouseUp);
-
-  state._dividerCleanup = () => {
-    divider.removeEventListener('mousedown', onMouseDown);
-    window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('mouseup', onMouseUp);
-  };
+  divider.addEventListener('mousedown', onDown);
+  state.cleanup.push(() => {
+    divider.removeEventListener('mousedown', onDown);
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+  });
 }
 
-/**
- * Debounced live preview update (300ms)
- */
-function schedulePreviewUpdate() {
-  clearTimeout(state.debounceTimer);
-  const statusBadge = state.container?.querySelector('#editor-preview-status');
-  if (statusBadge) statusBadge.textContent = 'Updating...';
-
-  state.debounceTimer = setTimeout(() => {
-    updatePreview();
-  }, 300);
+function schedulePreview() {
+  clearTimeout(state.previewTimer);
+  const status = state.container?.querySelector('#ed-status');
+  if (status) status.textContent = 'Mise à jour…';
+  state.previewTimer = setTimeout(updatePreview, 300);
 }
 
-/**
- * Render Markdown and KaTeX math in preview
- */
 function updatePreview() {
-  const container = state.container;
-  const textarea = container?.querySelector('#editor-textarea');
-  const preview = container?.querySelector('#editor-preview-content');
-  const statusBadge = container?.querySelector('#editor-preview-status');
+  const c = state.container;
+  const content = c?.querySelector('#ed-content');
+  const preview = c?.querySelector('#ed-preview');
+  const status = c?.querySelector('#ed-status');
+  if (!content || !preview) return;
 
-  if (!textarea || !preview) return;
-
-  const rawMarkdown = textarea.value || '';
-  
-  // Convert Markdown to HTML
-  const html = ConverterService.renderMarkdown(rawMarkdown);
-  preview.innerHTML = html;
-
-  // Render KaTeX Math Expressions
-  try {
-    ConverterService.renderMathInElement(preview);
-  } catch (err) {
-    console.warn('Math rendering warning:', err);
-  }
-
-  if (statusBadge) statusBadge.textContent = 'Synced';
+  preview.innerHTML = ConverterService.renderMarkdown(content.value || '');
+  ConverterService.renderMathInElement(preview);
+  if (status) status.textContent = 'Synchronisé';
 }
 
-/**
- * Updates character count badge in toolbar
- */
-function updateCharCounter() {
-  const container = state.container;
-  const textarea = container?.querySelector('#editor-textarea');
-  const counter = container?.querySelector('#editor-char-counter');
-  if (!textarea || !counter) return;
-
-  const count = ConverterService.getCharCount(textarea.value || '');
-  counter.textContent = `${count.toLocaleString()} chars`;
+function updateCounter() {
+  const c = state.container;
+  const content = c?.querySelector('#ed-content');
+  const counter = c?.querySelector('#ed-counter');
+  if (!content || !counter) return;
+  counter.textContent = `${ConverterService.getCharCount(content.value).toLocaleString('fr-FR')} car.`;
 }
 
-/**
- * Handles note save logic including quota checks
- */
-async function handleSave() {
-  if (state.isSaving) return;
+async function save() {
+  if (state.saving) return;
 
-  const container = state.container;
-  const titleInput = container?.querySelector('#editor-title');
-  const subjectInput = container?.querySelector('#editor-subject');
-  const topicInput = container?.querySelector('#editor-topic');
-  const publicCheckbox = container?.querySelector('#editor-is-public');
-  const textarea = container?.querySelector('#editor-textarea');
-  const saveBtn = container?.querySelector('#editor-save-btn');
-  const saveLabel = container?.querySelector('#editor-save-label');
+  const c = state.container;
+  const title = c.querySelector('#ed-title').value.trim();
+  const subject = c.querySelector('#ed-subject').value.trim() || 'Général';
+  const topic = c.querySelector('#ed-topic').value.trim();
+  const isPublic = c.querySelector('#ed-public').checked;
+  const content = c.querySelector('#ed-content').value;
 
-  const title = titleInput?.value.trim() || '';
-  const subject = subjectInput?.value.trim() || 'General';
-  const topic = topicInput?.value.trim() || '';
-  const isPublic = !!publicCheckbox?.checked;
-  const content = textarea?.value || '';
-
-  // 1. Validation
   if (!title) {
-    showToast('Please provide a title for the note', 'error');
-    titleInput?.focus();
+    showToast('Veuillez saisir un titre.', 'error');
+    c.querySelector('#ed-title').focus();
     return;
   }
 
   const uid = AppState.user?.uid;
-  if (!uid) {
-    showToast('You must be signed in to save notes', 'error');
-    return;
-  }
+  if (!uid) { showToast('Connectez-vous pour enregistrer.', 'error'); return; }
 
-  const newCharCount = ConverterService.getCharCount(content);
+  const newChars = ConverterService.getCharCount(content);
 
-  // 2. Quota Check
   try {
-    let additionalChars = newCharCount;
-    if (state.noteId) {
-      additionalChars = Math.max(0, newCharCount - state.initialCharCount);
-    }
-
-    if (additionalChars > 0) {
-      const quotaCheck = await QuotaManager.checkQuota(uid, additionalChars);
-      if (!quotaCheck.allowed) {
-        showToast(`Quota exceeded! You need ${additionalChars.toLocaleString()} chars, but only ${quotaCheck.remaining.toLocaleString()} remaining.`, 'error');
+    let additional = newChars;
+    if (state.noteId) additional = Math.max(0, newChars - state.initialChars);
+    if (additional > 0) {
+      const q = await QuotaManager.checkQuota(uid, additional);
+      if (!q.allowed) {
+        showToast(`Quota dépassé : ${additional.toLocaleString('fr-FR')} car. nécessaires, ${q.remaining.toLocaleString('fr-FR')} restants.`, 'error');
         return;
       }
     }
   } catch (err) {
-    console.warn('Quota check error (continuing save):', err);
+    console.warn('[Editor] quota check skipped:', err);
   }
 
-  // 3. Perform save
-  state.isSaving = true;
-  if (saveBtn) saveBtn.disabled = true;
-  if (saveLabel) saveLabel.textContent = 'Saving...';
+  state.saving = true;
+  const saveBtn = c.querySelector('#ed-save');
+  const saveLabel = c.querySelector('#ed-save-label');
+  saveBtn.disabled = true;
+  if (saveLabel) saveLabel.textContent = 'Enregistrement…';
 
   try {
-    let savedNoteId = state.noteId;
-
+    let id = state.noteId;
     if (state.noteId) {
-      // Update existing
-      await FirestoreService.updateNote(state.noteId, {
-        title,
-        content,
-        subject,
-        topic,
-        isPublic,
-        charCount: newCharCount
-      });
-
-      // Log access
-      FirestoreService.logAccess({
-        uid,
-        documentId: state.noteId,
-        documentType: 'note',
-        action: 'edit'
-      }).catch(console.error);
+      await FirestoreService.updateNote(state.noteId, { title, content, subject, topic, isPublic });
+      FirestoreService.logAccess({ uid, documentId: state.noteId, documentType: 'note', action: 'edit' });
     } else {
-      // Create new
-      savedNoteId = await FirestoreService.createNote({
-        uid,
-        title,
-        content,
-        subject,
-        topic,
-        isPublic
-      });
-
-      state.noteId = savedNoteId;
-
-      // Log access
-      FirestoreService.logAccess({
-        uid,
-        documentId: savedNoteId,
-        documentType: 'note',
-        action: 'create'
-      }).catch(console.error);
-
-      // Add delete button if was newly created
-      ensureDeleteButtonExists();
+      id = await FirestoreService.createNote({ uid, title, content, subject, topic, isPublic });
+      state.noteId = id;
+      FirestoreService.logAccess({ uid, documentId: id, documentType: 'note', action: 'create' });
+      ensureDeleteButton();
     }
 
     state.initialContent = content;
     state.initialTitle = title;
-    state.initialCharCount = newCharCount;
-    state.hasUnsavedChanges = false;
+    state.initialChars = newChars;
+    state.dirty = false;
 
-    // Recalculate Quota
-    QuotaManager.recalculateQuota(uid).then(quota => {
-      EventBus.emit('quota:updated', quota);
-    }).catch(console.error);
-
-    EventBus.emit('note:saved', { noteId: savedNoteId });
-    showToast('Note saved successfully!', 'success');
+    QuotaManager.recalculateQuota(uid).then(q => EventBus.emit('quota:updated', q)).catch(() => {});
+    EventBus.emit('note:saved', { noteId: id });
+    showToast('Fiche enregistrée.', 'success');
   } catch (err) {
-    console.error('Failed to save note:', err);
-    showToast(`Save failed: ${err.message}`, 'error');
+    console.error('[Editor] save failed:', err);
+    showToast(`Enregistrement échoué : ${err.message}`, 'error');
   } finally {
-    state.isSaving = false;
-    if (saveBtn) saveBtn.disabled = false;
-    if (saveLabel) saveLabel.textContent = 'Save';
+    state.saving = false;
+    saveBtn.disabled = false;
+    if (saveLabel) saveLabel.textContent = 'Enregistrer';
   }
 }
 
-/**
- * Ensures delete button is present in the toolbar after initial save
- */
-function ensureDeleteButtonExists() {
-  const container = state.container;
-  const actions = container?.querySelector('.editor__actions');
-  const saveBtn = container?.querySelector('#editor-save-btn');
-  let deleteBtn = container?.querySelector('#editor-delete-btn');
-
-  if (!deleteBtn && actions && saveBtn) {
-    deleteBtn = document.createElement('button');
-    deleteBtn.className = 'btn btn--danger';
-    deleteBtn.id = 'editor-delete-btn';
-    deleteBtn.title = 'Delete this note';
-    deleteBtn.innerHTML = `
-      <img src="https://img.icons8.com/fluency/16/delete.png" alt="" />
-      <span>Delete</span>
-    `;
-    deleteBtn.addEventListener('click', handleDelete);
-    actions.insertBefore(deleteBtn, saveBtn);
-  }
+function ensureDeleteButton() {
+  const c = state.container;
+  if (c.querySelector('#ed-delete')) return;
+  const actions = c.querySelector('.editor__actions');
+  const saveBtn = c.querySelector('#ed-save');
+  const btn = document.createElement('button');
+  btn.className = 'btn btn--danger';
+  btn.id = 'ed-delete';
+  btn.innerHTML = `${iconImg('delete', { size: 16, alt: '' })}<span>Supprimer</span>`;
+  btn.addEventListener('click', remove);
+  actions.insertBefore(btn, saveBtn);
 }
 
-/**
- * Handles note deletion
- */
-async function handleDelete() {
+async function remove() {
   if (!state.noteId) return;
-
-  const titleInput = state.container?.querySelector('#editor-title');
-  const noteTitle = titleInput?.value.trim() || 'this note';
-
-  if (!confirm(`Are you sure you want to permanently delete "${noteTitle}"?`)) {
-    return;
-  }
+  const title = state.container?.querySelector('#ed-title').value.trim() || 'cette fiche';
+  if (!confirm(`Supprimer définitivement « ${title} » ?`)) return;
 
   try {
-    showToast('Deleting note...', 'info');
+    showToast('Suppression…', 'info');
+    const uid = AppState.user?.uid;
     await FirestoreService.deleteNote(state.noteId);
-
-    // Recalculate Quota
-    if (AppState.user?.uid) {
-      QuotaManager.recalculateQuota(AppState.user.uid).then(quota => {
-        EventBus.emit('quota:updated', quota);
-      }).catch(console.error);
+    if (uid) {
+      FirestoreService.logAccess({ uid, documentId: state.noteId, documentType: 'note', action: 'delete' });
+      QuotaManager.recalculateQuota(uid).then(q => EventBus.emit('quota:updated', q)).catch(() => {});
     }
-
     EventBus.emit('note:deleted', { noteId: state.noteId });
-    showToast('Note deleted', 'success');
-
-    // Close panel
-    closeCurrentPanel();
+    showToast('Fiche supprimée.', 'success');
+    close();
   } catch (err) {
-    console.error('Failed to delete note:', err);
-    showToast(`Delete failed: ${err.message}`, 'error');
+    console.error('[Editor] delete failed:', err);
+    showToast(`Suppression échouée : ${err.message}`, 'error');
   }
 }
 
-/**
- * Handles close action with unsaved confirmation
- */
-function handleClose() {
-  if (state.hasUnsavedChanges) {
-    if (!confirm('You have unsaved changes. Are you sure you want to close?')) {
-      return;
-    }
-  }
-  closeCurrentPanel();
-}
-
-/**
- * Closes this panel via EventBus
- */
-function closeCurrentPanel() {
-  const panelId = state.panelId || state.container?.closest('.workspace__panel')?.dataset?.panelId;
+function close() {
+  if (state.dirty && !confirm('Des modifications ne sont pas enregistrées. Fermer quand même ?')) return;
+  const panelId = state.panelId || state.container?.closest('.workspace__panel')?.dataset.panelId;
   EventBus.emit('panel:close', { panelId });
 }
 
-/**
- * Cleanup function called on panel destruction
- */
+/** Tear down. */
 export function destroy() {
-  clearTimeout(state.debounceTimer);
-  if (typeof state._dividerCleanup === 'function') {
-    state._dividerCleanup();
-  }
+  clearTimeout(state.previewTimer);
+  state.cleanup.forEach(fn => { try { fn(); } catch { /* noop */ } });
+  state.cleanup = [];
   state.container = null;
   state.panelId = null;
   state.noteId = null;
-  state.hasUnsavedChanges = false;
+  state.dirty = false;
 }

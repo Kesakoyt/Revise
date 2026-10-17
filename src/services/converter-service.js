@@ -1,78 +1,18 @@
 /**
- * Fiches & Cloud — Document Converter & Markdown / Math Rendering Service
- * 
- * Supports PDF text extraction (via pdfjsLib), DOCX to Markdown conversion (via mammoth),
- * GitHub Flavored Markdown parsing (via marked.js), and KaTeX math expression rendering.
+ * Fiches & Cloud — Conversion & rendering service.
+ *
+ *  • PDF  → Markdown   (PDF.js text extraction)
+ *  • DOCX → Markdown   (Mammoth HTML, then a small HTML→Markdown reducer)
+ *  • MD   → HTML       (Marked, GitHub-flavoured)
+ *  • Math → KaTeX      (delimiter auto-render)
+ *
+ * Every document is converted to Markdown *client-side*; no binary ever
+ * reaches Firestore.
  */
 
-/**
- * Basic HTML to Markdown converter used for processing DOCX extraction output.
- * @param {string} html 
- * @returns {string}
- */
-function htmlToMarkdown(html = '') {
-  if (!html) return '';
-
-  let md = html;
-
-  // Headings
-  md = md.replace(/<h1[^>]*>(.*?)<\/h1>/gis, '\n# $1\n\n');
-  md = md.replace(/<h2[^>]*>(.*?)<\/h2>/gis, '\n## $1\n\n');
-  md = md.replace(/<h3[^>]*>(.*?)<\/h3>/gis, '\n### $1\n\n');
-  md = md.replace(/<h4[^>]*>(.*?)<\/h4>/gis, '\n#### $1\n\n');
-  md = md.replace(/<h5[^>]*>(.*?)<\/h5>/gis, '\n##### $1\n\n');
-  md = md.replace(/<h6[^>]*>(.*?)<\/h6>/gis, '\n###### $1\n\n');
-
-  // Bold & Italics
-  md = md.replace(/<(?:strong|b)[^>]*>(.*?)<\/(?:strong|b)>/gis, '**$1**');
-  md = md.replace(/<(?:em|i)[^>]*>(.*?)<\/(?:em|i)>/gis, '*$1*');
-
-  // Code Blocks and Inline Code
-  md = md.replace(/<pre[^>]*><code[^>]*>(.*?)<\/code><\/pre>/gis, '\n```\n$1\n```\n\n');
-  md = md.replace(/<code[^>]*>(.*?)<\/code>/gis, '`$1`');
-
-  // Hyperlinks
-  md = md.replace(/<a\s+(?:[^>]*?\s+)?href="([^"]*)"[^>]*>(.*?)<\/a>/gis, '[$2]($1)');
-
-  // List Items
-  md = md.replace(/<li[^>]*>(.*?)<\/li>/gis, '- $1\n');
-  md = md.replace(/<\/?(?:ul|ol)[^>]*>/gis, '\n');
-
-  // Blockquotes
-  md = md.replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gis, (match, p1) => {
-    const cleanLines = p1.trim().split('\n').map(l => `> ${l.trim()}`).join('\n');
-    return `\n${cleanLines}\n\n`;
-  });
-
-  // Paragraphs, Horizontal Rules & Breaks
-  md = md.replace(/<p[^>]*>(.*?)<\/p>/gis, '$1\n\n');
-  md = md.replace(/<br\s*\/?>/gis, '\n');
-  md = md.replace(/<hr\s*\/?>/gis, '\n---\n\n');
-
-  // Strip remaining HTML tags
-  md = md.replace(/<[^>]+>/g, '');
-
-  // Decode common HTML entities
-  md = md.replace(/&nbsp;/g, ' ')
-         .replace(/&amp;/g, '&')
-         .replace(/&lt;/g, '<')
-         .replace(/&gt;/g, '>')
-         .replace(/&quot;/g, '"')
-         .replace(/&#39;/g, "'");
-
-  // Normalize excessive newlines
-  md = md.replace(/\n{3,}/g, '\n\n');
-
-  return md.trim();
-}
-
-/**
- * Minimal HTML entity escaping for fallback rendering.
- * @param {string} str 
- * @returns {string}
- */
+/** Escape a string for safe HTML text insertion. */
 function escapeHtml(str) {
-  return String(str)
+  return String(str ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -80,194 +20,214 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * Reduce a Mammoth-generated HTML fragment to Markdown.
+ * Covers the constructs Mammoth actually emits (headings, bold/italic, lists,
+ * tables, links, blockquotes, code).
+ * @param {string} html
+ * @returns {string}
+ */
+function htmlToMarkdown(html = '') {
+  if (!html) return '';
+  let md = html;
+
+  // Tables → pipe tables (best effort)
+  md = md.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_, body) => {
+    const rows = [...body.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
+    if (!rows.length) return '';
+    const cells = row => [...row.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi)]
+      .map(c => c[1].replace(/<[^>]+>/g, '').trim());
+    const header = cells(rows[0]);
+    const lines = [
+      `| ${header.join(' | ')} |`,
+      `| ${header.map(() => '---').join(' | ')} |`,
+      ...rows.slice(1).map(r => `| ${cells(r).join(' | ')} |`)
+    ];
+    return `\n${lines.join('\n')}\n\n`;
+  });
+
+  // Headings
+  for (let level = 6; level >= 1; level--) {
+    md = md.replace(new RegExp(`<h${level}[^>]*>(.*?)</h${level}>`, 'gis'), `\n${'#'.repeat(level)} $1\n\n`);
+  }
+
+  // Emphasis
+  md = md.replace(/<(?:strong|b)[^>]*>(.*?)<\/(?:strong|b)>/gis, '**$1**');
+  md = md.replace(/<(?:em|i)[^>]*>(.*?)<\/(?:em|i)>/gis, '*$1*');
+
+  // Code
+  md = md.replace(/<pre[^>]*>\s*<code[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gis, '\n```\n$1\n```\n\n');
+  md = md.replace(/<code[^>]*>(.*?)<\/code>/gis, '`$1`');
+
+  // Links
+  md = md.replace(/<a\s+(?:[^>]*?\s+)?href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gis, '[$2]($1)');
+
+  // Lists
+  md = md.replace(/<li[^>]*>([\s\S]*?)<\/li>/gis, '- $1\n');
+  md = md.replace(/<\/?(?:ul|ol)[^>]*>/gis, '\n');
+
+  // Blockquotes
+  md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gis, (_, inner) => {
+    const quoted = inner.trim().split('\n').map(line => `> ${line.trim()}`).join('\n');
+    return `\n${quoted}\n\n`;
+  });
+
+  // Paragraphs, breaks, rules
+  md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gis, '$1\n\n');
+  md = md.replace(/<br\s*\/?>/gis, '\n');
+  md = md.replace(/<hr\s*\/?>/gis, '\n---\n\n');
+
+  // Strip leftovers + decode entities
+  md = md.replace(/<[^>]+>/g, '');
+  md = md
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+
+  return md.replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export const ConverterService = {
   /**
-   * Extract textual content from a PDF File and format it as Markdown.
-   * Uses window.pdfjsLib loaded from CDN.
-   * 
-   * @param {File|Blob} file 
+   * Extract a PDF's text into Markdown. Uses the global PDF.js from the CDN.
+   * @param {File|Blob} file
    * @returns {Promise<string>}
    */
   async pdfToMarkdown(file) {
     if (typeof window === 'undefined' || !window.pdfjsLib) {
-      throw new Error('PDF.js library (window.pdfjsLib) is not loaded.');
+      throw new Error('La bibliothèque PDF.js (window.pdfjsLib) n’est pas chargée.');
     }
 
-    // Ensure worker source is configured
     if (!window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
-    const pdf = await loadingTask.promise;
-
+    const data = await file.arrayBuffer();
+    const pdf = await window.pdfjsLib.getDocument({ data }).promise;
     const pages = [];
 
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
+    for (let n = 1; n <= pdf.numPages; n++) {
+      const page = await pdf.getPage(n);
+      const content = await page.getTextContent();
 
       let lastY = null;
       let pageText = '';
 
-      for (const item of textContent.items) {
-        if (lastY !== null && Math.abs(item.transform[5] - lastY) > 5) {
+      for (const item of content.items) {
+        const y = item.transform[5];
+        if (lastY !== null && Math.abs(y - lastY) > 5) {
           pageText += '\n';
-        } else if (pageText.length > 0 && !pageText.endsWith('\n') && !pageText.endsWith(' ')) {
+        } else if (pageText && !pageText.endsWith('\n') && !pageText.endsWith(' ')) {
           pageText += ' ';
         }
         pageText += item.str;
-        lastY = item.transform[5];
+        lastY = y;
       }
 
-      const trimmedText = pageText.trim();
-      if (pdf.numPages > 1) {
-        pages.push(`## Page ${pageNum}\n\n${trimmedText}`);
-      } else {
-        pages.push(trimmedText);
-      }
+      const text = pageText.trim();
+      pages.push(pdf.numPages > 1 ? `## Page ${n}\n\n${text}` : text);
     }
 
     return pages.join('\n\n---\n\n');
   },
 
   /**
-   * Convert a DOCX file to Markdown using window.mammoth.
-   * 
-   * @param {File|Blob} file 
+   * Convert a DOCX file into Markdown via Mammoth.
+   * @param {File|Blob} file
    * @returns {Promise<string>}
    */
   async docxToMarkdown(file) {
     if (typeof window === 'undefined' || !window.mammoth) {
-      throw new Error('Mammoth.js library (window.mammoth) is not loaded.');
+      throw new Error('La bibliothèque Mammoth.js (window.mammoth) n’est pas chargée.');
     }
-
     const arrayBuffer = await file.arrayBuffer();
     const result = await window.mammoth.convertToHtml({ arrayBuffer });
-    return htmlToMarkdown(result.value);
+    return htmlToMarkdown(result.value || '');
   },
 
   /**
-   * Unified file converter detecting extension/MIME type.
-   * Supports .pdf, .docx, .md, .txt.
-   * 
-   * @param {File} file 
+   * Detect the file type and convert it to Markdown.
+   * Supports .pdf, .docx, .md and .txt (plus a text fallback).
+   * @param {File} file
    * @returns {Promise<{ markdown: string, title: string }>}
    */
   async convertFile(file) {
-    if (!file) throw new Error('No file provided for conversion');
+    if (!file) throw new Error('Aucun fichier fourni.');
 
-    // Extract title from file name without extension
     const title = file.name ? file.name.replace(/\.[^/.]+$/, '') : 'Sans titre';
-    const lowerName = (file.name || '').toLowerCase();
-    const mimeType = (file.type || '').toLowerCase();
+    const name = (file.name || '').toLowerCase();
+    const mime = (file.type || '').toLowerCase();
 
     let markdown = '';
 
-    if (lowerName.endsWith('.pdf') || mimeType === 'application/pdf') {
+    if (name.endsWith('.pdf') || mime === 'application/pdf') {
       markdown = await this.pdfToMarkdown(file);
     } else if (
-      lowerName.endsWith('.docx') ||
-      mimeType.includes('wordprocessingml') ||
-      mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      name.endsWith('.docx') ||
+      mime.includes('wordprocessingml') ||
+      mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     ) {
       markdown = await this.docxToMarkdown(file);
-    } else if (
-      lowerName.endsWith('.md') ||
-      lowerName.endsWith('.txt') ||
-      mimeType.startsWith('text/')
-    ) {
+    } else if (name.endsWith('.md') || name.endsWith('.txt') || mime.startsWith('text/')) {
       markdown = await file.text();
     } else {
-      // Attempt reading as text fallback
-      try {
-        markdown = await file.text();
-      } catch (err) {
-        throw new Error(`Format de fichier non pris en charge (${file.name}). Utilisez un fichier PDF, DOCX ou Markdown.`);
-      }
+      markdown = await file.text();
     }
 
-    return {
-      markdown,
-      title
-    };
+    return { markdown, title };
   },
 
   /**
-   * Parse a Markdown string into HTML using window.marked configured with GitHub Flavored Markdown (GFM).
-   * 
-   * Steps executed:
-   * (1) Configure marked with GFM
-   * (2) Parse markdown to HTML
-   * (3) Return HTML
-   * 
-   * @param {string} markdownString 
-   * @returns {string} htmlString
+   * Render Markdown to an HTML string with Marked (GFM).
+   * @param {string} markdown
+   * @returns {string}
    */
-  renderMarkdown(markdownString = '') {
+  renderMarkdown(markdown = '') {
     if (typeof window !== 'undefined' && window.marked) {
-      // (1) Configure marked with GFM
       if (typeof window.marked.setOptions === 'function') {
-        window.marked.setOptions({
-          gfm: true,
-          breaks: true,
-          headerIds: false,
-          mangle: false
-        });
+        window.marked.setOptions({ gfm: true, breaks: true, headerIds: false, mangle: false });
       }
-
-      // (2) Parse markdown to HTML
-      let html = '';
-      if (typeof window.marked.parse === 'function') {
-        html = window.marked.parse(markdownString || '');
-      } else if (typeof window.marked === 'function') {
-        html = window.marked(markdownString || '');
+      try {
+        if (typeof window.marked.parse === 'function') return window.marked.parse(markdown || '');
+        if (typeof window.marked === 'function') return window.marked(markdown || '');
+      } catch (err) {
+        console.warn('[Converter] marked failed, using fallback:', err);
       }
-
-      // (3) Return HTML
-      return html;
     }
-
-    // Safe fallback if marked is unavailable
-    return escapeHtml(markdownString || '').replace(/\n/g, '<br>');
+    return escapeHtml(markdown).replace(/\n/g, '<br>');
   },
 
   /**
-   * Render mathematical formulas inside a DOM container element using KaTeX auto-render.
-   * Delimiters configured for $...$ (inline) and $$...$$ (display math).
-   * 
-   * @param {HTMLElement} element - Target container element to search and render math in
-   * @returns {void}
+   * Typeset KaTeX math inside a container. Supports `$…$`, `$$…$$`, `\(…\)`
+   * and `\[…\]`.
+   * @param {HTMLElement} element
    */
   renderMathInElement(element) {
     if (!element || typeof window === 'undefined') return;
+    if (typeof window.renderMathInElement !== 'function') return;
 
-    if (typeof window.renderMathInElement === 'function') {
-      try {
-        window.renderMathInElement(element, {
-          delimiters: [
-            { left: '$$', right: '$$', display: true },
-            { left: '$', right: '$', display: false },
-            { left: '\\(', right: '\\)', display: false },
-            { left: '\\[', right: '\\]', display: true }
-          ],
-          throwOnError: false,
-          errorColor: '#d13438'
-        });
-      } catch (err) {
-        console.warn('[ConverterService] renderMathInElement failed:', err);
-      }
+    try {
+      window.renderMathInElement(element, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+          { left: '\\(', right: '\\)', display: false },
+          { left: '\\[', right: '\\]', display: true }
+        ],
+        throwOnError: false,
+        errorColor: '#d13438'
+      });
+    } catch (err) {
+      console.warn('[Converter] renderMathInElement failed:', err);
     }
   },
 
-  /**
-   * Calculate total character count of a Markdown string.
-   * 
-   * @param {string} markdownString 
-   * @returns {number}
-   */
-  getCharCount(markdownString = '') {
-    return typeof markdownString === 'string' ? markdownString.length : 0;
+  /** @param {string} markdown @returns {number} */
+  getCharCount(markdown = '') {
+    return typeof markdown === 'string' ? markdown.length : 0;
   }
 };

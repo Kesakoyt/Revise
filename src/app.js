@@ -1,154 +1,149 @@
 /**
- * Fiches & Cloud — Main Application Entry Point
- * Manages global event bus, reactive application state, modal/toast subsystems,
- * component initialization, and Firebase authentication lifecycle.
+ * Fiches & Cloud — application entry point.
+ *
+ * Owns the cross-cutting primitives every component relies on:
+ *   • EventBus      — tiny publish/subscribe bus
+ *   • AppState      — reactive-ish global state (user, profile, theme)
+ *   • iconUrl()     — single source for the mandated Icons8 Fluency URL
+ *   • showToast()   — transient notifications
+ *   • showModal()   — modal dialogs
+ *   • the login/sign-up modal
+ *   • the DOMContentLoaded bootstrap sequence
  */
 
 import { AuthService } from './services/auth-service.js';
+import { isConfigured } from './services/firebase-config.js';
 
 // ============================================================================
-// Event Bus
+// Icons — the ONLY icon URL pattern used anywhere in the app.
 // ============================================================================
+
+/**
+ * Build an Icons8 Fluency icon URL.
+ * Every icon in the interface is requested at 200px and scaled down in CSS.
+ * @param {string} name  Icons8 slug, e.g. "folder", "database", "combo-chart"
+ * @returns {string}
+ */
+export function iconUrl(name) {
+  const slug = String(name || 'document').trim() || 'document';
+  return `https://img.icons8.com/fluency/200/${slug}.png`;
+}
+
+/**
+ * Build an <img> tag for an icon.
+ * @param {string} name
+ * @param {{size?:number, alt?:string, className?:string}} [opts]
+ * @returns {string}
+ */
+export function iconImg(name, { size = 20, alt = '', className = '' } = {}) {
+  const cls = className ? ` class="${className}"` : '';
+  return `<img src="${iconUrl(name)}" alt="${alt}" width="${size}" height="${size}"${cls} loading="lazy">`;
+}
+
+// ============================================================================
+// EventBus
+// ============================================================================
+
 export const EventBus = {
   _events: {},
 
-  /**
-   * Subscribe to an event
-   * @param {string} event 
-   * @param {Function} callback 
-   */
-  on(event, callback) {
-    if (!this._events[event]) {
-      this._events[event] = [];
-    }
-    this._events[event].push(callback);
+  /** Subscribe. @param {string} event @param {Function} cb */
+  on(event, cb) {
+    (this._events[event] ||= []).push(cb);
   },
 
-  /**
-   * Unsubscribe from an event
-   * @param {string} event 
-   * @param {Function} callback 
-   */
-  off(event, callback) {
+  /** Unsubscribe. @param {string} event @param {Function} cb */
+  off(event, cb) {
     if (!this._events[event]) return;
-    this._events[event] = this._events[event].filter(cb => cb !== callback);
+    this._events[event] = this._events[event].filter(fn => fn !== cb);
   },
 
-  /**
-   * Emit an event to all registered listeners
-   * @param {string} event 
-   * @param {any} data 
-   */
+  /** Publish. @param {string} event @param {*} data */
   emit(event, data) {
-    if (!this._events[event]) return;
-    // Iterate over a slice to allow unsubscriptions during execution
-    const listeners = [...this._events[event]];
-    listeners.forEach(callback => {
+    const listeners = this._events[event];
+    if (!listeners) return;
+    [...listeners].forEach(fn => {
       try {
-        callback(data);
+        fn(data);
       } catch (err) {
-        console.error(`[EventBus] Error in listener for event "${event}":`, err);
+        console.error(`[EventBus] listener error for "${event}":`, err);
       }
     });
   }
 };
 
 // ============================================================================
-// App State
+// Global state
 // ============================================================================
+
 export const AppState = {
-  user: null,        // Firebase User instance or null
-  profile: null,     // User profile data from Firestore
-  theme: 'light',    // 'light' | 'dark'
+  user: null,      // firebase.User | null
+  profile: null,   // Firestore users/{uid} document | null
+  theme: 'light',  // 'light' | 'dark'
   isAdmin: false
 };
 
 // ============================================================================
-// Toast Notification Subsystem
+// Toasts
 // ============================================================================
+
 /**
- * Display a floating toast notification with Fluent Design styling
- * @param {string} message - Content to display
- * @param {'info' | 'success' | 'error' | 'warning'} type - Visual style category
- * @param {number} duration - Auto-dismiss delay in ms (default 3500ms)
- * @returns {HTMLElement} The created toast element
+ * Show a transient toast.
+ * @param {string} message
+ * @param {'info'|'success'|'error'|'warning'} [type='info']
+ * @param {number} [duration=3500] ms before auto-dismiss (0 = sticky)
+ * @returns {HTMLElement|null}
  */
 export function showToast(message, type = 'info', duration = 3500) {
   const container = document.getElementById('toast-container');
   if (!container) return null;
 
+  const iconName = { info: 'info', success: 'ok', error: 'cancel', warning: 'high-priority' }[type] || 'info';
+
   const toast = document.createElement('div');
   toast.className = `toast toast--${type}`;
   toast.setAttribute('role', 'alert');
-
-  // Choose icon based on type
-  const iconMap = {
-    info: 'https://img.icons8.com/fluency/20/info.png',
-    success: 'https://img.icons8.com/fluency/20/ok.png',
-    error: 'https://img.icons8.com/fluency/20/cancel.png',
-    warning: 'https://img.icons8.com/fluency/20/high-priority.png'
-  };
-
-  const iconUrl = iconMap[type] || iconMap.info;
-
   toast.innerHTML = `
-    <img src="${iconUrl}" alt="${type}" class="toast__icon" width="20" height="20">
-    <span class="toast__message">${message}</span>
+    ${iconImg(iconName, { size: 20, alt: '', className: 'toast__icon' })}
+    <span class="toast__message"></span>
     <button type="button" class="toast__close" aria-label="Fermer la notification">&times;</button>
   `;
+  // Set text via textContent so message content can never inject markup.
+  toast.querySelector('.toast__message').textContent = message;
 
-  const removeToast = () => {
-    if (toast.classList.contains('toast--hiding')) return;
+  let removed = false;
+  const remove = () => {
+    if (removed) return;
+    removed = true;
     toast.classList.add('toast--hiding');
-    toast.addEventListener('transitionend', () => {
-      if (toast.parentElement) {
-        toast.parentElement.removeChild(toast);
-      }
-    }, { once: true });
-    // Fallback removal if transition doesn't fire
-    setTimeout(() => {
-      if (toast.parentElement) toast.parentElement.removeChild(toast);
-    }, 300);
+    setTimeout(() => toast.remove(), 280);
   };
 
-  const closeBtn = toast.querySelector('.toast__close');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', removeToast);
-  }
-
+  toast.querySelector('.toast__close')?.addEventListener('click', remove);
   container.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('toast--visible'));
 
-  // Trigger entrance transition on next animation frame
-  requestAnimationFrame(() => {
-    toast.classList.add('toast--visible');
-  });
-
-  if (duration > 0) {
-    setTimeout(removeToast, duration);
-  }
-
+  if (duration > 0) setTimeout(remove, duration);
   return toast;
 }
 
 // ============================================================================
-// Modal Subsystem
+// Modal
 // ============================================================================
-let currentEscHandler = null;
+
+let escHandler = null;
 
 /**
- * Display a modal dialog overlay
- * @param {string | HTMLElement} content - Modal content or element
- * @param {Object} [options]
- * @param {boolean} [options.dismissible=true] - Whether user can dismiss via ESC / backdrop
- * @param {Function} [options.onClose] - Callback upon modal closure
- * @returns {{ modalElement: HTMLElement, hide: Function }}
+ * Open a modal dialog.
+ * @param {string|HTMLElement} content
+ * @param {{dismissible?:boolean, onClose?:Function}} [options]
+ * @returns {{ modalElement: HTMLElement|null, hide: Function }}
  */
 export function showModal(content, options = {}) {
   const { dismissible = true, onClose = null } = options;
   const container = document.getElementById('modal-container');
   if (!container) return { modalElement: null, hide: () => {} };
 
-  // Clear existing modal if present
   hideModal();
 
   const modal = document.createElement('div');
@@ -159,341 +154,282 @@ export function showModal(content, options = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'modal__overlay';
 
-  const modalContent = document.createElement('div');
-  modalContent.className = 'modal__content';
+  const body = document.createElement('div');
+  body.className = 'modal__content';
+  if (typeof content === 'string') body.innerHTML = content;
+  else if (content instanceof HTMLElement) body.appendChild(content);
 
-  if (typeof content === 'string') {
-    modalContent.innerHTML = content;
-  } else if (content instanceof HTMLElement) {
-    modalContent.appendChild(content);
-  }
-
-  modal.appendChild(overlay);
-  modal.appendChild(modalContent);
+  modal.append(overlay, body);
   container.appendChild(modal);
 
-  // Close function
   const close = () => {
     if (modal.classList.contains('modal--hiding')) return;
     modal.classList.add('modal--hiding');
-    
-    if (currentEscHandler) {
-      document.removeEventListener('keydown', currentEscHandler);
-      currentEscHandler = null;
+    if (escHandler) {
+      document.removeEventListener('keydown', escHandler);
+      escHandler = null;
     }
-
     setTimeout(() => {
-      if (modal.parentElement) {
-        modal.parentElement.removeChild(modal);
-      }
-      if (typeof onClose === 'function') {
-        onClose();
-      }
+      modal.remove();
+      if (typeof onClose === 'function') onClose();
     }, 200);
   };
 
   if (dismissible) {
     overlay.addEventListener('click', close);
-    currentEscHandler = (e) => {
-      if (e.key === 'Escape') {
-        close();
-      }
-    };
-    document.addEventListener('keydown', currentEscHandler);
+    escHandler = e => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', escHandler);
   }
 
-  // Animate in
-  requestAnimationFrame(() => {
-    modal.classList.add('modal--visible');
-  });
-
+  requestAnimationFrame(() => modal.classList.add('modal--visible'));
   return { modalElement: modal, hide: close };
 }
 
-/**
- * Hide the currently active modal
- */
+/** Close any open modal. */
 export function hideModal() {
   const container = document.getElementById('modal-container');
   if (!container) return;
-
-  if (currentEscHandler) {
-    document.removeEventListener('keydown', currentEscHandler);
-    currentEscHandler = null;
+  if (escHandler) {
+    document.removeEventListener('keydown', escHandler);
+    escHandler = null;
   }
-
-  const existingModals = container.querySelectorAll('.modal');
-  existingModals.forEach(m => {
+  container.querySelectorAll('.modal').forEach(m => {
     m.classList.add('modal--hiding');
-    setTimeout(() => {
-      if (m.parentElement) m.parentElement.removeChild(m);
-    }, 200);
+    setTimeout(() => m.remove(), 200);
   });
 }
 
 // ============================================================================
-// Authentication / Login Modal
+// Login / sign-up modal
 // ============================================================================
-/**
- * Render the dedicated Fluent authentication modal for unauthenticated users
- */
-function renderLoginModal() {
-  let isSignUpMode = false;
 
-  const modalWrapper = document.createElement('div');
-  modalWrapper.className = 'login-modal';
+const AUTH_ERRORS = {
+  'auth/user-not-found': 'Identifiants incorrects. Vérifiez votre email et votre mot de passe.',
+  'auth/wrong-password': 'Identifiants incorrects. Vérifiez votre email et votre mot de passe.',
+  'auth/invalid-credential': 'Identifiants incorrects. Vérifiez votre email et votre mot de passe.',
+  'auth/email-already-in-use': 'Cette adresse email est déjà associée à un compte.',
+  'auth/weak-password': 'Le mot de passe doit comporter au moins 6 caractères.',
+  'auth/invalid-email': 'Adresse email invalide.',
+  'auth/network-request-failed': 'Connexion réseau impossible. Vérifiez votre connexion.',
+  'auth/operation-not-allowed': "La connexion email/mot de passe n'est pas activée dans la console Firebase."
+};
 
-  function updateView() {
-    modalWrapper.innerHTML = `
+/** Render the non-dismissible authentication modal. */
+function renderAuthModal() {
+  let signUpMode = false;
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'login-modal';
+
+  const view = () => {
+    wrapper.innerHTML = `
       <div class="login-modal__card card">
         <div class="login-modal__header">
-          <img src="https://img.icons8.com/fluency/64/cloud-checked.png" alt="Logo" class="login-modal__logo" width="56" height="56">
-          <h2 class="login-modal__title">Fiches & Cloud</h2>
-          <p class="login-modal__subtitle">Votre espace d'étude et de révision intelligent</p>
+          ${iconImg('cloud-checked', { size: 64, alt: 'Fiches & Cloud', className: 'login-modal__logo' })}
+          <h2 class="login-modal__title">Fiches &amp; Cloud</h2>
+          <p class="login-modal__subtitle">Votre espace d'étude et de révision</p>
         </div>
 
         <div class="login-modal__tabs">
-          <button type="button" class="login-modal__tab ${!isSignUpMode ? 'login-modal__tab--active' : ''}" id="tab-login">
-            Connexion
-          </button>
-          <button type="button" class="login-modal__tab ${isSignUpMode ? 'login-modal__tab--active' : ''}" id="tab-signup">
-            Inscription
-          </button>
+          <button type="button" class="login-modal__tab ${signUpMode ? '' : 'login-modal__tab--active'}" data-mode="login">Connexion</button>
+          <button type="button" class="login-modal__tab ${signUpMode ? 'login-modal__tab--active' : ''}" data-mode="signup">Inscription</button>
         </div>
 
         <form class="login-form" id="auth-form" novalidate>
-          <div id="auth-error" class="login-form__error" style="display: none;" role="alert"></div>
+          <div class="login-form__error" id="auth-error" role="alert" hidden></div>
 
-          ${isSignUpMode ? `
+          ${signUpMode ? `
             <div class="login-form__field">
-              <label for="auth-display-name" class="login-form__label">Nom d'affichage</label>
-              <input type="text" id="auth-display-name" class="input" placeholder="Ex: Marie Curie" required autocomplete="name">
-            </div>
-          ` : ''}
+              <label class="login-form__label" for="auth-name">Nom d'affichage</label>
+              <input class="input" type="text" id="auth-name" placeholder="Ex : Marie Curie" autocomplete="name">
+            </div>` : ''}
 
           <div class="login-form__field">
-            <label for="auth-email" class="login-form__label">Adresse email</label>
-            <input type="email" id="auth-email" class="input" placeholder="nom@exemple.fr" required autocomplete="email">
+            <label class="login-form__label" for="auth-email">Adresse email</label>
+            <input class="input" type="email" id="auth-email" placeholder="nom@exemple.fr" autocomplete="email" required>
           </div>
 
           <div class="login-form__field">
-            <label for="auth-password" class="login-form__label">Mot de passe</label>
-            <input type="password" id="auth-password" class="input" placeholder="••••••••" required autocomplete="${isSignUpMode ? 'new-password' : 'current-password'}">
+            <label class="login-form__label" for="auth-password">Mot de passe</label>
+            <input class="input" type="password" id="auth-password" placeholder="••••••••"
+                   autocomplete="${signUpMode ? 'new-password' : 'current-password'}" required>
           </div>
 
-          <button type="submit" class="btn btn--primary login-form__submit" id="auth-submit-btn">
-            <span class="btn__text">${isSignUpMode ? "Créer un compte" : "Se connecter"}</span>
-            <span class="btn__spinner" style="display: none;"></span>
+          <button type="submit" class="btn btn--primary login-form__submit" id="auth-submit">
+            <span class="btn__text">${signUpMode ? 'Créer un compte' : 'Se connecter'}</span>
+            <span class="btn__spinner" hidden></span>
           </button>
         </form>
 
         <div class="login-modal__footer">
           <p class="login-modal__switch">
-            ${isSignUpMode ? 'Vous avez déjà un compte ?' : "Vous n'avez pas encore de compte ?"}
-            <button type="button" class="btn-link" id="auth-toggle-mode">
-              ${isSignUpMode ? 'Se connecter' : "S'inscrire"}
-            </button>
+            ${signUpMode ? "Vous avez déjà un compte ?" : "Pas encore de compte ?"}
+            <button type="button" class="btn-link" id="auth-toggle">${signUpMode ? 'Se connecter' : "S'inscrire"}</button>
           </p>
         </div>
       </div>
     `;
 
-    // Tab buttons
-    modalWrapper.querySelector('#tab-login')?.addEventListener('click', () => {
-      if (isSignUpMode) {
-        isSignUpMode = false;
-        updateView();
-      }
+    wrapper.querySelectorAll('.login-modal__tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const mode = tab.dataset.mode === 'signup';
+        if (mode !== signUpMode) { signUpMode = mode; view(); }
+      });
     });
 
-    modalWrapper.querySelector('#tab-signup')?.addEventListener('click', () => {
-      if (!isSignUpMode) {
-        isSignUpMode = true;
-        updateView();
-      }
+    wrapper.querySelector('#auth-toggle')?.addEventListener('click', () => {
+      signUpMode = !signUpMode;
+      view();
     });
 
-    modalWrapper.querySelector('#auth-toggle-mode')?.addEventListener('click', () => {
-      isSignUpMode = !isSignUpMode;
-      updateView();
-    });
+    const form = wrapper.querySelector('#auth-form');
+    const errorBox = wrapper.querySelector('#auth-error');
 
-    // Form submit
-    const form = modalWrapper.querySelector('#auth-form');
-    const errorBox = modalWrapper.querySelector('#auth-error');
-    const submitBtn = modalWrapper.querySelector('#auth-submit-btn');
-
-    form?.addEventListener('submit', async (e) => {
+    form?.addEventListener('submit', async e => {
       e.preventDefault();
-      errorBox.style.display = 'none';
+      errorBox.hidden = true;
       errorBox.textContent = '';
 
-      const emailInput = modalWrapper.querySelector('#auth-email');
-      const passwordInput = modalWrapper.querySelector('#auth-password');
-      const nameInput = modalWrapper.querySelector('#auth-display-name');
+      const email = wrapper.querySelector('#auth-email')?.value.trim();
+      const password = wrapper.querySelector('#auth-password')?.value;
+      const name = wrapper.querySelector('#auth-name')?.value.trim() || '';
 
-      const email = emailInput?.value.trim();
-      const password = passwordInput?.value;
-      const displayName = nameInput ? nameInput.value.trim() : '';
+      const fail = msg => {
+        errorBox.textContent = msg;
+        errorBox.hidden = false;
+      };
 
-      if (!email || !password) {
-        errorBox.textContent = 'Veuillez remplir tous les champs obligatoires.';
-        errorBox.style.display = 'block';
-        return;
-      }
+      if (!email || !password) return fail('Veuillez remplir tous les champs obligatoires.');
+      if (signUpMode && !name) return fail("Veuillez renseigner un nom d'affichage.");
 
-      if (isSignUpMode && !displayName) {
-        errorBox.textContent = "Veuillez renseigner un nom d'affichage.";
-        errorBox.style.display = 'block';
-        return;
-      }
-
-      // Loading state
-      submitBtn.disabled = true;
-      const btnText = submitBtn.querySelector('.btn__text');
-      const btnSpinner = submitBtn.querySelector('.btn__spinner');
-      if (btnText) btnText.style.display = 'none';
-      if (btnSpinner) btnSpinner.style.display = 'inline-block';
+      const btn = wrapper.querySelector('#auth-submit');
+      const label = btn.querySelector('.btn__text');
+      const spinner = btn.querySelector('.btn__spinner');
+      btn.disabled = true;
+      label.hidden = true;
+      spinner.hidden = false;
 
       try {
-        if (isSignUpMode) {
-          await AuthService.signUp(email, password, displayName);
-          showToast(`Compte créé avec succès ! Bienvenue, ${displayName}.`, 'success');
+        if (signUpMode) {
+          await AuthService.signUp(email, password, name);
+          showToast(`Compte créé. Bienvenue, ${name} !`, 'success');
         } else {
           await AuthService.signIn(email, password);
-          showToast('Connexion réussie !', 'success');
+          showToast('Connexion réussie.', 'success');
         }
-        // State change is handled by onAuthStateChanged listener
+        // onAuthStateChanged handles the transition.
       } catch (err) {
-        console.error('[Auth] Error:', err);
-        let errorMsg = 'Une erreur est survenue lors de la connexion.';
-        if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-          errorMsg = 'Identifiants incorrects. Veuillez vérifier votre email et mot de passe.';
-        } else if (err.code === 'auth/email-already-in-use') {
-          errorMsg = 'Cette adresse email est déjà associée à un compte existant.';
-        } else if (err.code === 'auth/weak-password') {
-          errorMsg = 'Le mot de passe doit comporter au moins 6 caractères.';
-        } else if (err.code === 'auth/invalid-email') {
-          errorMsg = 'Adresse email invalide.';
-        } else if (err.message) {
-          errorMsg = err.message;
-        }
-
-        errorBox.textContent = errorMsg;
-        errorBox.style.display = 'block';
-
-        submitBtn.disabled = false;
-        if (btnText) btnText.style.display = 'inline-block';
-        if (btnSpinner) btnSpinner.style.display = 'none';
+        console.error('[Auth]', err);
+        fail(AUTH_ERRORS[err.code] || err.message || 'Une erreur est survenue. Réessayez.');
+        btn.disabled = false;
+        label.hidden = false;
+        spinner.hidden = true;
       }
     });
-  }
+  };
 
-  updateView();
+  view();
+  showModal(wrapper, { dismissible: false });
+}
 
-  // Show as non-dismissible modal when not authenticated
-  showModal(modalWrapper, { dismissible: false });
+/** Inform the user that Firebase is not configured. */
+function renderConfigWarning() {
+  const body = document.createElement('div');
+  body.className = 'login-modal';
+  body.innerHTML = `
+    <div class="login-modal__card card">
+      <div class="login-modal__header">
+        ${iconImg('high-priority', { size: 56, alt: '', className: 'login-modal__logo' })}
+        <h2 class="login-modal__title">Configuration requise</h2>
+        <p class="login-modal__subtitle">
+          Renseignez vos identifiants Firebase dans <code>src/env-config.js</code> pour activer l'authentification.
+        </p>
+      </div>
+      <p class="login-modal__hint">
+        Consultez le <strong>README.md</strong> : copiez <code>env-config.js.template</code>, encodez vos clés en Base64
+        puis rechargez la page.
+      </p>
+    </div>
+  `;
+  showModal(body, { dismissible: false });
 }
 
 // ============================================================================
-// Initialization Lifecycle
+// Bootstrap
 // ============================================================================
+
 document.addEventListener('DOMContentLoaded', async () => {
-  // 1. Initialize Theme from localStorage or system preference
-  const savedTheme = localStorage.getItem('fiches_theme') || localStorage.getItem('theme');
-  if (savedTheme === 'dark' || savedTheme === 'light') {
-    AppState.theme = savedTheme;
-  } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+  // 1. Theme
+  const saved = localStorage.getItem('fiches_theme');
+  if (saved === 'dark' || saved === 'light') {
+    AppState.theme = saved;
+  } else if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
     AppState.theme = 'dark';
-  } else {
-    AppState.theme = 'light';
   }
   document.documentElement.setAttribute('data-theme', AppState.theme);
 
-  // 2. Dynamically import top-level layout components
-  let navbarModule, dockModule, workspaceModule;
+  // 2. Layout shell
   try {
-    const modules = await Promise.all([
+    const [navbar, dock, workspace] = await Promise.all([
       import('./components/navbar.js'),
       import('./components/dock.js'),
       import('./components/workspace.js')
     ]);
-    navbarModule = modules[0];
-    dockModule = modules[1];
-    workspaceModule = modules[2];
 
     const navbarEl = document.getElementById('navbar');
     const dockEl = document.getElementById('dock');
     const workspaceEl = document.getElementById('workspace');
 
-    if (navbarEl) navbarModule.render(navbarEl);
-    if (dockEl) dockModule.render(dockEl);
-    if (workspaceEl) workspaceModule.render(workspaceEl);
+    if (navbarEl) navbar.render(navbarEl);
+    if (dockEl) dock.render(dockEl);
+    if (workspaceEl) workspace.render(workspaceEl);
   } catch (err) {
-    console.error('[App] Failed to load layout components:', err);
+    console.error('[App] layout components failed:', err);
     showToast('Erreur lors du chargement des composants.', 'error');
   }
 
-  // 3. Set up Firebase Authentication state listener
+  document.getElementById('boot-splash')?.remove();
+
+  // 3. Auth lifecycle
+  if (!isConfigured) {
+    console.warn('[App] Firebase appears unconfigured (demo credentials).');
+  }
+
   try {
-    AuthService.onAuthStateChanged(async (firebaseUser) => {
+    AuthService.onAuthStateChanged(async firebaseUser => {
       if (firebaseUser) {
-        // Authenticated user
+        let profile = null;
+        let isAdmin = false;
         try {
-          const profile = await AuthService.getUserProfile(firebaseUser.uid);
-          let isAdmin = false;
-          if (profile && profile.role === 'admin') {
-            isAdmin = true;
-          } else if (typeof AuthService.isAdmin === 'function') {
-            isAdmin = await AuthService.isAdmin(firebaseUser.uid);
-          }
-
-          AppState.user = firebaseUser;
-          AppState.profile = profile || {
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Utilisateur',
-            role: isAdmin ? 'admin' : 'user',
-            shortcuts: []
-          };
-          AppState.isAdmin = Boolean(isAdmin);
-
-          // Close login modal if present
-          hideModal();
-
-          // Broadcast login event across the application
-          EventBus.emit('auth:login', {
-            user: AppState.user,
-            profile: AppState.profile
-          });
-
-          // Open default workspace app if no panels are opened
-          EventBus.emit('app:open', { appId: 'file-explorer' });
-
-        } catch (profileErr) {
-          console.error('[App] Error fetching profile:', profileErr);
-          AppState.user = firebaseUser;
-          AppState.profile = {
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName || 'Utilisateur',
-            role: 'user',
-            shortcuts: []
-          };
-          AppState.isAdmin = false;
-          hideModal();
-          EventBus.emit('auth:login', { user: AppState.user, profile: AppState.profile });
+          profile = await AuthService.getUserProfile(firebaseUser.uid);
+          isAdmin = profile?.role === 'admin' || await AuthService.isAdmin(firebaseUser.uid);
+        } catch (err) {
+          console.warn('[App] profile load failed, using fallback:', err);
         }
+
+        AppState.user = firebaseUser;
+        AppState.profile = profile || {
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Utilisateur',
+          role: isAdmin ? 'admin' : 'user',
+          shortcuts: []
+        };
+        AppState.isAdmin = Boolean(isAdmin);
+
+        hideModal();
+        EventBus.emit('auth:login', { user: AppState.user, profile: AppState.profile });
+        EventBus.emit('app:open', { appId: 'file-explorer' });
       } else {
-        // Unauthenticated / Logged out
         AppState.user = null;
         AppState.profile = null;
         AppState.isAdmin = false;
-
         EventBus.emit('auth:logout', {});
-        renderLoginModal();
+        if (isConfigured) renderAuthModal();
+        else renderConfigWarning();
       }
     });
-  } catch (authErr) {
-    console.error('[App] Failed to initialize AuthService listener:', authErr);
-    renderLoginModal();
+  } catch (err) {
+    console.error('[App] auth listener failed:', err);
+    renderConfigWarning();
   }
 });

@@ -1,73 +1,66 @@
 /**
- * Fiches & Cloud — Firebase Configuration & Initialization Service
- * 
- * Imports base64-encoded credentials from env-config.js, decodes them,
- * and initializes the Firebase Compat SDK (loaded from CDN into window.firebase).
+ * Fiches & Cloud — Firebase bootstrap.
+ *
+ * Decodes the Base64 credentials from `env-config.js`, initialises the Firebase
+ * compat SDK exposed as `window.firebase` by the CDN scripts, and exports the
+ * `app`, `auth` and `db` handles used by the rest of the application.
  */
 
 import { FIREBASE_CONFIG_ENCODED } from '../env-config.js';
 
 /**
- * Safely decodes a base64-encoded ASCII or UTF-8 string.
- * @param {string} str 
+ * Decode a Base64 string, tolerating whitespace and missing globals.
+ * @param {string} [value]
  * @returns {string}
  */
-function decodeBase64(str) {
-  if (!str) return '';
+function decodeBase64(value) {
+  if (!value) return '';
+  const trimmed = String(value).trim();
   try {
-    if (typeof atob === 'function') {
-      return atob(str.trim());
-    }
-    if (typeof Buffer !== 'undefined') {
-      return Buffer.from(str.trim(), 'base64').toString('utf-8');
-    }
-  } catch (error) {
-    console.warn('[FirebaseConfig] Base64 decoding failed for a config parameter:', error);
+    if (typeof atob === 'function') return atob(trimmed);
+    if (typeof Buffer !== 'undefined') return Buffer.from(trimmed, 'base64').toString('utf-8');
+  } catch (err) {
+    console.warn('[FirebaseConfig] Base64 decoding failed:', err);
   }
-  return str;
+  return trimmed;
 }
 
-/**
- * Decoded Firebase configuration object
- */
+/** Decoded Firebase web configuration. */
 export const firebaseConfig = {
-  apiKey: decodeBase64(FIREBASE_CONFIG_ENCODED?.apiKey),
-  authDomain: decodeBase64(FIREBASE_CONFIG_ENCODED?.authDomain),
-  projectId: decodeBase64(FIREBASE_CONFIG_ENCODED?.projectId),
-  storageBucket: decodeBase64(FIREBASE_CONFIG_ENCODED?.storageBucket),
+  apiKey:            decodeBase64(FIREBASE_CONFIG_ENCODED?.apiKey),
+  authDomain:        decodeBase64(FIREBASE_CONFIG_ENCODED?.authDomain),
+  projectId:         decodeBase64(FIREBASE_CONFIG_ENCODED?.projectId),
+  storageBucket:     decodeBase64(FIREBASE_CONFIG_ENCODED?.storageBucket),
   messagingSenderId: decodeBase64(FIREBASE_CONFIG_ENCODED?.messagingSenderId),
-  appId: decodeBase64(FIREBASE_CONFIG_ENCODED?.appId)
+  appId:             decodeBase64(FIREBASE_CONFIG_ENCODED?.appId)
 };
 
-// Access the global Firebase compat object provided by CDN in index.html
+/** True when the config looks like real credentials rather than placeholders. */
+export const isConfigured = Boolean(
+  firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('demo-')
+);
+
 const firebase = typeof window !== 'undefined' ? window.firebase : null;
 
-let initializedApp = null;
-let initializedAuth = null;
-let initializedDb = null;
+let appRef = null;
+let authRef = null;
+let dbRef = null;
 
 if (firebase) {
   try {
-    if (firebase.apps && firebase.apps.length > 0) {
-      initializedApp = firebase.app();
-    } else {
-      initializedApp = firebase.initializeApp(firebaseConfig);
-    }
-    
-    if (typeof firebase.auth === 'function') {
-      initializedAuth = firebase.auth();
-    }
-    
-    if (typeof firebase.firestore === 'function') {
-      initializedDb = firebase.firestore();
-    }
-  } catch (initError) {
-    console.error('[FirebaseConfig] Error during Firebase initialization:', initError);
+    appRef = (firebase.apps && firebase.apps.length > 0)
+      ? firebase.app()
+      : firebase.initializeApp(firebaseConfig);
+
+    if (typeof firebase.auth === 'function') authRef = firebase.auth();
+    if (typeof firebase.firestore === 'function') dbRef = firebase.firestore();
+  } catch (err) {
+    console.error('[FirebaseConfig] Initialisation error:', err);
   }
 } else {
-  console.warn('[FirebaseConfig] window.firebase is not available. Ensure Firebase CDN scripts are included in index.html.');
+  console.warn('[FirebaseConfig] window.firebase unavailable — check the CDN <script> tags in index.html.');
 }
 
-export const app = initializedApp;
-export const auth = initializedAuth;
-export const db = initializedDb;
+export const app = appRef;
+export const auth = authRef;
+export const db = dbRef;

@@ -1,392 +1,241 @@
 /**
- * Fiches & Cloud — Central Workspace Manager
- * Coordinates multi-panel workspaces (up to 3 panels), dynamic module loading,
- * panel headers with maximize/close controls, and the welcome empty state.
+ * Fiches & Cloud — central workspace manager.
+ *
+ * Turns `app:open` events into panels, loads each app module on demand, and
+ * renders the welcome empty state when nothing is open.
  */
 
-import { EventBus, AppState, showToast } from '../app.js';
+import { EventBus, AppState, showToast, iconImg } from '../app.js';
 import * as splitScreen from './split-screen.js';
 
-let hostContainer = null;
-let activePanels = []; // Array of { panelId, appId, params, panelElement, contentEl, moduleInstance, isMaximized }
+let host = null;
+let panels = []; // { panelId, appId, params, element, contentEl, module, maximized }
+const bound = {};
 
-let boundOnAppOpen = null;
-let boundOnPanelClose = null;
-let boundOnLogout = null;
-
-// Registry of supported applications and their module paths
-const APP_REGISTRY = {
-  'file-explorer': {
-    title: 'Explorateur de fiches',
-    icon: 'folder',
-    modulePath: './file-explorer.js'
-  },
-  'link-manager': {
-    title: 'Gestionnaire de liens',
-    icon: 'link',
-    modulePath: './link-manager.js'
-  },
-  'markdown-editor': {
-    title: 'Éditeur Markdown',
-    icon: 'document',
-    modulePath: './markdown-editor.js'
-  },
-  'admin-database': {
-    title: 'Administration Base de données',
-    icon: 'database',
-    modulePath: './admin-database.js'
-  },
-  'admin-users': {
-    title: 'Gestion des Utilisateurs',
-    icon: 'group',
-    modulePath: './admin-users.js'
-  },
-  'admin-statistics': {
-    title: 'Statistiques & Métriques',
-    icon: 'combo-chart',
-    modulePath: './admin-statistics.js'
-  }
+/** Registry of launchable applications. */
+export const APP_REGISTRY = {
+  'file-explorer':    { title: 'Explorateur de fiches', icon: 'folder',      modulePath: './file-explorer.js' },
+  'link-manager':     { title: 'Gestionnaire de liens', icon: 'link',        modulePath: './link-manager.js' },
+  'markdown-editor':  { title: 'Éditeur Markdown',      icon: 'document',    modulePath: './markdown-editor.js' },
+  'admin-database':   { title: 'Base de données',       icon: 'database',    modulePath: './admin-database.js' },
+  'admin-users':      { title: 'Utilisateurs',          icon: 'group',       modulePath: './admin-users.js' },
+  'admin-statistics': { title: 'Statistiques',          icon: 'combo-chart', modulePath: './admin-statistics.js' }
 };
 
-/**
- * Render the workspace within the specified container
- * @param {HTMLElement} container 
- */
+/** @param {HTMLElement} container */
 export function render(container) {
-  hostContainer = container;
+  host = container;
   container.innerHTML = '';
-  activePanels = [];
+  panels = [];
 
-  // Initialize layout container
   splitScreen.createLayout(container, 0);
-
-  // Show welcome empty state initially
   renderEmptyState();
 
-  // Attach EventBus listeners
-  boundOnAppOpen = ({ appId, params }) => {
-    openPanel(appId, params);
-  };
+  bound.onAppOpen = ({ appId, params }) => openPanel(appId, params);
+  bound.onPanelClose = ({ panelId }) => closePanel(panelId);
+  bound.onLogout = () => closeAllPanels();
 
-  boundOnPanelClose = ({ panelId }) => {
-    closePanel(panelId);
-  };
-
-  boundOnLogout = () => {
-    closeAllPanels();
-  };
-
-  EventBus.on('app:open', boundOnAppOpen);
-  EventBus.on('panel:close', boundOnPanelClose);
-  EventBus.on('auth:logout', boundOnLogout);
+  EventBus.on('app:open', bound.onAppOpen);
+  EventBus.on('panel:close', bound.onPanelClose);
+  EventBus.on('auth:logout', bound.onLogout);
 }
 
 /**
- * Open an application in a workspace panel
- * @param {string} appId - Identifier matching APP_REGISTRY
- * @param {Object} [params={}] - Parameters passed to the component module
- * @returns {Promise<string|null>} The panelId or null if blocked
+ * Open (or focus) an application panel.
+ * @param {string} appId
+ * @param {Object} [params]
+ * @returns {Promise<string|null>} panel id
  */
 export async function openPanel(appId, params = {}) {
-  if (!hostContainer) return null;
+  if (!host) return null;
 
-  const appMeta = APP_REGISTRY[appId];
-  if (!appMeta) {
-    console.error(`[Workspace] Unknown application id: "${appId}"`);
+  const meta = APP_REGISTRY[appId];
+  if (!meta) {
+    console.error(`[Workspace] unknown app id "${appId}"`);
     showToast(`Application inconnue : ${appId}`, 'error');
     return null;
   }
 
-  // Check if panel with this appId is already open
-  const existingPanel = activePanels.find(p => p.appId === appId);
-  if (existingPanel) {
-    // If different params supplied (e.g., editing a specific note)
-    if (params && Object.keys(params).length > 0 && existingPanel.moduleInstance?.render) {
-      existingPanel.params = params;
+  // Already open → optionally re-render with new params, then focus.
+  const existing = panels.find(p => p.appId === appId);
+  if (existing) {
+    if (params && Object.keys(params).length > 0 && existing.module?.render) {
+      existing.params = params;
       try {
-        existingPanel.moduleInstance.render(existingPanel.contentEl, params);
+        existing.module.render(existing.contentEl, params);
       } catch (err) {
-        console.error(`[Workspace] Error re-rendering ${appId}:`, err);
+        console.error(`[Workspace] re-render failed for ${appId}:`, err);
       }
     }
-    focusPanel(existingPanel);
-    return existingPanel.panelId;
+    focusPanel(existing);
+    return existing.panelId;
   }
 
-  // Enforce maximum 3 panels
-  if (activePanels.length >= 3) {
-    showToast('Limite de 3 volets atteinte. Veuillez fermer un volet pour en ouvrir un nouveau.', 'info');
+  if (panels.length >= 3) {
+    showToast('Limite de 3 volets atteinte. Fermez un volet pour en ouvrir un autre.', 'info');
     return null;
   }
 
-  // Remove empty state if present
   clearEmptyState();
 
-  // Create panel element through split-screen utility
-  const panelElement = splitScreen.addPanel(hostContainer);
-  if (!panelElement) {
-    showToast('Impossible d\'ajouter un volet supplémentaire.', 'error');
+  const element = splitScreen.addPanel(host);
+  if (!element) {
+    showToast("Impossible d'ajouter un volet.", 'error');
     return null;
   }
 
-  const panelId = `panel_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-  panelElement.setAttribute('data-panel-id', panelId);
-  panelElement.setAttribute('data-app-id', appId);
+  const panelId = `panel_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  element.dataset.panelId = panelId;
+  element.dataset.appId = appId;
 
-  // Construct Header Bar
   const header = document.createElement('header');
   header.className = 'panel-header';
   header.innerHTML = `
     <div class="panel-header__title">
-      <img src="https://img.icons8.com/fluency/20/${appMeta.icon}.png" alt="" width="20" height="20" class="panel-header__icon">
-      <span class="panel-header__text">${appMeta.title}</span>
+      ${iconImg(meta.icon, { size: 18, alt: '', className: 'panel-header__icon' })}
+      <span class="panel-header__text">${meta.title}</span>
     </div>
     <div class="panel-header__actions">
-      <button type="button" class="btn btn--icon panel-header__btn panel-header__btn--maximize" title="Agrandir / Réduire" aria-label="Agrandir le volet">
-        <img src="https://img.icons8.com/fluency/18/full-screen.png" alt="Agrandir" width="16" height="16">
+      <button type="button" class="panel-header__btn" data-action="maximize" title="Agrandir / Réduire" aria-label="Agrandir le volet">
+        ${iconImg('full-screen', { size: 16, alt: '' })}
       </button>
-      <button type="button" class="btn btn--icon panel-header__btn panel-header__btn--close" title="Fermer le volet" aria-label="Fermer le volet">
-        <img src="https://img.icons8.com/fluency/18/close-window.png" alt="Fermer" width="16" height="16">
+      <button type="button" class="panel-header__btn panel-header__btn--close" data-action="close" title="Fermer le volet" aria-label="Fermer le volet">
+        ${iconImg('close-window', { size: 16, alt: '' })}
       </button>
     </div>
   `;
 
-  // Content Area
   const contentEl = document.createElement('div');
   contentEl.className = 'workspace__panel-content';
-  contentEl.style.flex = '1';
-  contentEl.style.overflow = 'auto';
-  contentEl.style.position = 'relative';
+  contentEl.innerHTML = `<div class="panel-loading"><span class="spinner"></span><p>Chargement de ${meta.title}…</p></div>`;
 
-  panelElement.appendChild(header);
-  panelElement.appendChild(contentEl);
+  element.append(header, contentEl);
 
-  const panelRecord = {
-    panelId,
-    appId,
-    params,
-    panelElement,
-    contentEl,
-    moduleInstance: null,
-    isMaximized: false
-  };
+  const record = { panelId, appId, params, element, contentEl, module: null, maximized: false };
 
-  // Attach Header Actions
-  const maxBtn = header.querySelector('.panel-header__btn--maximize');
-  const closeBtn = header.querySelector('.panel-header__btn--close');
-
-  maxBtn?.addEventListener('click', () => toggleMaximize(panelRecord));
-  closeBtn?.addEventListener('click', () => closePanel(panelId));
-
-  // Dynamically load the component module
-  contentEl.innerHTML = `
-    <div class="panel-loading" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--fluent-text-secondary);">
-      <span>Chargement de ${appMeta.title}...</span>
-    </div>
-  `;
+  header.querySelector('[data-action="maximize"]')?.addEventListener('click', () => toggleMaximize(record));
+  header.querySelector('[data-action="close"]')?.addEventListener('click', () => closePanel(panelId));
 
   try {
-    const compModule = await import(appMeta.modulePath);
+    const mod = await import(meta.modulePath);
     contentEl.innerHTML = '';
-    compModule.render(contentEl, params);
-    panelRecord.moduleInstance = compModule;
+    await mod.render(contentEl, params);
+    record.module = mod;
   } catch (err) {
-    console.error(`[Workspace] Failed to import or render module for ${appId}:`, err);
+    console.error(`[Workspace] failed to load ${appId}:`, err);
     contentEl.innerHTML = `
-      <div class="card" style="margin:20px;padding:20px;text-align:center;">
-        <p style="color:#d13438;font-weight:600;margin-bottom:8px;">Erreur de chargement</p>
-        <p style="color:var(--fluent-text-secondary);font-size:13px;">Impossible d'initialiser ${appMeta.title}.</p>
-      </div>
-    `;
-    showToast(`Erreur de chargement pour ${appMeta.title}`, 'error');
+      <div class="panel-error card">
+        <p class="panel-error__title">Erreur de chargement</p>
+        <p class="panel-error__text">Impossible d'initialiser ${meta.title}.</p>
+      </div>`;
+    showToast(`Erreur de chargement pour ${meta.title}`, 'error');
   }
 
-  activePanels.push(panelRecord);
+  panels.push(record);
   return panelId;
 }
 
-/**
- * Close an active panel by identifier
- * @param {string} panelId 
- */
+/** Close a panel by id. */
 export function closePanel(panelId) {
-  const index = activePanels.findIndex(p => p.panelId === panelId);
+  const index = panels.findIndex(p => p.panelId === panelId);
   if (index === -1) return;
 
-  const panel = activePanels[index];
+  const panel = panels[index];
+  if (panel.maximized) toggleMaximize(panel);
 
-  // If panel was maximized, restore other elements first
-  if (panel.isMaximized) {
-    toggleMaximize(panel);
-  }
-
-  // Cleanup component module
   try {
-    if (typeof panel.moduleInstance?.destroy === 'function') {
-      panel.moduleInstance.destroy();
-    }
+    if (typeof panel.module?.destroy === 'function') panel.module.destroy();
   } catch (err) {
-    console.error(`[Workspace] Error destroying module for ${panel.appId}:`, err);
+    console.error(`[Workspace] destroy failed for ${panel.appId}:`, err);
   }
 
-  // Remove element and dividers
-  splitScreen.removePanel(hostContainer, panel.panelElement);
-  activePanels.splice(index, 1);
-
-  // Notify listeners
+  splitScreen.removePanel(host, panel.element);
+  panels.splice(index, 1);
   EventBus.emit('panel:close', { panelId });
 
-  // Show empty state if no panels remain
-  if (activePanels.length === 0) {
-    renderEmptyState();
-  }
+  if (panels.length === 0) renderEmptyState();
 }
 
-/**
- * Close all active panels (e.g., during logout)
- */
+/** Close every panel (e.g. on logout). */
 function closeAllPanels() {
-  const panelsToClose = [...activePanels];
-  panelsToClose.forEach(p => closePanel(p.panelId));
+  [...panels].forEach(p => closePanel(p.panelId));
 }
 
-/**
- * Focus and visually highlight an already open panel
- * @param {Object} panel 
- */
+/** Scroll to and briefly highlight a panel. */
 function focusPanel(panel) {
-  panel.panelElement.scrollIntoView({ behavior: 'smooth', inline: 'nearest' });
-  panel.panelElement.classList.add('workspace__panel--focused');
-  setTimeout(() => {
-    panel.panelElement.classList.remove('workspace__panel--focused');
-  }, 800);
+  panel.element.scrollIntoView({ behavior: 'smooth', inline: 'nearest' });
+  panel.element.classList.add('workspace__panel--focused');
+  setTimeout(() => panel.element.classList.remove('workspace__panel--focused'), 700);
 }
 
-/**
- * Toggle maximize/restore state for a panel
- * @param {Object} panel 
- */
+/** Maximize / restore a panel. */
 function toggleMaximize(panel) {
-  panel.isMaximized = !panel.isMaximized;
+  panel.maximized = !panel.maximized;
+  const icon = panel.element.querySelector('[data-action="maximize"] img');
 
-  const maxBtnImg = panel.panelElement.querySelector('.panel-header__btn--maximize img');
-
-  if (panel.isMaximized) {
-    panel.panelElement.classList.add('workspace__panel--maximized');
-    if (maxBtnImg) {
-      maxBtnImg.src = 'https://img.icons8.com/fluency/18/collapse.png';
-      maxBtnImg.alt = 'Réduire';
-    }
-    // Hide other panels and dividers
-    activePanels.forEach(p => {
-      if (p.panelId !== panel.panelId) {
-        p.panelElement.style.display = 'none';
-      }
-    });
-    hostContainer?.querySelectorAll('.workspace__divider').forEach(d => {
-      d.style.display = 'none';
-    });
+  if (panel.maximized) {
+    panel.element.classList.add('workspace__panel--maximized');
+    if (icon) icon.src = 'https://img.icons8.com/fluency/200/collapse.png';
+    panels.forEach(p => { if (p.panelId !== panel.panelId) p.element.hidden = true; });
+    host?.querySelectorAll('.workspace__divider').forEach(d => { d.hidden = true; });
   } else {
-    panel.panelElement.classList.remove('workspace__panel--maximized');
-    if (maxBtnImg) {
-      maxBtnImg.src = 'https://img.icons8.com/fluency/18/full-screen.png';
-      maxBtnImg.alt = 'Agrandir';
-    }
-    // Restore other panels and dividers
-    activePanels.forEach(p => {
-      p.panelElement.style.display = 'flex';
-    });
-    hostContainer?.querySelectorAll('.workspace__divider').forEach(d => {
-      d.style.display = 'block';
-    });
+    panel.element.classList.remove('workspace__panel--maximized');
+    if (icon) icon.src = 'https://img.icons8.com/fluency/200/full-screen.png';
+    panels.forEach(p => { p.element.hidden = false; });
+    host?.querySelectorAll('.workspace__divider').forEach(d => { d.hidden = false; });
   }
 }
 
-/**
- * Render the welcome / empty state dashboard when no panels are active
- */
+/** Welcome dashboard shown when no panel is open. */
 function renderEmptyState() {
-  if (!hostContainer) return;
-  if (hostContainer.querySelector('.empty-state')) return;
+  if (!host || host.querySelector('.empty-state')) return;
 
-  const isAdmin = Boolean(AppState.isAdmin || AppState.profile?.role === 'admin');
+  const admin = Boolean(AppState.isAdmin || AppState.profile?.role === 'admin');
 
-  const emptyStateEl = document.createElement('div');
-  emptyStateEl.className = 'empty-state';
-  emptyStateEl.innerHTML = `
+  const card = (id, icon, title, desc) => `
+    <button type="button" class="empty-state__action" id="${id}">
+      ${iconImg(icon, { size: 32, alt: '', className: 'empty-state__action-icon' })}
+      <span class="empty-state__action-title">${title}</span>
+      <span class="empty-state__action-desc">${desc}</span>
+    </button>`;
+
+  const el = document.createElement('div');
+  el.className = 'empty-state';
+  el.innerHTML = `
     <div class="empty-state__card card">
-      <img src="https://img.icons8.com/fluency/64/cloud-checked.png" alt="Fiches & Cloud" class="empty-state__icon" width="64" height="64">
-      <h2 class="empty-state__title">Bienvenue dans Fiches & Cloud</h2>
+      ${iconImg('cloud-checked', { size: 64, alt: '', className: 'empty-state__icon' })}
+      <h2 class="empty-state__title">Bienvenue dans Fiches &amp; Cloud</h2>
       <p class="empty-state__description">
-        Votre espace de révision connecté. Consultez vos cours, écrivez de nouvelles fiches en Markdown avec KaTeX, ou organisez vos ressources.
+        Votre espace de révision connecté. Consultez vos cours, rédigez de nouvelles fiches
+        en Markdown avec KaTeX, ou organisez vos ressources web.
       </p>
-
       <div class="empty-state__grid">
-        <button type="button" class="empty-state__action-card card" id="btn-quick-explorer">
-          <img src="https://img.icons8.com/fluency/32/folder.png" alt="" width="32" height="32">
-          <span class="empty-state__action-title">Explorateur</span>
-          <span class="empty-state__action-desc">Parcourir toutes les fiches</span>
-        </button>
-
-        <button type="button" class="empty-state__action-card card" id="btn-quick-editor">
-          <img src="https://img.icons8.com/fluency/32/document.png" alt="" width="32" height="32">
-          <span class="empty-state__action-title">Nouvelle fiche</span>
-          <span class="empty-state__action-desc">Rédiger en Markdown + Math</span>
-        </button>
-
-        <button type="button" class="empty-state__action-card card" id="btn-quick-links">
-          <img src="https://img.icons8.com/fluency/32/link.png" alt="" width="32" height="32">
-          <span class="empty-state__action-title">Liens utiles</span>
-          <span class="empty-state__action-desc">Vos favoris et ressources web</span>
-        </button>
-
-        ${isAdmin ? `
-          <button type="button" class="empty-state__action-card card" id="btn-quick-stats">
-            <img src="https://img.icons8.com/fluency/32/combo-chart.png" alt="" width="32" height="32">
-            <span class="empty-state__action-title">Statistiques</span>
-            <span class="empty-state__action-desc">Métriques d'administration</span>
-          </button>
-        ` : ''}
+        ${card('quick-explorer', 'folder', 'Explorateur', 'Parcourir toutes les fiches')}
+        ${card('quick-editor', 'document', 'Nouvelle fiche', 'Rédiger en Markdown + Math')}
+        ${card('quick-links', 'link', 'Liens utiles', 'Vos favoris et ressources')}
+        ${admin ? card('quick-stats', 'combo-chart', 'Statistiques', "Métriques d'administration") : ''}
       </div>
     </div>
   `;
 
-  // Attach click actions to quick launch cards
-  emptyStateEl.querySelector('#btn-quick-explorer')?.addEventListener('click', () => openPanel('file-explorer'));
-  emptyStateEl.querySelector('#btn-quick-editor')?.addEventListener('click', () => openPanel('markdown-editor'));
-  emptyStateEl.querySelector('#btn-quick-links')?.addEventListener('click', () => openPanel('link-manager'));
-  emptyStateEl.querySelector('#btn-quick-stats')?.addEventListener('click', () => openPanel('admin-statistics'));
+  el.querySelector('#quick-explorer')?.addEventListener('click', () => openPanel('file-explorer'));
+  el.querySelector('#quick-editor')?.addEventListener('click', () => openPanel('markdown-editor'));
+  el.querySelector('#quick-links')?.addEventListener('click', () => openPanel('link-manager'));
+  el.querySelector('#quick-stats')?.addEventListener('click', () => openPanel('admin-statistics'));
 
-  hostContainer.appendChild(emptyStateEl);
+  host.appendChild(el);
 }
 
-/**
- * Remove empty state element if present
- */
+/** Remove the welcome state. */
 function clearEmptyState() {
-  if (!hostContainer) return;
-  const emptyState = hostContainer.querySelector('.empty-state');
-  if (emptyState) {
-    emptyState.remove();
-  }
+  host?.querySelector('.empty-state')?.remove();
 }
 
-/**
- * Destroy workspace, close all active panels and remove event listeners
- */
+/** Tear down the workspace. */
 export function destroy() {
   closeAllPanels();
-
-  if (boundOnAppOpen) EventBus.off('app:open', boundOnAppOpen);
-  if (boundOnPanelClose) EventBus.off('panel:close', boundOnPanelClose);
-  if (boundOnLogout) EventBus.off('auth:logout', boundOnLogout);
-
-  boundOnAppOpen = null;
-  boundOnPanelClose = null;
-  boundOnLogout = null;
-
-  if (hostContainer) {
-    hostContainer.innerHTML = '';
-    hostContainer = null;
-  }
+  EventBus.off('app:open', bound.onAppOpen);
+  EventBus.off('panel:close', bound.onPanelClose);
+  EventBus.off('auth:logout', bound.onLogout);
+  if (host) { host.innerHTML = ''; host = null; }
 }

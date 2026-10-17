@@ -1,16 +1,29 @@
 /**
- * Fiches & Cloud — Firestore Database Service
- * 
- * Provides unified CRUD operations for Notes, Links, Access Logs,
- * Administration (User Management, Collection Inspection), and Statistics Aggregation.
+ * Fiches & Cloud — Firestore data service.
+ *
+ * Single entry point for every database operation grouped by domain:
+ *   • Notes      — Markdown study cards      (collection `notes`)
+ *   • Links      — external bookmarks         (collection `links`)
+ *   • Shortcuts  — nav-bar quick actions      (collection `shortcuts`)
+ *   • Logs       — audit trail                (collection `accessLogs`)
+ *   • Admin      — cross-user reads, roles, statistics
+ *
+ * All ordered queries degrade gracefully to a client-side sort when a
+ * composite Firestore index is missing, so the app never hard-fails.
  */
 
 import { db } from './firebase-config.js';
 
-/**
- * Returns a server timestamp or current Date fallback.
- */
-function getServerTimestamp() {
+export const COLLECTIONS = Object.freeze({
+  NOTES: 'notes',
+  LINKS: 'links',
+  SHORTCUTS: 'shortcuts',
+  USERS: 'users',
+  LOGS: 'accessLogs'
+});
+
+/** Firestore server timestamp, falling back to a client Date. */
+function serverTimestamp() {
   const firebase = typeof window !== 'undefined' ? window.firebase : null;
   if (firebase?.firestore?.FieldValue?.serverTimestamp) {
     return firebase.firestore.FieldValue.serverTimestamp();
@@ -18,258 +31,155 @@ function getServerTimestamp() {
   return new Date();
 }
 
+/** Current authenticated uid, if any. */
+function currentUid() {
+  return (typeof window !== 'undefined' && window.firebase?.auth?.()?.currentUser?.uid) || null;
+}
+
 /**
- * Robust in-memory sorting utility supporting strings, numbers, and Firestore Timestamps.
- * Used directly or as fallback when Firestore compound indexes are missing.
- * 
- * @param {Array<Object>} items 
- * @param {string} sortBy 
- * @param {'asc'|'desc'} sortDir 
+ * Client-side sort tolerant of strings, numbers, Dates and Firestore Timestamps.
+ * @param {Array<Object>} items
+ * @param {string} key
+ * @param {'asc'|'desc'} dir
  * @returns {Array<Object>}
  */
-function sortItems(items, sortBy = 'updatedAt', sortDir = 'desc') {
+function sortBy(items, key = 'updatedAt', dir = 'desc') {
   return [...items].sort((a, b) => {
-    let valA = a[sortBy];
-    let valB = b[sortBy];
+    let x = a[key];
+    let y = b[key];
 
-    // Normalize Firestore Timestamps or Date objects to epoch milliseconds
-    if (valA && typeof valA.toDate === 'function') valA = valA.toDate().getTime();
-    if (valB && typeof valB.toDate === 'function') valB = valB.toDate().getTime();
-    if (valA instanceof Date) valA = valA.getTime();
-    if (valB instanceof Date) valB = valB.getTime();
+    if (x && typeof x.toDate === 'function') x = x.toDate().getTime();
+    if (y && typeof y.toDate === 'function') y = y.toDate().getTime();
+    if (x instanceof Date) x = x.getTime();
+    if (y instanceof Date) y = y.getTime();
+    if (typeof x === 'string') x = x.toLowerCase();
+    if (typeof y === 'string') y = y.toLowerCase();
+    if (x === undefined || x === null) x = '';
+    if (y === undefined || y === null) y = '';
 
-    if (typeof valA === 'string') valA = valA.toLowerCase();
-    if (typeof valB === 'string') valB = valB.toLowerCase();
-
-    if (valA === undefined || valA === null) valA = '';
-    if (valB === undefined || valB === null) valB = '';
-
-    if (valA < valB) return sortDir === 'asc' ? -1 : 1;
-    if (valA > valB) return sortDir === 'asc' ? 1 : -1;
+    if (x < y) return dir === 'asc' ? -1 : 1;
+    if (x > y) return dir === 'asc' ? 1 : -1;
     return 0;
   });
 }
 
 export const FirestoreService = {
-  // ==========================================
-  // Notes CRUD
-  // ==========================================
+  // ==========================================================================
+  // Notes
+  // ==========================================================================
 
   /**
-   * Create a new note document in `notes/{noteId}`.
-   * 
-   * @param {Object} params
-   * @param {string} params.uid - Owner user ID
-   * @param {string} params.title - Note title
-   * @param {string} params.content - Note markdown content
-   * @param {string} [params.subject] - Subject classification
-   * @param {string} [params.topic] - Topic or chapter
-   * @param {boolean} [params.isPublic] - Public visibility flag
-   * @returns {Promise<string>} The generated note ID
+   * Create a note.
+   * @param {{uid:string,title:string,content?:string,subject?:string,topic?:string,isPublic?:boolean}} p
+   * @returns {Promise<string>} new document id
    */
   async createNote({ uid, title, content = '', subject = 'Général', topic = '', isPublic = false }) {
-    if (!db) throw new Error('Firestore is not initialized');
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    const timestamp = serverTimestamp();
 
-    const timestamp = getServerTimestamp();
-    const charCount = typeof content === 'string' ? content.length : 0;
-
-    const noteData = {
+    const ref = await db.collection(COLLECTIONS.NOTES).add({
       uid,
       title: title?.trim() || 'Sans titre',
       content: content || '',
       subject: subject?.trim() || 'Général',
       topic: topic?.trim() || '',
       isPublic: Boolean(isPublic),
-      charCount,
+      charCount: (content || '').length,
       createdAt: timestamp,
       updatedAt: timestamp
-    };
+    });
 
-    const docRef = await db.collection('notes').add(noteData);
-
-    try {
-      await this.logAccess({
-        uid,
-        documentId: docRef.id,
-        documentType: 'note',
-        action: 'create'
-      });
-    } catch (logErr) {
-      console.warn('[FirestoreService] Note creation access log failed:', logErr);
-    }
-
-    return docRef.id;
+    return ref.id;
   },
 
-  /**
-   * Get a single note by ID.
-   * 
-   * @param {string} noteId 
-   * @returns {Promise<Object|null>} Note data with id or null
-   */
+  /** @param {string} noteId @returns {Promise<Object|null>} */
   async getNote(noteId) {
-    if (!db) throw new Error('Firestore is not initialized');
-    if (!noteId) return null;
-
-    const doc = await db.collection('notes').doc(noteId).get();
-    if (!doc.exists) return null;
-
-    return { id: doc.id, ...doc.data() };
+    if (!db || !noteId) return null;
+    const doc = await db.collection(COLLECTIONS.NOTES).doc(noteId).get();
+    return doc.exists ? { id: doc.id, ...doc.data() } : null;
   },
 
   /**
-   * Update an existing note document. Automatically updates `updatedAt` and `charCount`.
-   * 
-   * @param {string} noteId 
-   * @param {Object} data 
-   * @returns {Promise<void>}
+   * Patch a note; `updatedAt` and `charCount` are kept in sync automatically.
+   * @param {string} noteId
+   * @param {Object} data
    */
   async updateNote(noteId, data) {
-    if (!db) throw new Error('Firestore is not initialized');
-    if (!noteId) throw new Error('Note ID is required to update');
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    if (!noteId) throw new Error('Identifiant de fiche requis.');
 
-    const timestamp = getServerTimestamp();
-    const updatePayload = {
-      ...data,
-      updatedAt: timestamp
-    };
+    const payload = { ...data, updatedAt: serverTimestamp() };
+    if (typeof data.content === 'string') payload.charCount = data.content.length;
 
-    if (typeof data.content === 'string') {
-      updatePayload.charCount = data.content.length;
-    }
-
-    await db.collection('notes').doc(noteId).update(updatePayload);
-
-    try {
-      const currentUid = data.uid || (typeof window !== 'undefined' && window.firebase?.auth()?.currentUser?.uid);
-      if (currentUid) {
-        await this.logAccess({
-          uid: currentUid,
-          documentId: noteId,
-          documentType: 'note',
-          action: 'edit'
-        });
-      }
-    } catch (logErr) {
-      // Non-blocking
-    }
+    await db.collection(COLLECTIONS.NOTES).doc(noteId).update(payload);
   },
 
-  /**
-   * Delete a note document by ID.
-   * 
-   * @param {string} noteId 
-   * @returns {Promise<void>}
-   */
+  /** Delete a note by id. */
   async deleteNote(noteId) {
-    if (!db) throw new Error('Firestore is not initialized');
-    if (!noteId) return;
-
-    try {
-      const currentUid = typeof window !== 'undefined' && window.firebase?.auth()?.currentUser?.uid;
-      if (currentUid) {
-        await this.logAccess({
-          uid: currentUid,
-          documentId: noteId,
-          documentType: 'note',
-          action: 'delete'
-        });
-      }
-    } catch (logErr) {
-      // Non-blocking
-    }
-
-    await db.collection('notes').doc(noteId).delete();
+    if (!db || !noteId) return;
+    await db.collection(COLLECTIONS.NOTES).doc(noteId).delete();
   },
 
   /**
-   * Fetch all notes owned by a specific user with optional filters and sorting.
-   * 
-   * @param {string} uid 
-   * @param {Object} [filters]
-   * @param {string} [filters.subject]
-   * @param {string} [filters.topic]
-   * @param {string} [filters.sortBy='updatedAt']
-   * @param {'asc'|'desc'} [filters.sortDir='desc']
+   * Notes owned by a user.
+   * @param {string} uid
+   * @param {{subject?:string,topic?:string,sortBy?:string,sortDir?:'asc'|'desc'}} [filters]
    * @returns {Promise<Array<Object>>}
    */
-  async getUserNotes(uid, { subject, topic, sortBy = 'updatedAt', sortDir = 'desc' } = {}) {
-    if (!db) throw new Error('Firestore is not initialized');
-    if (!uid) return [];
+  async getUserNotes(uid, { subject, topic, sortBy: key = 'updatedAt', sortDir = 'desc' } = {}) {
+    if (!db || !uid) return [];
 
-    let query = db.collection('notes').where('uid', '==', uid);
-
-    if (subject && subject !== 'all') {
-      query = query.where('subject', '==', subject);
-    }
-    if (topic && topic !== 'all') {
-      query = query.where('topic', '==', topic);
-    }
+    let query = db.collection(COLLECTIONS.NOTES).where('uid', '==', uid);
+    if (subject && subject !== 'all') query = query.where('subject', '==', subject);
+    if (topic && topic !== 'all') query = query.where('topic', '==', topic);
 
     let snapshot;
     try {
-      // Attempt server-side index ordering
-      snapshot = await query.orderBy(sortBy, sortDir).get();
-    } catch (queryErr) {
-      // Fallback without orderBy to prevent index errors
-      console.warn('[FirestoreService] getUserNotes query fallback without server ordering:', queryErr.message);
+      snapshot = await query.orderBy(key, sortDir).get();
+    } catch (err) {
+      console.warn('[Firestore] getUserNotes fallback (no index):', err.message);
       snapshot = await query.get();
     }
 
-    const notes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    return sortItems(notes, sortBy, sortDir);
+    return sortBy(snapshot.docs.map(d => ({ id: d.id, ...d.data() })), key, sortDir);
   },
 
   /**
-   * Fetch all public notes across all users with optional subject filter and sorting.
-   * 
-   * @param {Object} [filters]
-   * @param {string} [filters.subject]
-   * @param {string} [filters.sortBy='updatedAt']
-   * @param {'asc'|'desc'} [filters.sortDir='desc']
+   * Every public note across all users.
+   * @param {{subject?:string,sortBy?:string,sortDir?:'asc'|'desc'}} [filters]
    * @returns {Promise<Array<Object>>}
    */
-  async getPublicNotes({ subject, sortBy = 'updatedAt', sortDir = 'desc' } = {}) {
-    if (!db) throw new Error('Firestore is not initialized');
+  async getPublicNotes({ subject, sortBy: key = 'updatedAt', sortDir = 'desc' } = {}) {
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
 
-    let query = db.collection('notes').where('isPublic', '==', true);
-
-    if (subject && subject !== 'all') {
-      query = query.where('subject', '==', subject);
-    }
+    let query = db.collection(COLLECTIONS.NOTES).where('isPublic', '==', true);
+    if (subject && subject !== 'all') query = query.where('subject', '==', subject);
 
     let snapshot;
     try {
-      snapshot = await query.orderBy(sortBy, sortDir).get();
-    } catch (queryErr) {
-      console.warn('[FirestoreService] getPublicNotes query fallback without server ordering:', queryErr.message);
+      snapshot = await query.orderBy(key, sortDir).get();
+    } catch (err) {
+      console.warn('[Firestore] getPublicNotes fallback (no index):', err.message);
       snapshot = await query.get();
     }
 
-    const notes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    return sortItems(notes, sortBy, sortDir);
+    return sortBy(snapshot.docs.map(d => ({ id: d.id, ...d.data() })), key, sortDir);
   },
 
-  // ==========================================
-  // Links CRUD
-  // ==========================================
+  // ==========================================================================
+  // Links
+  // ==========================================================================
 
   /**
-   * Create a new link bookmark in `links/{linkId}`.
-   * 
-   * @param {Object} params
-   * @param {string} params.uid - Owner user ID
-   * @param {string} params.title - Link title
-   * @param {string} params.url - Web URL
-   * @param {string} [params.description] - Additional context/notes
-   * @param {string} [params.subject] - Subject classification
-   * @returns {Promise<string>} The generated link ID
+   * Create a bookmark.
+   * @param {{uid:string,title:string,url:string,description?:string,subject?:string}} p
+   * @returns {Promise<string>} new document id
    */
   async createLink({ uid, title, url, description = '', subject = 'Général' }) {
-    if (!db) throw new Error('Firestore is not initialized');
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    const timestamp = serverTimestamp();
 
-    const timestamp = getServerTimestamp();
-    const linkData = {
+    const ref = await db.collection(COLLECTIONS.LINKS).add({
       uid,
       title: title?.trim() || 'Sans titre',
       url: url?.trim() || '',
@@ -277,276 +187,221 @@ export const FirestoreService = {
       subject: subject?.trim() || 'Général',
       createdAt: timestamp,
       updatedAt: timestamp
-    };
-
-    const docRef = await db.collection('links').add(linkData);
-
-    try {
-      await this.logAccess({
-        uid,
-        documentId: docRef.id,
-        documentType: 'link',
-        action: 'create'
-      });
-    } catch (logErr) {
-      // Non-blocking
-    }
-
-    return docRef.id;
-  },
-
-  /**
-   * Get a single link by ID.
-   * 
-   * @param {string} linkId 
-   * @returns {Promise<Object|null>} Link data with id or null
-   */
-  async getLink(linkId) {
-    if (!db) throw new Error('Firestore is not initialized');
-    if (!linkId) return null;
-
-    const doc = await db.collection('links').doc(linkId).get();
-    if (!doc.exists) return null;
-
-    return { id: doc.id, ...doc.data() };
-  },
-
-  /**
-   * Update an existing link document.
-   * 
-   * @param {string} linkId 
-   * @param {Object} data 
-   * @returns {Promise<void>}
-   */
-  async updateLink(linkId, data) {
-    if (!db) throw new Error('Firestore is not initialized');
-    if (!linkId) throw new Error('Link ID is required to update');
-
-    const timestamp = getServerTimestamp();
-    await db.collection('links').doc(linkId).update({
-      ...data,
-      updatedAt: timestamp
     });
 
-    try {
-      const currentUid = data.uid || (typeof window !== 'undefined' && window.firebase?.auth()?.currentUser?.uid);
-      if (currentUid) {
-        await this.logAccess({
-          uid: currentUid,
-          documentId: linkId,
-          documentType: 'link',
-          action: 'edit'
-        });
-      }
-    } catch (logErr) {
-      // Non-blocking
-    }
+    return ref.id;
   },
 
-  /**
-   * Delete a link document by ID.
-   * 
-   * @param {string} linkId 
-   * @returns {Promise<void>}
-   */
+  /** @param {string} linkId @returns {Promise<Object|null>} */
+  async getLink(linkId) {
+    if (!db || !linkId) return null;
+    const doc = await db.collection(COLLECTIONS.LINKS).doc(linkId).get();
+    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+  },
+
+  /** Patch a bookmark. */
+  async updateLink(linkId, data) {
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    if (!linkId) throw new Error('Identifiant de lien requis.');
+    await db.collection(COLLECTIONS.LINKS).doc(linkId).update({ ...data, updatedAt: serverTimestamp() });
+  },
+
+  /** Delete a bookmark. */
   async deleteLink(linkId) {
-    if (!db) throw new Error('Firestore is not initialized');
-    if (!linkId) return;
-
-    try {
-      const currentUid = typeof window !== 'undefined' && window.firebase?.auth()?.currentUser?.uid;
-      if (currentUid) {
-        await this.logAccess({
-          uid: currentUid,
-          documentId: linkId,
-          documentType: 'link',
-          action: 'delete'
-        });
-      }
-    } catch (logErr) {
-      // Non-blocking
-    }
-
-    await db.collection('links').doc(linkId).delete();
+    if (!db || !linkId) return;
+    await db.collection(COLLECTIONS.LINKS).doc(linkId).delete();
   },
 
   /**
-   * Fetch links owned by a specific user with optional subject filter.
-   * 
-   * @param {string} uid 
-   * @param {Object} [filters]
-   * @param {string} [filters.subject]
+   * Links owned by a user.
+   * @param {string} uid
+   * @param {{subject?:string}} [filters]
    * @returns {Promise<Array<Object>>}
    */
   async getUserLinks(uid, { subject } = {}) {
-    if (!db) throw new Error('Firestore is not initialized');
-    if (!uid) return [];
+    if (!db || !uid) return [];
 
-    let query = db.collection('links').where('uid', '==', uid);
-
-    if (subject && subject !== 'all') {
-      query = query.where('subject', '==', subject);
-    }
+    let query = db.collection(COLLECTIONS.LINKS).where('uid', '==', uid);
+    if (subject && subject !== 'all') query = query.where('subject', '==', subject);
 
     let snapshot;
     try {
       snapshot = await query.orderBy('updatedAt', 'desc').get();
     } catch (err) {
-      console.warn('[FirestoreService] getUserLinks fallback without server ordering:', err.message);
+      console.warn('[Firestore] getUserLinks fallback (no index):', err.message);
       snapshot = await query.get();
     }
 
-    const links = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    return sortItems(links, 'updatedAt', 'desc');
+    return sortBy(snapshot.docs.map(d => ({ id: d.id, ...d.data() })), 'updatedAt', 'desc');
   },
 
-  // ==========================================
-  // Admin Operations
-  // ==========================================
+  // ==========================================================================
+  // Shortcuts (nav-bar quick actions)
+  // ==========================================================================
 
   /**
-   * Fetch all user documents across the application (Admin).
-   * 
+   * Create a shortcut for the navigation bar.
+   * @param {{uid:string,label:string,icon?:string,action:string,order?:number}} p
+   * @returns {Promise<string>} new document id
+   */
+  async createShortcut({ uid, label, icon = 'star', action, order = 0 }) {
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    const ref = await db.collection(COLLECTIONS.SHORTCUTS).add({
+      uid,
+      label: label?.trim() || 'Raccourci',
+      icon: icon?.trim() || 'star',
+      action: action?.trim() || '',
+      order: Number(order) || 0,
+      createdAt: serverTimestamp()
+    });
+    return ref.id;
+  },
+
+  /** Patch a shortcut (used by the admin inspector). */
+  async updateShortcut(id, data) {
+    if (!db || !id) return;
+    await db.collection(COLLECTIONS.SHORTCUTS).doc(id).update({ ...data, updatedAt: serverTimestamp() });
+  },
+
+  /** Delete a shortcut. */
+  async deleteShortcut(id) {
+    if (!db || !id) return;
+    await db.collection(COLLECTIONS.SHORTCUTS).doc(id).delete();
+  },
+
+  /**
+   * Shortcuts owned by a user, ordered.
+   * @param {string} uid
    * @returns {Promise<Array<Object>>}
    */
-  async getAllUsers() {
-    if (!db) throw new Error('Firestore is not initialized');
-    const snap = await db.collection('users').get();
-    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  async getUserShortcuts(uid) {
+    if (!db || !uid) return [];
+
+    let snapshot;
+    try {
+      snapshot = await db.collection(COLLECTIONS.SHORTCUTS).where('uid', '==', uid).orderBy('order', 'asc').get();
+    } catch (err) {
+      console.warn('[Firestore] getUserShortcuts fallback (no index):', err.message);
+      snapshot = await db.collection(COLLECTIONS.SHORTCUTS).where('uid', '==', uid).get();
+    }
+
+    return sortBy(snapshot.docs.map(d => ({ id: d.id, ...d.data() })), 'order', 'asc');
   },
 
+  // ==========================================================================
+  // Audit log
+  // ==========================================================================
+
   /**
-   * Fetch all note documents across all users (Admin).
-   * 
-   * @returns {Promise<Array<Object>>}
+   * Append an activity event to `accessLogs` (best-effort, never throws).
+   * @param {{uid?:string,documentId?:string,documentType?:string,action?:string}} entry
    */
-  async getAllNotes() {
-    if (!db) throw new Error('Firestore is not initialized');
-    const snap = await db.collection('notes').get();
-    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  async logAccess({ uid, documentId, documentType, action }) {
+    if (!db) return;
+    try {
+      await db.collection(COLLECTIONS.LOGS).add({
+        uid: uid || 'anonymous',
+        documentId: documentId || '',
+        documentType: documentType || 'note',
+        action: action || 'view',
+        timestamp: serverTimestamp()
+      });
+    } catch (err) {
+      console.warn('[Firestore] logAccess failed:', err);
+    }
   },
 
   /**
-   * Fetch all link bookmarks across all users (Admin).
-   * 
-   * @returns {Promise<Array<Object>>}
-   */
-  async getAllLinks() {
-    if (!db) throw new Error('Firestore is not initialized');
-    const snap = await db.collection('links').get();
-    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  },
-
-  /**
-   * Fetch audit access logs with optional user filtering and limit.
-   * 
-   * @param {Object} [options]
-   * @param {string} [options.uid]
-   * @param {number} [options.limit=50]
+   * Recent audit entries, optionally for a single user.
+   * @param {{uid?:string,limit?:number}} [options]
    * @returns {Promise<Array<Object>>}
    */
   async getAccessLogs({ uid, limit = 50 } = {}) {
-    if (!db) throw new Error('Firestore is not initialized');
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
 
-    let query = db.collection('accessLogs');
-
-    if (uid) {
-      query = query.where('uid', '==', uid);
-    }
+    let query = db.collection(COLLECTIONS.LOGS);
+    if (uid) query = query.where('uid', '==', uid);
 
     let snapshot;
     try {
       snapshot = await query.orderBy('timestamp', 'desc').limit(limit).get();
     } catch (err) {
-      console.warn('[FirestoreService] getAccessLogs fallback without server ordering:', err.message);
+      console.warn('[Firestore] getAccessLogs fallback (no index):', err.message);
       snapshot = await query.get();
     }
 
-    let logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    logs = sortItems(logs, 'timestamp', 'desc');
+    const logs = sortBy(snapshot.docs.map(d => ({ id: d.id, ...d.data() })), 'timestamp', 'desc');
     return logs.slice(0, limit);
   },
 
-  /**
-   * Record an activity event in `accessLogs`.
-   * 
-   * @param {Object} log
-   * @param {string} log.uid - Performing user ID
-   * @param {string} log.documentId - Note or link ID
-   * @param {'note'|'link'} log.documentType - Document type
-   * @param {'view'|'edit'|'create'|'delete'} log.action - Action executed
-   * @returns {Promise<void>}
-   */
-  async logAccess({ uid, documentId, documentType, action }) {
-    if (!db) return;
+  // ==========================================================================
+  // Admin
+  // ==========================================================================
 
-    try {
-      const timestamp = getServerTimestamp();
-      await db.collection('accessLogs').add({
-        uid: uid || 'anonymous',
-        documentId: documentId || '',
-        documentType: documentType || 'note',
-        action: action || 'view',
-        timestamp
-      });
-    } catch (err) {
-      console.warn('[FirestoreService] logAccess failed:', err);
-    }
+  /** @returns {Promise<Array<Object>>} every user profile */
+  async getAllUsers() {
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    const snap = await db.collection(COLLECTIONS.USERS).get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  /** @returns {Promise<Array<Object>>} every note */
+  async getAllNotes() {
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    const snap = await db.collection(COLLECTIONS.NOTES).get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  /** @returns {Promise<Array<Object>>} every link */
+  async getAllLinks() {
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    const snap = await db.collection(COLLECTIONS.LINKS).get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  /** @returns {Promise<Array<Object>>} every shortcut */
+  async getAllShortcuts() {
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    const snap = await db.collection(COLLECTIONS.SHORTCUTS).get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
 
   /**
-   * Update a user's role (e.g. promote to 'admin' or demote to 'user').
-   * 
-   * @param {string} uid 
-   * @param {'user'|'admin'} role 
-   * @returns {Promise<void>}
+   * Update a user's role.
+   * @param {string} uid
+   * @param {'user'|'admin'} role
    */
   async updateUserRole(uid, role) {
-    if (!db) throw new Error('Firestore is not initialized');
-    if (!uid) throw new Error('User ID is required to update role');
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    if (!uid) throw new Error('Identifiant utilisateur requis.');
     if (!['user', 'admin'].includes(role)) {
-      throw new Error(`Invalid role '${role}'. Role must be 'user' or 'admin'.`);
+      throw new Error(`Rôle invalide « ${role} ». Attendu : « user » ou « admin ».`);
     }
-
-    await db.collection('users').doc(uid).update({ role });
+    await db.collection(COLLECTIONS.USERS).doc(uid).update({ role });
   },
 
-  // ==========================================
-  // Statistics Aggregation
-  // ==========================================
-
   /**
-   * Aggregate application-wide metrics for the Admin Dashboard.
-   * 
-   * @returns {Promise<{
-   *   totalNotes: number,
-   *   totalLinks: number,
-   *   totalChars: number,
-   *   activeUsers: number,
-   *   subjectBreakdown: Record<string, number>
-   * }>}
+   * Aggregate application-wide metrics for the Statistics dashboard.
+   * @returns {Promise<{totalNotes:number,totalLinks:number,totalShortcuts:number,totalChars:number,activeUsers:number,subjectBreakdown:Record<string,number>}>}
    */
   async getStats() {
-    if (!db) throw new Error('Firestore is not initialized');
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
 
-    const [notesSnap, linksSnap, usersSnap] = await Promise.all([
-      db.collection('notes').get(),
-      db.collection('links').get(),
-      db.collection('users').get()
+    const [notes, links, shortcuts, users] = await Promise.all([
+      db.collection(COLLECTIONS.NOTES).get(),
+      db.collection(COLLECTIONS.LINKS).get(),
+      db.collection(COLLECTIONS.SHORTCUTS).get(),
+      db.collection(COLLECTIONS.USERS).get()
     ]);
-
-    const totalNotes = notesSnap.size;
-    const totalLinks = linksSnap.size;
 
     let totalChars = 0;
     const subjectBreakdown = {};
 
-    notesSnap.docs.forEach(doc => {
+    notes.docs.forEach(doc => {
       const data = doc.data();
-      const chars = typeof data.charCount === 'number'
+      totalChars += typeof data.charCount === 'number'
         ? data.charCount
         : (data.content ? data.content.length : 0);
-      totalChars += chars;
 
       const subject = data.subject || 'Non classé';
       subjectBreakdown[subject] = (subjectBreakdown[subject] || 0) + 1;
@@ -555,33 +410,21 @@ export const FirestoreService = {
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
     let activeUsers = 0;
 
-    usersSnap.docs.forEach(doc => {
-      const data = doc.data();
-      let lastLoginTime = 0;
-
-      if (data.lastLogin) {
-        if (typeof data.lastLogin.toDate === 'function') {
-          lastLoginTime = data.lastLogin.toDate().getTime();
-        } else if (data.lastLogin instanceof Date) {
-          lastLoginTime = data.lastLogin.getTime();
-        } else if (typeof data.lastLogin === 'number') {
-          lastLoginTime = data.lastLogin;
-        }
-      }
-
-      if (lastLoginTime >= thirtyDaysAgo) {
-        activeUsers++;
-      }
+    users.docs.forEach(doc => {
+      const { lastLogin } = doc.data();
+      let time = 0;
+      if (lastLogin?.toDate) time = lastLogin.toDate().getTime();
+      else if (lastLogin instanceof Date) time = lastLogin.getTime();
+      else if (typeof lastLogin === 'number') time = lastLogin;
+      if (time >= thirtyDaysAgo) activeUsers += 1;
     });
 
-    // If active count is 0 but users exist, fallback to total user count
-    if (activeUsers === 0 && usersSnap.size > 0) {
-      activeUsers = usersSnap.size;
-    }
+    if (activeUsers === 0 && users.size > 0) activeUsers = users.size;
 
     return {
-      totalNotes,
-      totalLinks,
+      totalNotes: notes.size,
+      totalLinks: links.size,
+      totalShortcuts: shortcuts.size,
       totalChars,
       activeUsers,
       subjectBreakdown

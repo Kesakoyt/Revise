@@ -3,59 +3,67 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Fiches & Cloud — Cloud Study Notes & Document Hub">
+  <meta name="description" content="Fiches & Cloud — Espace d'étude, fiches Markdown et ressources, propulsé par Firebase.">
   <meta name="theme-color" content="#0078d4">
-  <title>Fiches & Cloud</title>
+  <title>Fiches &amp; Cloud</title>
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/32/cloud-checked.png">
+  <!-- Favicon (Icons8 Fluency) -->
+  <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/200/cloud-checked.png">
 
   <!-- Typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-  <!-- ======================================================== -->
-  <!-- CDN Dependencies (Loaded globally before ES modules)    -->
-  <!-- ======================================================== -->
+  <!-- =================================================================== -->
+  <!-- CDN dependencies, loaded as globals BEFORE the ES modules run.      -->
+  <!-- They are pinned to exact versions for reproducible behaviour.       -->
+  <!-- =================================================================== -->
 
-  <!-- Firebase 10.x Compat -->
+  <!-- Firebase 10.7.1 (compat build, exposes window.firebase.*) -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
-  <!-- Marked.js (Markdown parser) -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Marked.js — Markdown → HTML -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
 
-  <!-- KaTeX (Math typesetting & auto-render) -->
+  <!-- KaTeX — math typesetting + delimiter auto-render -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 
-  <!-- PDF.js -->
+  <!-- PDF.js — client-side PDF text extraction -->
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 
-  <!-- Mammoth.js (DOCX conversion) -->
+  <!-- Mammoth.js — client-side .docx → HTML -->
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
 
-  <!-- Application Stylesheet -->
+  <!-- Application stylesheet -->
   <link rel="stylesheet" href="src/styles/style.css">
 </head>
 <body>
-  <!-- Root application shell -->
+  <!-- Application shell -->
   <div id="app" class="app-container">
-    <nav id="navbar" class="navbar"></nav>
+    <header id="navbar" class="navbar" role="banner"></header>
     <div class="app-body">
-      <aside id="dock" class="dock"></aside>
-      <main id="workspace" class="workspace"></main>
+      <aside id="dock" class="dock" aria-label="Lanceur d'applications"></aside>
+      <main id="workspace" class="workspace" role="main"></main>
     </div>
   </div>
 
-  <!-- Global Modal & Toast overlays -->
-  <div id="modal-container"></div>
-  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+  <!-- Global overlays -->
+  <div id="modal-container" class="modal-container"></div>
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false"></div>
 
-  <!-- Main ES Module Entry Point -->
+  <!-- Boot splash (removed once the shell mounts) -->
+  <div id="boot-splash" class="boot-splash">
+    <img src="https://img.icons8.com/fluency/200/cloud-checked.png" alt="" class="boot-splash__logo" width="64" height="64"
+         onerror="this.onerror=null;this.src='assets/logo-mark.svg';">
+    <p class="boot-splash__text">Chargement de Fiches &amp; Cloud…</p>
+  </div>
+
+  <!-- Entry point -->
   <script type="module" src="src/app.js"></script>
 </body>
 </html>
