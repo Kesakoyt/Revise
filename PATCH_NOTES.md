@@ -2,6 +2,34 @@
 
 ---
 
+## v1.1.0 — User profile
+**Date:** 2026-10-17
+**Scope:** add a real, editable account profile for every signed-in user.
+
+### Added
+- **`src/components/user-profile.js`** — "Mon profil" panel opened from the
+  account chip in the navigation bar. Shows identity (avatar, name, email, role,
+  member-since), lets the owner edit **display name**, **bio** and **avatar
+  colour**, displays storage usage (quota bar + note/link/character counts) and
+  sends a **password-reset email**.
+- `AuthService.sendPasswordReset(email)` and `updatedAt` stamping on
+  `AuthService.updateUserProfile()`.
+- `bio` and `avatarColor` defaults on new `users/{uid}` documents (sign-up and
+  first sign-in).
+- `profile:updated` EventBus event; the navbar re-renders on it.
+- `user-profile` entry in the workspace `APP_REGISTRY` (icon `guest-male`).
+
+### Changed
+- Navbar account block is now a button (with avatar) that opens the profile;
+  sign-out stays a separate control.
+- README data model / project structure / event list updated accordingly.
+
+### Notes
+- No security-rule change required: owners may already update any field except
+  `role` and `quotaLimit`.
+
+---
+
 ## v1.0.0 — Initial production rebuild
 **Date:** 2026-10-17
 **Scope:** full clean-room regeneration of the application from the project

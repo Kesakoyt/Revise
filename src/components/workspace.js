@@ -17,6 +17,7 @@ export const APP_REGISTRY = {
   'file-explorer':    { title: 'Explorateur de fiches', icon: 'folder',      modulePath: './file-explorer.js' },
   'link-manager':     { title: 'Gestionnaire de liens', icon: 'link',        modulePath: './link-manager.js' },
   'markdown-editor':  { title: 'Éditeur Markdown',      icon: 'document',    modulePath: './markdown-editor.js' },
+  'user-profile':     { title: 'Mon profil',            icon: 'guest-male',  modulePath: './user-profile.js' },
   'admin-database':   { title: 'Base de données',       icon: 'database',    modulePath: './admin-database.js' },
   'admin-users':      { title: 'Utilisateurs',          icon: 'group',       modulePath: './admin-users.js' },
   'admin-statistics': { title: 'Statistiques',          icon: 'combo-chart', modulePath: './admin-statistics.js' }

@@ -8,6 +8,7 @@
 import { auth, db } from './firebase-config.js';
 
 const DEFAULT_QUOTA = 500000;
+const DEFAULT_AVATAR_COLOR = '#0078d4';
 
 /** Firestore server timestamp, falling back to a client Date. */
 function serverTimestamp() {
@@ -50,6 +51,8 @@ export const AuthService = {
           await ref.set({
             email: user.email,
             displayName: user.displayName || user.email.split('@')[0],
+            bio: '',
+            avatarColor: DEFAULT_AVATAR_COLOR,
             role: 'user',
             createdAt: timestamp,
             lastLogin: timestamp,
@@ -95,6 +98,8 @@ export const AuthService = {
       await db.collection('users').doc(user.uid).set({
         email: trimmedEmail,
         displayName: finalName,
+        bio: '',
+        avatarColor: DEFAULT_AVATAR_COLOR,
         role: 'user',
         createdAt: timestamp,
         lastLogin: timestamp,
@@ -145,6 +150,7 @@ export const AuthService = {
 
   /**
    * Patch fields on a user profile document (defaults to the current user).
+   * `updatedAt` is refreshed automatically.
    * @param {string} uid
    * @param {Object} data
    */
@@ -152,7 +158,19 @@ export const AuthService = {
     const target = uid || auth?.currentUser?.uid;
     if (!target) throw new Error('Aucun utilisateur à mettre à jour.');
     if (!db) throw new Error("Firestore n'est pas initialisé.");
-    await db.collection('users').doc(target).update(data);
+    await db.collection('users').doc(target).update({ ...data, updatedAt: serverTimestamp() });
+  },
+
+  /**
+   * Send a password-reset email (defaults to the current user's address).
+   * @param {string} [email]
+   * @returns {Promise<void>}
+   */
+  async sendPasswordReset(email) {
+    if (!auth) throw new Error("Firebase Auth n'est pas initialisé.");
+    const target = (email || auth.currentUser?.email || '').trim();
+    if (!target) throw new Error('Aucune adresse email associée à ce compte.');
+    await auth.sendPasswordResetEmail(target);
   },
 
   /**

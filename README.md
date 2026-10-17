@@ -41,6 +41,9 @@ before it is ever uploaded.
 ### Shell
 - **Top navigation bar** with the account name, role badge, a **user-configurable
   shortcut bar** (backed by the `shortcuts` collection) and a theme toggle.
+- **User profile** — click the account chip to open **Mon profil**: edit your
+  display name, bio and avatar colour, review storage usage and reset your
+  password.
 - **Left dock** application launcher with tooltips.
 - **Split screen** — up to **3 panels side-by-side**, with draggable dividers,
   maximize and per-panel close.
@@ -65,8 +68,8 @@ before it is ever uploaded.
   `window.*`.
 - **Event bus.** Components are decoupled through a tiny
   `EventBus.on / off / emit` in `src/app.js` (`app:open`, `panel:close`,
-  `auth:login`, `auth:logout`, `note:saved`, `note:deleted`, `link:saved`,
-  `link:deleted`, `quota:updated`, `theme:changed`).
+  `auth:login`, `auth:logout`, `profile:updated`, `note:saved`, `note:deleted`,
+  `link:saved`, `link:deleted`, `quota:updated`, `theme:changed`).
 - **Global state.** `AppState` (`src/app.js`) holds the current `user`, their
   `profile`, the `theme` and `isAdmin`.
 - **Component contract.** Every component default-exports `render(container, params)`
@@ -113,6 +116,7 @@ before it is ever uploaded.
     │   ├── file-explorer.js    # Notes browser + import + quota
     │   ├── markdown-editor.js  # Split editor + KaTeX preview
     │   ├── link-manager.js     # Bookmarks CRUD
+    │   ├── user-profile.js     # Account profile: identity, storage, password
     │   ├── admin-database.js   # Collections inspector
     │   ├── admin-users.js      # Accounts, roles, audit log
     │   └── admin-statistics.js # Metrics dashboard
@@ -255,7 +259,7 @@ keys from placeholders so the UI can warn you.
 
 | Collection | Document |
 | --- | --- |
-| `users/{uid}` | `email`, `displayName`, `role` (`user`\|`admin`), `createdAt`, `lastLogin`, `quotaUsed`, `quotaLimit`, `shortcuts[]` |
+| `users/{uid}` | `email`, `displayName`, `bio`, `avatarColor`, `role` (`user`\|`admin`), `createdAt`, `lastLogin`, `updatedAt`, `quotaUsed`, `quotaLimit`, `shortcuts[]` |
 | `notes/{id}` | `uid`, `title`, `content`, `subject`, `topic`, `isPublic`, `charCount`, `createdAt`, `updatedAt` |
 | `links/{id}` | `uid`, `title`, `url`, `description`, `subject`, `createdAt`, `updatedAt` |
 | `shortcuts/{id}` | `uid`, `label`, `icon`, `action`, `order`, `createdAt` |
@@ -263,6 +267,10 @@ keys from placeholders so the UI can warn you.
 
 **Character quota** = the sum of every note's `charCount` for a user. The default
 allowance is `500 000` characters (`quotaLimit` on the user document).
+
+**Profiles** — owners may edit `displayName`, `bio` and `avatarColor` on their own
+`users/{uid}` document; `role` and `quotaLimit` stay admin-only, enforced by the
+rules below.
 
 ---
 

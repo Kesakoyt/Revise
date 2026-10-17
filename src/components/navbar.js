@@ -48,8 +48,11 @@ export function render(container) {
           ${iconImg(AppState.theme === 'dark' ? 'sun' : 'moon', { size: 20, alt: '', className: 'navbar__theme-icon' })}
         </button>
         <div class="navbar__user" id="navbar-user" hidden>
-          <span class="navbar__user-name" id="navbar-user-name"></span>
-          <span class="badge badge--user" id="navbar-user-role"></span>
+          <button type="button" class="navbar__profile-btn" id="navbar-profile-btn" title="Mon profil" aria-label="Ouvrir mon profil">
+            <span class="navbar__avatar" id="navbar-user-avatar"></span>
+            <span class="navbar__user-name" id="navbar-user-name"></span>
+            <span class="badge badge--user" id="navbar-user-role"></span>
+          </button>
           <button type="button" class="navbar__icon-btn navbar__logout-btn" id="navbar-logout-btn" title="Déconnexion" aria-label="Se déconnecter">
             ${iconImg('logout', { size: 20, alt: '' })}
           </button>
@@ -61,12 +64,17 @@ export function render(container) {
   container.querySelector('#navbar-add-shortcut')?.addEventListener('click', () => openShortcutDialog());
   container.querySelector('#navbar-theme-btn')?.addEventListener('click', toggleTheme);
   container.querySelector('#navbar-logout-btn')?.addEventListener('click', handleLogout);
+  container.querySelector('#navbar-profile-btn')?.addEventListener('click', () => {
+    if (!AppState.user) return;
+    EventBus.emit('app:open', { appId: 'user-profile' });
+  });
 
   renderUser();
   loadShortcuts();
 
   bound.onLogin = () => { renderUser(); loadShortcuts(); };
   bound.onLogout = () => { shortcuts = []; renderShortcuts(); renderUser(); };
+  bound.onProfileUpdated = () => renderUser();
   bound.onTheme = ({ theme }) => {
     const icon = host?.querySelector('.navbar__theme-icon');
     if (icon) icon.src = iconUrlForTheme(theme);
@@ -74,6 +82,7 @@ export function render(container) {
 
   EventBus.on('auth:login', bound.onLogin);
   EventBus.on('auth:logout', bound.onLogout);
+  EventBus.on('profile:updated', bound.onProfileUpdated);
   EventBus.on('theme:changed', bound.onTheme);
 }
 
@@ -130,6 +139,7 @@ function renderUser() {
   const wrap = host?.querySelector('#navbar-user');
   const nameEl = host?.querySelector('#navbar-user-name');
   const roleEl = host?.querySelector('#navbar-user-role');
+  const avatarEl = host?.querySelector('#navbar-user-avatar');
   if (!wrap || !nameEl || !roleEl) return;
 
   if (!AppState.user) {
@@ -138,10 +148,16 @@ function renderUser() {
   }
 
   wrap.hidden = false;
-  nameEl.textContent = AppState.profile?.displayName
+  const name = AppState.profile?.displayName
     || AppState.user.displayName
     || AppState.user.email
     || 'Utilisateur';
+  nameEl.textContent = name;
+
+  if (avatarEl) {
+    avatarEl.textContent = String(name).trim().charAt(0).toUpperCase() || '?';
+    avatarEl.style.background = AppState.profile?.avatarColor || '#0078d4';
+  }
 
   const admin = Boolean(AppState.isAdmin || AppState.profile?.role === 'admin');
   roleEl.textContent = admin ? 'Admin' : 'Étudiant';
@@ -270,6 +286,7 @@ function escapeAttr(str) {
 export function destroy() {
   EventBus.off('auth:login', bound.onLogin);
   EventBus.off('auth:logout', bound.onLogout);
+  EventBus.off('profile:updated', bound.onProfileUpdated);
   EventBus.off('theme:changed', bound.onTheme);
   shortcuts = [];
   if (host) { host.innerHTML = ''; host = null; }
