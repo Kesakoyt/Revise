@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Fiches & Cloud — Cloud Study Notes & Document Hub">
+  <meta name="theme-color" content="#0078d4">
+  <title>Fiches & Cloud</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/32/cloud-checked.png">
+
+  <!-- Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- ======================================================== -->
+  <!-- CDN Dependencies (Loaded globally before ES modules)    -->
+  <!-- ======================================================== -->
+
+  <!-- Firebase 10.x Compat -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+  <!-- Marked.js (Markdown parser) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- KaTeX (Math typesetting & auto-render) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+  <!-- PDF.js -->
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+
+  <!-- Mammoth.js (DOCX conversion) -->
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+
+  <!-- Application Stylesheet -->
+  <link rel="stylesheet" href="src/styles/style.css">
+</head>
+<body>
+  <!-- Root application shell -->
+  <div id="app" class="app-container">
+    <nav id="navbar" class="navbar"></nav>
+    <div class="app-body">
+      <aside id="dock" class="dock"></aside>
+      <main id="workspace" class="workspace"></main>
+    </div>
+  </div>
+
+  <!-- Global Modal & Toast overlays -->
+  <div id="modal-container"></div>
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Main ES Module Entry Point -->
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

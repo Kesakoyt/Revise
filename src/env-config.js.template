@@ -1,0 +1,24 @@
+/**
+ * Fiches & Cloud — Environment Configuration Template
+ * 
+ * Instructions:
+ * 1. Copy this file and rename it to `env-config.js` in the same directory (`src/env-config.js`).
+ * 2. Retrieve your Firebase project configuration credentials from the Firebase Console:
+ *    Firebase Console -> Project Settings -> General -> Your apps -> Web app -> SDK setup and configuration.
+ * 3. Base64-encode each configuration value. You can encode values quickly in your browser console:
+ *    btoa("your-api-key")
+ *    or using terminal / Node.js:
+ *    echo -n "your-api-key" | base64
+ * 4. Paste the base64-encoded strings into the respective keys of FIREBASE_CONFIG_ENCODED below.
+ * 
+ * IMPORTANT: Never commit your actual `env-config.js` to version control. It is listed in `.gitignore`.
+ */
+
+export const FIREBASE_CONFIG_ENCODED = {
+  apiKey: '<BASE64_ENCODED_API_KEY>',
+  authDomain: '<BASE64_ENCODED_AUTH_DOMAIN>',
+  projectId: '<BASE64_ENCODED_PROJECT_ID>',
+  storageBucket: '<BASE64_ENCODED_STORAGE_BUCKET>',
+  messagingSenderId: '<BASE64_ENCODED_MESSAGING_SENDER_ID>',
+  appId: '<BASE64_ENCODED_APP_ID>'
+};
