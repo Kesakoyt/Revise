@@ -8,7 +8,8 @@
 import { FirestoreService } from '../services/firestore-service.js';
 import { QuotaManager } from '../services/quota-manager.js';
 import { ConverterService } from '../services/converter-service.js';
-import { EventBus, AppState, showToast, iconImg } from '../app.js';
+import { EventBus, AppState, showToast, showModal, iconImg } from '../app.js';
+import { showContextMenu, closeContextMenu } from './context-menu.js';
 
 const state = {
   container: null,
@@ -19,6 +20,7 @@ const state = {
   query: '',
   notes: [],
   subjects: [],
+  selectedId: null,
   handlers: []
 };
 
@@ -40,8 +42,8 @@ export async function render(container) {
             ${iconImg('bookmark', { size: 18, alt: '', className: 'tab-btn__icon' })}Fiches publiques
           </button>
         </div>
-        <button class="btn btn--primary" id="fe-new">
-          ${iconImg('add', { size: 18, alt: '' })}<span>Nouvelle fiche</span>
+        <button class="btn btn--primary" id="fe-new" type="button" aria-haspopup="menu">
+          ${iconImg('add', { size: 18, alt: '' })}<span>Nouveau</span><span class="btn__caret" aria-hidden="true"></span>
         </button>
       </div>
 
@@ -105,6 +107,7 @@ export async function render(container) {
 
   bindToolbar();
   bindDropZone();
+  bindContextMenu();
   bindBus();
   await Promise.all([loadNotes(), refreshQuota()]);
 }
@@ -126,7 +129,7 @@ function bindToolbar() {
     });
   });
 
-  c.querySelector('#fe-new')?.addEventListener('click', () => EventBus.emit('app:open', { appId: 'markdown-editor' }));
+  c.querySelector('#fe-new')?.addEventListener('click', e => openNewMenu(e.currentTarget));
 
   const search = c.querySelector('#fe-search');
   const clear = c.querySelector('#fe-clear');
@@ -281,7 +284,7 @@ function renderList() {
 
   if (filtered.length === 0) {
     body.innerHTML = emptyStateHtml();
-    body.querySelector('#fe-empty-new')?.addEventListener('click', () => EventBus.emit('app:open', { appId: 'markdown-editor' }));
+    body.querySelector('#fe-empty-new')?.addEventListener('click', openNewNote);
     return;
   }
 
@@ -292,7 +295,15 @@ function renderList() {
   body.querySelectorAll('[data-note-id]').forEach(el => {
     el.addEventListener('click', e => {
       if (e.target.closest('.btn-delete')) return;
-      EventBus.emit('app:open', { appId: 'markdown-editor', params: { noteId: el.dataset.noteId } });
+      const noteId = el.dataset.noteId;
+      if (!noteId) return;
+      EventBus.emit('app:open', { appId: 'markdown-editor', params: { noteId } });
+    });
+    el.addEventListener('dblclick', e => {
+      if (e.target.closest('.btn-delete')) return;
+      const noteId = el.dataset.noteId;
+      if (!noteId) return;
+      EventBus.emit('app:open', { appId: 'markdown-editor', params: { noteId } });
     });
   });
 
@@ -352,7 +363,7 @@ function gridCard(note) {
 function listRow(note) {
   const owner = AppState.user && note.uid === AppState.user.uid;
   return `
-    <div class="file-item" data-note-id="${note.id}" tabindex="0">
+    <div class="file-item" data-note-id="${note.id}" tabindex="0" role="button">
       ${iconImg('document', { size: 24, alt: '', className: 'file-item__icon' })}
       <div class="file-item__info">
         <div class="file-item__row">
@@ -472,10 +483,223 @@ function escapeHtml(str) {
 }
 function escapeAttr(str) { return escapeHtml(str); }
 
+// ---------------------------------------------------------------------------
+// Context menu
+// ---------------------------------------------------------------------------
+
+function bindContextMenu() {
+  const body = state.container?.querySelector('#fe-body');
+  if (!body) return;
+  body.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    const x = e.clientX;
+    const y = e.clientY;
+    const target = e.target;
+    const itemEl = target.closest('[data-note-id]');
+    if (itemEl) {
+      const note = state.notes.find(n => n.id === itemEl.dataset.noteId);
+      if (note) {
+        setSelectedNote(note.id);
+        showContextMenu(x, y, noteMenuItems(note));
+        return;
+      }
+    }
+    setSelectedNote(null);
+    showContextMenu(x, y, backgroundMenuItems());
+  });
+  body.addEventListener('click', () => setSelectedNote(null));
+}
+
+function setSelectedNote(id) {
+  state.selectedId = id;
+  state.container?.querySelectorAll('[data-note-id]').forEach(el => {
+    const isItem = el.classList.contains('file-item');
+    const isCard = el.classList.contains('file-card');
+    const match = el.dataset.noteId === id;
+    if (isItem) el.classList.toggle('file-item--selected', match);
+    if (isCard) el.classList.toggle('file-card--selected', match);
+  });
+}
+
+function openNewMenu(anchor) {
+  if (!anchor) return;
+  const rect = anchor.getBoundingClientRect();
+  showContextMenu(rect.left, rect.bottom + 4, newMenuItems());
+}
+
+function newMenuItems() {
+  return [
+    { label: 'Nouvelle fiche', icon: 'document', shortcut: 'Ctrl+N', onSelect: openNewNote },
+    { label: 'Nouveau lien', icon: 'link', onSelect: openNewLink },
+    { separator: true },
+    { label: 'Importer un fichier (PDF/DOCX)…', icon: 'import', onSelect: browseForFile }
+  ];
+}
+
+function backgroundMenuItems() {
+  const sortSubmenu = [
+    { label: 'Plus récentes', checked: state.sort === 'date-desc', onSelect: () => setSort('date-desc') },
+    { label: 'Plus anciennes', checked: state.sort === 'date-asc', onSelect: () => setSort('date-asc') },
+    { label: 'Titre (A→Z)', checked: state.sort === 'title-asc', onSelect: () => setSort('title-asc') },
+    { label: 'Titre (Z→A)', checked: state.sort === 'title-desc', onSelect: () => setSort('title-desc') },
+    { label: 'Matière (A→Z)', checked: state.sort === 'subject-asc', onSelect: () => setSort('subject-asc') }
+  ];
+  const viewSubmenu = [
+    { label: 'Liste', icon: 'list', checked: state.view === 'list', onSelect: () => setView('list') },
+    { label: 'Grille', icon: 'grid', checked: state.view === 'grid', onSelect: () => setView('grid') }
+  ];
+  return [
+    { label: 'Nouvelle fiche', icon: 'document', shortcut: 'Ctrl+N', onSelect: openNewNote },
+    { label: 'Nouveau lien', icon: 'link', onSelect: openNewLink },
+    { label: 'Importer un fichier (PDF/DOCX)…', icon: 'import', onSelect: browseForFile },
+    { separator: true },
+    { label: 'Rafraîchir', icon: 'refresh', onSelect: refresh },
+    { separator: true },
+    { label: 'Affichage', icon: 'grid', submenu: viewSubmenu },
+    { label: 'Trier par', icon: 'sorting-arrows', submenu: sortSubmenu }
+  ];
+}
+
+function noteMenuItems(note) {
+  const owner = AppState.user && note.uid === AppState.user.uid;
+  const items = [
+    { label: 'Ouvrir', icon: 'document', onSelect: () => openNote(note.id) }
+  ];
+  if (owner) {
+    items.push(
+      { label: 'Renommer', icon: 'edit', onSelect: () => renameNote(note) },
+      { label: 'Dupliquer', icon: 'copy', onSelect: () => duplicateNote(note) },
+      { label: note.isPublic ? 'Rendre privée' : 'Rendre publique', icon: note.isPublic ? 'lock' : 'unlock', onSelect: () => togglePublic(note) },
+      { separator: true },
+      { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteNote(note.id) }
+    );
+  } else {
+    items.push(
+      { separator: true },
+      { label: 'Copier le titre', icon: 'copy', onSelect: () => copyText(note.title || 'Sans titre', 'Titre copié.') }
+    );
+  }
+  return items;
+}
+
+function openNewNote() {
+  EventBus.emit('app:open', { appId: 'markdown-editor' });
+}
+function openNewLink() {
+  EventBus.emit('app:open', { appId: 'link-manager', params: { newLink: true } });
+}
+function openNote(noteId) {
+  if (!noteId) return;
+  EventBus.emit('app:open', { appId: 'markdown-editor', params: { noteId } });
+}
+function browseForFile() {
+  state.container?.querySelector('#fe-file')?.click();
+}
+function setSort(sort) {
+  state.sort = sort;
+  const select = state.container?.querySelector('#fe-sort');
+  if (select) select.value = sort;
+  renderList();
+}
+function refresh() {
+  loadNotes();
+  refreshQuota();
+  showToast('Explorateur rafraîchi.', 'info');
+}
+function copyText(text, successMsg) {
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(String(text || '')).then(
+      () => { if (successMsg) showToast(successMsg, 'success'); },
+      () => showToast('Copie impossible.', 'error')
+    );
+  } else {
+    showToast('Clipboard non disponible.', 'error');
+  }
+}
+function renameNote(note) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dialog card';
+  wrap.innerHTML = `
+    <h3 class="dialog__title">Renommer la fiche</h3>
+    <form class="dialog__form" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="dlg-name">Nom de la fiche</label>
+        <input class="input" type="text" id="dlg-name" required placeholder="Titre de la fiche">
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn--secondary" data-action="cancel">Annuler</button>
+        <button type="submit" class="btn btn--primary">Enregistrer</button>
+      </div>
+    </form>
+  `;
+  const input = wrap.querySelector('#dlg-name');
+  input.value = note.title || '';
+  const { hide } = showModal(wrap);
+  setTimeout(() => { input.focus(); input.select(); }, 30);
+  wrap.querySelector('[data-action="cancel"]').addEventListener('click', hide);
+  wrap.querySelector('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const title = input.value.trim();
+    if (!title) {
+      showToast('Le nom ne peut pas être vide.', 'error');
+      input.focus();
+      return;
+    }
+    try {
+      const uid = AppState.user?.uid;
+      await FirestoreService.updateNote(note.id, { title });
+      if (uid) FirestoreService.logAccess({ uid, documentId: note.id, documentType: 'note', action: 'edit' });
+      hide();
+      EventBus.emit('note:saved', { noteId: note.id });
+      showToast('Fiche renommée.', 'success');
+    } catch (err) {
+      console.error('[Explorer] rename failed:', err);
+      showToast(`Renommage échoué : ${err.message}`, 'error');
+    }
+  });
+}
+async function duplicateNote(note) {
+  const uid = AppState.user?.uid;
+  if (!uid) { showToast('Connectez-vous pour dupliquer.', 'error'); return; }
+  try {
+    showToast('Duplication…', 'info');
+    const id = await FirestoreService.createNote({
+      uid,
+      title: `${note.title || 'Sans titre'} (copie)`,
+      content: note.content || '',
+      subject: note.subject,
+      topic: note.topic,
+      isPublic: false
+    });
+    FirestoreService.logAccess({ uid, documentId: id, documentType: 'note', action: 'create' });
+    EventBus.emit('note:saved', { noteId: id });
+    showToast('Fiche dupliquée.', 'success');
+  } catch (err) {
+    console.error('[Explorer] duplicate failed:', err);
+    showToast(`Duplication échouée : ${err.message}`, 'error');
+  }
+}
+async function togglePublic(note) {
+  const uid = AppState.user?.uid;
+  try {
+    const next = !note.isPublic;
+    await FirestoreService.updateNote(note.id, { isPublic: next });
+    if (uid) FirestoreService.logAccess({ uid, documentId: note.id, documentType: 'note', action: 'edit' });
+    EventBus.emit('note:saved', { noteId: note.id });
+    showToast(next ? 'Fiche rendue publique.' : 'Fiche rendue privée.', 'success');
+  } catch (err) {
+    console.error('[Explorer] toggle public failed:', err);
+    showToast(`Modification échouée : ${err.message}`, 'error');
+  }
+}
+
 /** Tear down. */
 export function destroy() {
   state.handlers.forEach(([ev, fn]) => EventBus.off(ev, fn));
   state.handlers = [];
+  closeContextMenu();
   state.container = null;
   state.notes = [];
+  state.selectedId = null;
 }

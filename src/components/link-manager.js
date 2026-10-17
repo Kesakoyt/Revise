@@ -19,7 +19,7 @@ const state = {
 };
 
 /** @param {HTMLElement} container */
-export async function render(container) {
+export async function render(container, params = {}) {
   state.container = container;
   container.classList.add('link-manager-container');
 
@@ -82,6 +82,9 @@ export async function render(container) {
   bindToolbar();
   bindBus();
   await loadLinks();
+  if (params?.newLink) {
+    openForm();
+  }
 }
 
 async function loadLinks() {
