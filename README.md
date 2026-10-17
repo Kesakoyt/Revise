@@ -97,11 +97,13 @@ before it is ever uploaded.
 ├── README.md
 ├── LICENSE
 ├── PATCH_NOTES.md
-├── .gitignore                  # ignores src/env-config.js (real keys)
+├── .nojekyll                   # Serve files verbatim on GitHub Pages
+├── .gitignore                  # ignores local scratch files (NOT env-config.js)
+├── .github/workflows/pages.yml # Publish to GitHub Pages on push to main
 ├── assets/                     # Local static assets (logo fallback). Icons come from Icons8.
 └── src/
     ├── app.js                  # Entry point + shared primitives
-    ├── env-config.js           # Base64 Firebase credentials (git-ignored)
+    ├── env-config.js           # Base64 Firebase credentials (committed for Pages)
     ├── env-config.js.template  # Copy-me template
     ├── components/
     │   ├── navbar.js           # Brand, shortcuts, theme, account
@@ -150,11 +152,63 @@ There is **no install and no build step**.
 
 ---
 
+## Deploying to GitHub Pages
+
+The app is a static bundle — the repository *is* the website. ES modules work
+over HTTPS, and every path in the project is **relative**, so it works both at
+`https://<user>.github.io/` and in a project subpath
+`https://<user>.github.io/<repo>/`.
+
+### What's already set up
+- `.nojekyll` — stops GitHub Pages running Jekyll over the files.
+- `.github/workflows/pages.yml` — builds and publishes the site; runs on every
+  push to `main` (or manually via *Actions → Run workflow*).
+- `src/env-config.js` is **committed on purpose** so the deployed site can load
+  its Firebase config.
+
+### Steps
+
+```bash
+git init
+git add .
+git commit -m "Fiches & Cloud v1.0.0"
+git branch -M main
+git remote add origin https://github.com/<user>/<repo>.git
+git push -u origin main
+```
+
+Then in the repository:
+
+1. **Settings → Pages → Build and deployment → Source: _GitHub Actions_**.
+2. Wait for the **Deploy to GitHub Pages** action to finish (Actions tab).
+3. Open the URL shown in the deployment (or `https://<user>.github.io/<repo>/`).
+
+> Prefer the no-Actions route? You can instead set **Source: _Deploy from a
+> branch_ → `main` / `/ (root)`**. `.nojekyll` makes that safe too. The Actions
+> workflow is simply the more reproducible option.
+
+### ⚠️ Firebase step for the Pages domain
+
+`localhost` is authorized automatically, but your Pages domain is not. For
+**email/password** sign-in this usually works without it, but it is required the
+moment you add social sign-in (Google, …) or email-link sign-in — and it removes
+a whole class of `auth/unauthorized-domain` surprises. Add it:
+
+**Firebase console → Authentication → Settings → Authorized domains → Add domain**
+
+```
+<user>.github.io
+```
+
+---
+
 ## Firebase configuration
 
-Credentials live in `src/env-config.js`, which is **git-ignored**. Every value
-is stored **Base64-encoded** and decoded at runtime by
-`src/services/firebase-config.js`.
+Credentials live in `src/env-config.js`. Every value is stored
+**Base64-encoded** and decoded at runtime by `src/services/firebase-config.js`.
+
+This file is **committed** (not git-ignored) so the static site can load it on
+GitHub Pages.
 
 ### 1. Create / select a project
 
