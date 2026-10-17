@@ -19,5 +19,6 @@ export const FIREBASE_CONFIG_ENCODED = {
   projectId:         '',  // btoa("<projectId>")
   storageBucket:     '',  // btoa("<projectId>.appspot.com")
   messagingSenderId: '',  // btoa("<messagingSenderId>")
-  appId:             ''   // btoa("<appId>")
+  appId:             '',  // btoa("<appId>")
+  measurementId:     ''   // btoa("<measurementId>")  (optional, Analytics)
 };

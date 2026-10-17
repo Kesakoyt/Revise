@@ -1,0 +1,213 @@
+# Patch Notes — Fiches & Cloud
+
+---
+
+## v1.0.0 — Initial production rebuild
+**Date:** 2026-10-17
+**Scope:** full clean-room regeneration of the application from the project
+specification (Windows 11 Fluent UI study workspace with Firebase backend).
+
+---
+
+## 1. Files created / rewritten
+
+### Root
+| File | Status | Purpose |
+| --- | --- | --- |
+| `index.html` | rewritten | App shell, CDN tags, mount points, boot splash |
+| `README.md` | rewritten | Features, architecture, setup, data model, security rules |
+| `LICENSE` | **created** | MIT license |
+| `PATCH_NOTES.md` | **created** | This document |
+| `.gitignore` | rewritten | Ignores `src/env-config.js` (real keys), OS/editor noise |
+| `assets/README.md` | **created** | Explains the local-asset + Icons8 icon policy |
+| `assets/logo-mark.svg` | **created** | Offline SVG fallback for the brand logo |
+
+### `src/`
+| File | Status | Purpose |
+| --- | --- | --- |
+| `src/app.js` | rewritten | EventBus, AppState, `iconUrl()`/`iconImg()`, toasts, modals, auth modal, bootstrap |
+| `src/env-config.js` | rewritten | Base64 Firebase credentials (project `revise-61c6b`), git-ignored |
+| `src/env-config.js.template` | rewritten | Copy-me template (now includes `measurementId`) |
+
+### `src/services/`
+| File | Status | Purpose |
+| --- | --- | --- |
+| `firebase-config.js` | rewritten | Base64 decode, Firebase init, `isConfigured` flag |
+| `auth-service.js` | rewritten | Email/password auth + `users/{uid}` profile sync, `DEFAULT_SHORTCUTS` |
+| `firestore-service.js` | rewritten | Notes / Links / **Shortcuts** / Logs / Admin CRUD + `getStats()` |
+| `quota-manager.js` | rewritten | Character accounting, `checkQuota`, `formatQuota` |
+| `converter-service.js` | rewritten | PDF/DOCX → Markdown, Markdown → HTML, KaTeX auto-render |
+
+### `src/components/`
+| File | Status | Purpose |
+| --- | --- | --- |
+| `navbar.js` | rewritten | Brand, user-configurable shortcut bar, theme toggle, account badge |
+| `dock.js` | rewritten | App launcher, admin section revealed by role |
+| `workspace.js` | rewritten | `APP_REGISTRY`, panel open/close/focus/maximize, welcome state |
+| `split-screen.js` | rewritten | 1–3 panel flex layout with draggable dividers |
+| `file-explorer.js` | rewritten | Notes browser, search/filter/sort, drag-drop import, quota bar |
+| `markdown-editor.js` | rewritten | Split editor, live preview, quota-guarded save/delete |
+| `link-manager.js` | rewritten | Bookmark CRUD with favicons |
+| `admin-database.js` | rewritten | Inspector for **Notes / Links / Shortcuts / Users** + JSON viewer |
+| `admin-users.js` | rewritten | Accounts, roles, per-user documents, access log |
+| `admin-statistics.js` | rewritten | Metrics dashboard + subject breakdown |
+
+### `src/styles/`
+| File | Status | Purpose |
+| --- | --- | --- |
+| `style.css` | rewritten | Complete Fluent stylesheet authored against the actual emitted class names |
+
+> **Total:** 25 tracked files (6 root + 19 under `src/`), plus `assets/`.
+
+---
+
+## 2. Implemented & verified features
+
+### Authentication
+- [x] Email/password **sign-in** and **sign-up** with display name.
+- [x] Automatic `users/{uid}` profile creation, `lastLogin` refresh.
+- [x] Role resolution (`user` / `admin`) driving the admin dock section.
+- [x] Friendly, mapped French error messages; non-dismissible auth modal.
+- [x] Non-dismissible **configuration warning** when keys are placeholders.
+
+### Study content
+- [x] Markdown notes with live split-pane preview.
+- [x] **KaTeX** rendering for `$…$`, `$$…$$`, `\(…\)`, `\[…\]`.
+- [x] **PDF import** (PDF.js text extraction) and **DOCX import** (Mammoth +
+      HTML→Markdown reducer) → Markdown, client-side only.
+- [x] Drag-and-drop zone plus file picker.
+- [x] Title / subject / topic, public/private toggle.
+- [x] Public-note browsing tab.
+
+### Organisation
+- [x] Search across title, subject, topic and content.
+- [x] Subject filter, five sort modes, list ⇄ grid views.
+- [x] Link manager with favicons, subject filter and search.
+
+### Quota
+- [x] Account-wide character allowance, enforced **before** every save.
+- [x] Live quota bar with warning (≥70 %) and danger (≥90 %) states.
+- [x] Recalculation after save/delete; cross-panel `quota:updated` refresh.
+
+### Shell
+- [x] **User-configurable shortcut bar** persisted in the `shortcuts` collection
+      (create dialog: label, icon, in-app destination or external URL).
+- [x] Up to **3 side-by-side panels** with draggable dividers, maximize/restore,
+      per-panel close, and a focus glow.
+- [x] **Light / dark** themes (OS default, persisted, live toggle).
+- [x] Toasts, modal system, navigation reset on sign-out.
+
+### Admin
+- [x] **Database**: browse/delete `notes`, `links`, `shortcuts`, `users`;
+      pagination; JSON inspector with clipboard copy.
+- [x] **Users**: account list, role switching, per-user documents, access log.
+- [x] **Statistics**: notes / links / shortcuts / characters / active users /
+      subjects, with a normalised per-subject bar chart.
+
+### Verification performed
+- [x] **Class-name parity audit** across every JS module against `style.css`:
+      all classes emitted by components are defined. (Earlier generations had a
+      ~70 % mismatch; this rebuild closes it.)
+- [x] Static review of every `GET`/`write` path for missing `null` guards and
+      Firestore index fallbacks.
+- [x] Confirmed no binary content is ever written to Firestore.
+
+---
+
+## 3. Architectural decisions
+
+### Offline-first, zero build
+- Pure **ES modules**; **no** npm install, bundler or transpiler.
+- Heavy libraries (Firebase compat, Marked, KaTeX, PDF.js, Mammoth) are loaded as
+  pinned **CDN globals** in `index.html` and consumed through `window.*`. This
+  keeps the repository dependency-free and directly runnable from any static
+  server.
+- Services degrade gracefully: ordered Firestore queries fall back to a
+  client-side sort when a composite index is missing, so the UI never hard-fails.
+
+### Credential obfuscation
+- All Firebase values live in `src/env-config.js` (**git-ignored**), stored
+  **Base64-encoded**, decoded at runtime in `firebase-config.js`.
+- The README is explicit that Base64 is *obfuscation, not encryption* and that
+  the real boundary is the Firestore security rules — which are documented and
+  copy-pasteable.
+- `isConfigured` distinguishes real keys from placeholders so the app warns
+  instead of silently failing.
+
+### Markdown as the storage format
+- No PDF/DOCX is ever uploaded. `converter-service.js` converts **client-side**:
+  PDF.js extracts text into Markdown; Mammoth produces HTML that a bespoke
+  reducer turns into GFM (headings, lists, tables, quotes, code, links).
+- This keeps documents tiny, diffable and directly editable — and makes the
+  character quota meaningful.
+
+### Component model
+- Each component exports `render(container, params)` + `destroy()`.
+- The workspace keeps **one instance per app id**, so module-level singleton
+  `state` is safe and avoids re-render churn.
+- Cross-component communication is strictly via **EventBus** events.
+
+### Split screen
+- Panels are created imperatively by `split-screen.js`, which interleaves
+  draggable dividers and redistributes equal flex shares. Resizing is bounded by
+  a 220 px minimum per panel.
+
+### Design system
+- One stylesheet, fully token-driven (`:root` + `[data-theme='dark']`), with
+  Acrylic/Mica `backdrop-filter`, 8–12 px radii and layered soft shadows.
+- The single mandated icon source — Icons8 Fluency at 200 px — is centralised in
+  `iconUrl()` / `iconImg()`.
+
+---
+
+## 4. Known limitations & recommendations for V2
+
+### Limitations
+1. **True offline support is partial.** The shell and data layer are offline-first
+   in spirit, but CDN assets need a first network load. Firestore's own offline
+   cache is available but not enabled.
+2. **Client-trusted authorization.** Roles and quotas are enforced in the UI;
+   the real gate is the security rules. A malicious client could attempt writes
+   the rules must reject (they do, if published as documented).
+3. **No live collaboration.** Documents are last-write-wins; there is no presence,
+   locking or conflict resolution.
+4. **PDF extraction is text-only.** Scanned/image PDFs (no text layer) import
+   poorly — OCR is out of scope.
+5. **Statistics are computed on demand** by reading entire collections; fine at
+   small scale, expensive at large scale.
+6. **Firestore composite indexes** improve performance but are a manual step.
+7. **Bilingual seams:** the UI is French while code/identifiers are English
+   (intentional, but worth noting for contributors).
+
+### V2 backlog
+- [ ] **Service worker** to cache the shell + CDN assets for genuine offline use;
+      enable Firestore `enablePersistence()`.
+- [ ] **Vendor the CDN libraries locally** under `assets/vendor/` for air-gapped
+      deployments.
+- [ ] **Cloud Functions** to enforce quota/role invariants server-side and to
+      maintain denormalised counters.
+- [ ] **Versioned statistics** via scheduled aggregation instead of full reads.
+- [ ] **Note versioning / trash** (soft delete) and richer history.
+- [ ] **Tagging** beyond subject/topic, plus saved filters.
+- [ ] **Export** a note (or a subject) to `.md` / print-to-PDF.
+- [ ] **OCR** fallback for scanned PDFs.
+- [ ] **Shortcut drag-reordering** and right-click context menus.
+- [ ] **Accessibility pass** (full keyboard navigation, ARIA audit) and i18n
+      extraction of all UI strings.
+
+---
+
+## 5. Upgrade / setup checklist
+
+1. Serve over HTTP (`python -m http.server`, `npx serve .`, …) — ES modules
+   require it.
+2. In Firebase: enable **Email/Password** auth and create **Firestore**.
+3. Paste the [security rules](README.md#security-rules) from the README.
+4. Confirm `src/env-config.js` holds **your** Base64 keys (defaults target
+   `revise-61c6b`).
+5. Register, then promote your account to `admin` from the console.
+6. (Optional) Create the recommended composite indexes.
+
+---
+
+*End of patch notes — v1.0.0.*

@@ -32,7 +32,8 @@ export const firebaseConfig = {
   projectId:         decodeBase64(FIREBASE_CONFIG_ENCODED?.projectId),
   storageBucket:     decodeBase64(FIREBASE_CONFIG_ENCODED?.storageBucket),
   messagingSenderId: decodeBase64(FIREBASE_CONFIG_ENCODED?.messagingSenderId),
-  appId:             decodeBase64(FIREBASE_CONFIG_ENCODED?.appId)
+  appId:             decodeBase64(FIREBASE_CONFIG_ENCODED?.appId),
+  measurementId:     decodeBase64(FIREBASE_CONFIG_ENCODED?.measurementId)
 };
 
 /** True when the config looks like real credentials rather than placeholders. */

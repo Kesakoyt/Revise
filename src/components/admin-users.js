@@ -1,526 +1,385 @@
 /**
- * Admin Users Component
- * User management interface for viewing registered accounts, modifying roles,
- * and inspecting user documents (notes, links) and recent access logs.
+ * Fiches & Cloud — admin "Users" app.
+ *
+ * Lists registered accounts, manages roles, browses any user's documents and
+ * shows the recent document access log.
  */
-import { FirestoreService } from '../services/firestore-service.js';
-import { AuthService } from '../services/auth-service.js';
-import { EventBus, AppState, showToast } from '../app.js';
 
-// Component state
+import { FirestoreService } from '../services/firestore-service.js';
+import { EventBus, AppState, showToast, iconImg } from '../app.js';
+
+const PAGE_SIZE = 12;
+
 const state = {
   container: null,
+  tab: 'users',      // users | documents | activity
   users: [],
-  searchQuery: '',
-  selectedUserId: null,
-  userDetails: {
-    notes: [],
-    links: [],
-    logs: [],
-    isLoading: false
-  },
-  activeDetailTab: 'notes', // 'notes' | 'links' | 'logs'
-  isLoading: false
+  notes: [],
+  links: [],
+  logs: [],
+  selectedUid: '',
+  query: '',
+  page: 1
 };
 
-/**
- * Renders Admin Users panel
- * @param {HTMLElement} container 
- * @param {Object} params 
- */
-export async function render(container, params = {}) {
+/** @param {HTMLElement} container */
+export async function render(container) {
   state.container = container;
-  container.classList.add('admin-users-container');
+  container.classList.add('admin-container');
 
-  // Build skeleton UI
+  const tab = (id, label) => `
+    <button class="tab-btn ${state.tab === id ? 'tab-btn--active' : ''}" data-tab="${id}">${label}</button>`;
+
   container.innerHTML = `
-    <div class="admin-users">
-      <!-- Header -->
-      <div class="admin-users__header">
-        <div class="admin-users__title-wrap">
-          <img src="https://img.icons8.com/fluency/28/group.png" alt="" />
-          <h2>User Management</h2>
-          <span class="badge badge--admin">Admin Only</span>
+    <div class="admin-app">
+      <div class="admin-app__header">
+        <div class="admin-app__title">
+          ${iconImg('group', { size: 24, alt: '' })}
+          <h2>Utilisateurs</h2>
+          <span class="badge badge--admin">Admin</span>
         </div>
-        <div class="admin-users__header-actions">
-          <button class="btn btn--secondary" id="au-refresh-btn" title="Refresh user list">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M23 4v6h-6"></path>
-              <path d="M1 20v-6h6"></path>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-            </svg>
-            <span>Refresh</span>
-          </button>
+        <button class="btn btn--secondary" id="au-refresh">${iconImg('refresh', { size: 16, alt: '' })}<span>Rafraîchir</span></button>
+      </div>
+
+      <div class="admin-app__toolbar">
+        <div class="tabs-row">
+          ${tab('users', 'Comptes')}
+          ${tab('documents', 'Documents')}
+          ${tab('activity', "Journal d'accès")}
+        </div>
+        <div class="search-field" id="au-search-wrap">
+          ${iconImg('search', { size: 16, alt: '', className: 'search-field__icon' })}
+          <input type="text" class="input input--search" id="au-search" placeholder="Filtrer…" value="${escapeAttr(state.query)}">
         </div>
       </div>
 
-      <!-- Search & Filters -->
-      <div class="admin-users__toolbar">
-        <div class="admin-users__search">
-          <img src="https://img.icons8.com/fluency/16/search.png" alt="" class="search-icon" />
-          <input 
-            type="text" 
-            class="input input--search" 
-            id="au-search-input" 
-            placeholder="Search users by name or email..." 
-            value="${escapeHtml(state.searchQuery)}"
-          />
-        </div>
-        <div class="admin-users__count" id="au-users-count">
-          0 users registered
-        </div>
+      <div class="admin-app__body" id="au-body">
+        <div class="loading-block"><span class="spinner"></span><p>Chargement des utilisateurs…</p></div>
       </div>
 
-      <!-- Users Table & Details Container -->
-      <div class="admin-users__content">
-        <div class="admin-users__table-wrap" id="au-table-container">
-          <div class="admin-users__loading">
-            <div class="spinner"></div>
-            <p>Loading users...</p>
-          </div>
+      <div class="pagination" id="au-pagination">
+        <span class="pagination__info" id="au-page-info">—</span>
+        <div class="pagination__controls">
+          <button class="btn btn--secondary btn--sm" id="au-prev">&laquo; Précédent</button>
+          <button class="btn btn--secondary btn--sm" id="au-next">Suivant &raquo;</button>
         </div>
       </div>
     </div>
   `;
 
-  setupListeners();
-  await loadUsers();
+  bind();
+  await loadAll();
 }
 
-/**
- * Sets up event listeners
- */
-function setupListeners() {
-  const container = state.container;
-  if (!container) return;
+function bind() {
+  const c = state.container;
 
-  // Search input
-  const searchInput = container.querySelector('#au-search-input');
-  let searchTimer = null;
-  searchInput?.addEventListener('input', (e) => {
-    clearTimeout(searchTimer);
-    state.searchQuery = e.target.value.trim().toLowerCase();
-    searchTimer = setTimeout(() => {
-      renderUserTable();
-    }, 200);
+  c.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (state.tab === btn.dataset.tab) return;
+      state.tab = btn.dataset.tab;
+      state.page = 1;
+      c.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('tab-btn--active', b === btn));
+      renderView();
+    });
   });
 
-  // Refresh button
-  container.querySelector('#au-refresh-btn')?.addEventListener('click', async () => {
-    await loadUsers();
+  let timer = null;
+  c.querySelector('#au-search')?.addEventListener('input', e => {
+    clearTimeout(timer);
+    state.query = e.target.value.trim().toLowerCase();
+    timer = setTimeout(() => { state.page = 1; renderView(); }, 200);
   });
+
+  c.querySelector('#au-refresh')?.addEventListener('click', loadAll);
+  c.querySelector('#au-prev')?.addEventListener('click', () => { if (state.page > 1) { state.page--; renderView(); } });
+  c.querySelector('#au-next')?.addEventListener('click', () => { state.page++; renderView(); });
 }
 
-/**
- * Loads all users from Firestore
- */
-async function loadUsers() {
-  const container = state.container;
-  const tableWrap = container?.querySelector('#au-table-container');
-  if (!tableWrap) return;
+async function loadAll() {
+  const body = state.container?.querySelector('#au-body');
+  if (!body) return;
+  body.innerHTML = `<div class="loading-block"><span class="spinner"></span><p>Chargement des utilisateurs…</p></div>`;
 
-  state.isLoading = true;
-  tableWrap.innerHTML = `
-    <div class="admin-users__loading">
-      <div class="spinner"></div>
-      <p>Loading users...</p>
-    </div>
-  `;
+  const safe = p => p.catch(err => { console.warn('[Users] query failed:', err); return []; });
 
   try {
-    const users = await FirestoreService.getAllUsers();
-    state.users = users || [];
-
-    const countEl = container.querySelector('#au-users-count');
-    if (countEl) {
-      countEl.textContent = `${state.users.length} ${state.users.length === 1 ? 'user' : 'users'} registered`;
-    }
-
-    renderUserTable();
+    const [users, notes, links, logs] = await Promise.all([
+      safe(FirestoreService.getAllUsers()),
+      safe(FirestoreService.getAllNotes()),
+      safe(FirestoreService.getAllLinks()),
+      safe(FirestoreService.getAccessLogs({ limit: 100 }))
+    ]);
+    state.users = users;
+    state.notes = notes;
+    state.links = links;
+    state.logs = logs;
+    renderView();
   } catch (err) {
-    console.error('Failed to load users:', err);
-    tableWrap.innerHTML = `
-      <div class="empty-state">
-        <p class="empty-state__title">Failed to load users</p>
-        <p class="empty-state__description">${escapeHtml(err.message)}</p>
-      </div>
-    `;
-  } finally {
-    state.isLoading = false;
+    console.error('[Users] load failed:', err);
+    body.innerHTML = `<div class="empty-state"><p class="empty-state__title">Chargement impossible</p><p class="empty-state__description">${escapeHtml(err.message)}</p></div>`;
   }
 }
 
-/**
- * Renders user table and expandable detail drawer
- */
-function renderUserTable() {
-  const container = state.container;
-  const tableWrap = container?.querySelector('#au-table-container');
-  if (!tableWrap) return;
+function renderView() {
+  if (state.tab === 'users') renderUsers();
+  else if (state.tab === 'documents') renderDocuments();
+  else renderActivity();
+}
 
-  // Filter
-  const q = state.searchQuery;
-  const filtered = state.users.filter(u => {
-    if (!q) return true;
-    const nameMatch = (u.displayName || '').toLowerCase().includes(q);
-    const emailMatch = (u.email || '').toLowerCase().includes(q);
-    const roleMatch = (u.role || '').toLowerCase().includes(q);
-    return nameMatch || emailMatch || roleMatch;
-  });
+function paged(rows) {
+  const max = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  state.page = Math.min(Math.max(1, state.page), max);
+  const start = (state.page - 1) * PAGE_SIZE;
+  setPagination(rows.length, start);
+  return rows.slice(start, start + PAGE_SIZE);
+}
 
-  if (filtered.length === 0) {
-    tableWrap.innerHTML = `
-      <div class="empty-state">
-        <p class="empty-state__title">No users found</p>
-        <p class="empty-state__description">No users match "${escapeHtml(q)}"</p>
-      </div>
-    `;
+function setPagination(total, start) {
+  const c = state.container;
+  const info = c.querySelector('#au-page-info');
+  const prev = c.querySelector('#au-prev');
+  const next = c.querySelector('#au-next');
+  const max = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (info) info.textContent = total === 0 ? 'Aucun résultat' : `${start + 1}–${Math.min(start + PAGE_SIZE, total)} sur ${total}`;
+  if (prev) prev.disabled = state.page <= 1;
+  if (next) next.disabled = state.page >= max;
+}
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+function renderUsers() {
+  const body = state.container.querySelector('#au-body');
+  const q = state.query;
+
+  const filtered = state.users.filter(u => !q ||
+    [u.email, u.displayName, u.role].filter(Boolean).some(v => String(v).toLowerCase().includes(q)));
+
+  const rows = paged(filtered);
+  if (rows.length === 0) {
+    body.innerHTML = `<div class="empty-state"><p class="empty-state__title">Aucun utilisateur</p><p class="empty-state__description">Aucun compte ne correspond.</p></div>`;
     return;
   }
 
-  let html = `
-    <div class="table-responsive">
-      <table class="table user-table">
-        <thead>
-          <tr class="table__header">
-            <th>User</th>
-            <th>Email</th>
-            <th>Role</th>
-            <th>Quota Usage</th>
-            <th>Last Login</th>
-            <th class="table__cell--actions">Details</th>
-          </tr>
-        </thead>
-        <tbody>
-  `;
-
-  filtered.forEach(user => {
-    const uid = user.id || user.uid;
-    const displayName = user.displayName || 'Unnamed User';
-    const email = user.email || 'No email';
-    const role = user.role || 'user';
-    const quotaUsed = user.quotaUsed || 0;
-    const quotaLimit = user.quotaLimit || 500000;
-    const percentage = Math.min(100, Math.round((quotaUsed / quotaLimit) * 100));
-    const lastLogin = formatTimestamp(user.lastLogin);
-    const initials = getInitials(displayName, email);
-    const isSelected = state.selectedUserId === uid;
-
-    html += `
-      <tr class="table__row ${isSelected ? 'table__row--selected' : ''}" data-uid="${uid}">
-        <td class="table__cell">
-          <div class="user-cell">
-            <div class="avatar-placeholder">${initials}</div>
-            <div class="user-cell__names">
-              <span class="user-cell__name">${escapeHtml(displayName)}</span>
-              <span class="user-cell__id text-tertiary">ID: ${escapeHtml(uid.substring(0, 8))}...</span>
+  body.innerHTML = `
+    <div class="table-wrap"><table class="table">
+      <thead><tr class="table__head">
+        <th>Utilisateur</th><th>Rôle</th><th>Stockage</th><th>Dernière connexion</th><th class="table__cell--actions">Actions</th>
+      </tr></thead>
+      <tbody>${rows.map(u => {
+        const id = u.id || u.uid;
+        const pct = u.quotaLimit ? Math.round(((u.quotaUsed || 0) / u.quotaLimit) * 100) : 0;
+        return `
+        <tr class="table__row" data-id="${id}">
+          <td class="table__cell">
+            <div class="user-cell">
+              <span class="user-cell__avatar">${escapeHtml((u.displayName || u.email || '?').charAt(0).toUpperCase())}</span>
+              <div class="user-cell__info">
+                <span class="user-cell__name">${escapeHtml(u.displayName || 'Sans nom')}</span>
+                <span class="user-cell__email">${escapeHtml(u.email || '—')}</span>
+              </div>
             </div>
-          </div>
-        </td>
-        <td class="table__cell text-secondary">${escapeHtml(email)}</td>
-        <td class="table__cell">
-          <select class="input select select--sm role-select" data-uid="${uid}" aria-label="User role">
-            <option value="user" ${role === 'user' ? 'selected' : ''}>User</option>
-            <option value="admin" ${role === 'admin' ? 'selected' : ''}>Admin</option>
-          </select>
-        </td>
-        <td class="table__cell">
-          <div class="quota-mini-meter">
-            <div class="quota-mini-meter__track">
-              <div class="quota-mini-meter__bar" style="width: ${percentage}%"></div>
-            </div>
-            <span class="quota-mini-meter__label">${quotaUsed.toLocaleString()} / ${quotaLimit.toLocaleString()} (${percentage}%)</span>
-          </div>
-        </td>
-        <td class="table__cell text-secondary">${lastLogin}</td>
-        <td class="table__cell table__cell--actions">
-          <button class="btn btn--sm ${isSelected ? 'btn--primary' : 'btn--secondary'} btn-toggle-details" data-uid="${uid}">
-            ${isSelected ? 'Hide' : 'Inspect'}
-          </button>
-        </td>
-      </tr>
-      ${isSelected ? renderUserDetailRow(user) : ''}
-    `;
-  });
-
-  html += '</tbody></table></div>';
-  tableWrap.innerHTML = html;
-
-  bindTableInteractions();
-}
-
-/**
- * Renders expanded detail row for a user
- */
-function renderUserDetailRow(user) {
-  const uid = user.id || user.uid;
-  const { notes, links, logs, isLoading } = state.userDetails;
-
-  return `
-    <tr class="table__row--user-expanded">
-      <td colspan="6">
-        <div class="user-expanded-panel">
-          <div class="user-expanded-tabs">
-            <button class="user-tab-btn ${state.activeDetailTab === 'notes' ? 'user-tab-btn--active' : ''}" data-detail-tab="notes">
-              User Notes (${notes.length})
-            </button>
-            <button class="user-tab-btn ${state.activeDetailTab === 'links' ? 'user-tab-btn--active' : ''}" data-detail-tab="links">
-              User Links (${links.length})
-            </button>
-            <button class="user-tab-btn ${state.activeDetailTab === 'logs' ? 'user-tab-btn--active' : ''}" data-detail-tab="logs">
-              Access Logs (${logs.length})
-            </button>
-          </div>
-
-          <div class="user-expanded-body">
-            ${isLoading ? `
-              <div class="spinner-small"></div>
-              <span>Loading details for ${escapeHtml(user.displayName || user.email)}...</span>
-            ` : renderDetailTabContent(user)}
-          </div>
-        </div>
-      </td>
-    </tr>
-  `;
-}
-
-/**
- * Renders tab content inside user drawer
- */
-function renderDetailTabContent(user) {
-  const { notes, links, logs } = state.userDetails;
-
-  if (state.activeDetailTab === 'notes') {
-    if (notes.length === 0) {
-      return '<p class="text-tertiary">No notes created by this user yet.</p>';
-    }
-    return `
-      <div class="detail-items-list">
-        ${notes.map(n => `
-          <div class="detail-item">
-            <img src="https://img.icons8.com/fluency/20/document.png" alt="" />
-            <div class="detail-item__info">
-              <span class="detail-item__title">${escapeHtml(n.title || 'Untitled')}</span>
-              <span class="detail-item__meta">${escapeHtml(n.subject || 'General')} &bull; ${(n.charCount || n.content?.length || 0).toLocaleString()} chars &bull; ${formatTimestamp(n.updatedAt || n.createdAt)}</span>
-            </div>
-            ${n.isPublic ? '<span class="badge badge--public">Public</span>' : ''}
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  if (state.activeDetailTab === 'links') {
-    if (links.length === 0) {
-      return '<p class="text-tertiary">No links saved by this user yet.</p>';
-    }
-    return `
-      <div class="detail-items-list">
-        ${links.map(l => `
-          <div class="detail-item">
-            <img src="https://img.icons8.com/fluency/20/link.png" alt="" />
-            <div class="detail-item__info">
-              <span class="detail-item__title">${escapeHtml(l.title || 'Untitled')}</span>
-              <a href="${escapeHtml(l.url)}" target="_blank" rel="noopener noreferrer" class="detail-item__link">${escapeHtml(truncate(l.url, 45))}</a>
-            </div>
-            <span class="badge badge--subject">${escapeHtml(l.subject || 'General')}</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  }
-
-  // Access Logs
-  if (logs.length === 0) {
-    return '<p class="text-tertiary">No recorded access logs for this user.</p>';
-  }
-
-  return `
-    <table class="table table--compact logs-table">
-      <thead>
-        <tr>
-          <th>Action</th>
-          <th>Doc Type</th>
-          <th>Document ID</th>
-          <th>Timestamp</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${logs.map(log => `
-          <tr>
-            <td>
-              <span class="badge badge--action-${escapeHtml(log.action || 'info')}">
-                ${escapeHtml(log.action || 'view')}
-              </span>
-            </td>
-            <td>${escapeHtml(log.documentType || 'note')}</td>
-            <td><code>${escapeHtml(log.documentId || '-')}</code></td>
-            <td class="text-secondary">${formatTimestamp(log.timestamp)}</td>
-          </tr>
-        `).join('')}
+          </td>
+          <td class="table__cell">
+            <select class="input select role-select" data-uid="${id}">
+              <option value="user" ${u.role !== 'admin' ? 'selected' : ''}>user</option>
+              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
+            </select>
+          </td>
+          <td class="table__cell">
+            <div class="mini-bar"><div class="mini-bar__fill" style="width:${pct}%"></div></div>
+            <span class="table__cell--muted">${(u.quotaUsed || 0).toLocaleString('fr-FR')} car. (${pct}%)</span>
+          </td>
+          <td class="table__cell table__cell--muted">${formatDate(u.lastLogin)}</td>
+          <td class="table__cell table__cell--actions">
+            <button class="btn btn--sm btn-view-docs" data-uid="${id}">Documents</button>
+          </td>
+        </tr>`;
+      }).join('')}
       </tbody>
-    </table>
+    </table></div>`;
+
+  body.querySelectorAll('.role-select').forEach(sel => {
+    sel.addEventListener('change', () => changeRole(sel.dataset.uid, sel.value, sel));
+  });
+  body.querySelectorAll('.btn-view-docs').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.selectedUid = btn.dataset.uid;
+      state.tab = 'documents';
+      state.page = 1;
+      state.container.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('tab-btn--active', b.dataset.tab === 'documents'));
+      renderView();
+    });
+  });
+}
+
+async function changeRole(uid, role, select) {
+  const previous = state.users.find(u => (u.id || u.uid) === uid)?.role || 'user';
+  if (!confirm(`Changer le rôle de cet utilisateur en « ${role} » ?`)) {
+    select.value = previous;
+    return;
+  }
+  try {
+    await FirestoreService.updateUserRole(uid, role);
+    const user = state.users.find(u => (u.id || u.uid) === uid);
+    if (user) user.role = role;
+    if (AppState.user?.uid === uid) AppState.isAdmin = role === 'admin';
+    EventBus.emit('user:roleChanged', { uid, role });
+    showToast(`Rôle mis à jour : ${role}.`, 'success');
+  } catch (err) {
+    console.error('[Users] role change failed:', err);
+    select.value = previous;
+    showToast(`Échec : ${err.message}`, 'error');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Documents (per user)
+// ---------------------------------------------------------------------------
+
+function renderDocuments() {
+  const c = state.container;
+  const body = c.querySelector('#au-body');
+
+  const userOptions = state.users.map(u => {
+    const id = u.id || u.uid;
+    return `<option value="${id}" ${state.selectedUid === id ? 'selected' : ''}>${escapeHtml(u.displayName || u.email || id)}</option>`;
+  }).join('');
+
+  const uid = state.selectedUid || (state.users[0] && (state.users[0].id || state.users[0].uid)) || '';
+  state.selectedUid = uid;
+
+  const userNotes = state.notes.filter(n => n.uid === uid);
+  const userLinks = state.links.filter(l => l.uid === uid);
+  const totalChars = userNotes.reduce((sum, n) => sum + (n.charCount ?? (n.content || '').length), 0);
+
+  const chips = `
+    <div class="stat-chips">
+      <span class="stat-chip"><strong>${userNotes.length}</strong> fiches</span>
+      <span class="stat-chip"><strong>${userLinks.length}</strong> liens</span>
+      <span class="stat-chip"><strong>${totalChars.toLocaleString('fr-FR')}</strong> caractères</span>
+    </div>`;
+
+  const notesTable = userNotes.length === 0
+    ? '<p class="table__cell--muted">Aucune fiche.</p>'
+    : `<div class="table-wrap"><table class="table">
+        <thead><tr class="table__head"><th>Titre</th><th>Matière</th><th>Car.</th><th>Publique</th><th>Modifiée</th><th class="table__cell--actions"></th></tr></thead>
+        <tbody>${userNotes.map(n => `
+          <tr class="table__row">
+            <td class="table__cell table__cell--strong">${escapeHtml(truncate(n.title || 'Sans titre', 32))}</td>
+            <td class="table__cell"><span class="badge badge--subject">${escapeHtml(n.subject || 'Général')}</span></td>
+            <td class="table__cell">${(n.charCount ?? (n.content || '').length).toLocaleString('fr-FR')}</td>
+            <td class="table__cell">${n.isPublic ? '<span class="badge badge--public">Oui</span>' : '—'}</td>
+            <td class="table__cell table__cell--muted">${formatDate(n.updatedAt)}</td>
+            <td class="table__cell table__cell--actions">
+              <button class="btn btn--sm btn-open-note" data-id="${n.id}">Ouvrir</button>
+            </td>
+          </tr>`).join('')}
+        </tbody></table></div>`;
+
+  const linksTable = userLinks.length === 0
+    ? '<p class="table__cell--muted">Aucun lien.</p>'
+    : `<div class="table-wrap"><table class="table">
+        <thead><tr class="table__head"><th>Titre</th><th>URL</th><th>Matière</th></tr></thead>
+        <tbody>${userLinks.map(l => `
+          <tr class="table__row">
+            <td class="table__cell table__cell--strong">${escapeHtml(truncate(l.title || 'Sans titre', 28))}</td>
+            <td class="table__cell"><a href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(truncate(l.url, 34))}</a></td>
+            <td class="table__cell"><span class="badge badge--subject">${escapeHtml(l.subject || 'Général')}</span></td>
+          </tr>`).join('')}
+        </tbody></table></div>`;
+
+  body.innerHTML = `
+    <div class="admin-app__selector">
+      <label class="form-label" for="au-user-select">Utilisateur</label>
+      <select class="input select" id="au-user-select">${userOptions || '<option value="">Aucun utilisateur</option>'}</select>
+    </div>
+    ${chips}
+    <div class="admin-app__section"><h3>Fiches</h3>${notesTable}</div>
+    <div class="admin-app__section"><h3>Liens</h3>${linksTable}</div>
   `;
-}
 
-/**
- * Attaches table interactions
- */
-function bindTableInteractions() {
-  const container = state.container;
-  if (!container) return;
-
-  // Toggle user details
-  container.querySelectorAll('.btn-toggle-details').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const uid = btn.dataset.uid;
-      if (state.selectedUserId === uid) {
-        state.selectedUserId = null;
-        renderUserTable();
-      } else {
-        state.selectedUserId = uid;
-        await loadUserDetails(uid);
-      }
-    });
+  body.querySelector('#au-user-select')?.addEventListener('change', e => {
+    state.selectedUid = e.target.value;
+    state.page = 1;
+    renderView();
+  });
+  body.querySelectorAll('.btn-open-note').forEach(btn => {
+    btn.addEventListener('click', () => EventBus.emit('app:open', { appId: 'markdown-editor', params: { noteId: btn.dataset.id } }));
   });
 
-  // User detail tabs
-  container.querySelectorAll('.user-tab-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      state.activeDetailTab = btn.dataset.detailTab;
-      renderUserTable();
-    });
-  });
-
-  // Role select dropdown
-  container.querySelectorAll('.role-select').forEach(select => {
-    select.addEventListener('change', async (e) => {
-      e.stopPropagation();
-      const uid = select.dataset.uid;
-      const newRole = select.value;
-      await handleRoleChange(uid, newRole, select);
-    });
-  });
+  setPagination(0, 0);
 }
 
-/**
- * Loads user's notes, links, and logs
- */
-async function loadUserDetails(uid) {
-  state.userDetails.isLoading = true;
-  renderUserTable();
+// ---------------------------------------------------------------------------
+// Activity log
+// ---------------------------------------------------------------------------
 
-  try {
-    const [notes, links, logs] = await Promise.all([
-      FirestoreService.getUserNotes(uid, {}).catch(err => {
-        console.warn('Error fetching user notes:', err);
-        return [];
-      }),
-      FirestoreService.getUserLinks(uid, {}).catch(err => {
-        console.warn('Error fetching user links:', err);
-        return [];
-      }),
-      FirestoreService.getAccessLogs({ uid, limit: 15 }).catch(err => {
-        console.warn('Error fetching user logs:', err);
-        return [];
-      })
-    ]);
+function renderActivity() {
+  const body = state.container.querySelector('#au-body');
+  const q = state.query;
 
-    state.userDetails.notes = notes || [];
-    state.userDetails.links = links || [];
-    state.userDetails.logs = logs || [];
-  } catch (err) {
-    console.error('Failed to load user details:', err);
-    showToast(`Error loading details: ${err.message}`, 'error');
-  } finally {
-    state.userDetails.isLoading = false;
-    renderUserTable();
+  const filtered = state.logs.filter(l => !q ||
+    [l.action, l.documentType, l.uid, l.documentId].filter(Boolean).some(v => String(v).toLowerCase().includes(q)));
+
+  const rows = paged(filtered);
+  if (rows.length === 0) {
+    body.innerHTML = `<div class="empty-state"><p class="empty-state__title">Journal vide</p><p class="empty-state__description">Aucune activité enregistrée.</p></div>`;
+    return;
   }
+
+  const userName = uid => {
+    const u = state.users.find(x => (x.id || x.uid) === uid);
+    return u ? (u.displayName || u.email) : uid;
+  };
+
+  body.innerHTML = `
+    <div class="table-wrap"><table class="table">
+      <thead><tr class="table__head"><th>Date</th><th>Utilisateur</th><th>Action</th><th>Type</th><th>Document</th></tr></thead>
+      <tbody>${rows.map(l => `
+        <tr class="table__row">
+          <td class="table__cell table__cell--muted">${formatDateTime(l.timestamp)}</td>
+          <td class="table__cell">${escapeHtml(userName(l.uid) || '—')}</td>
+          <td class="table__cell"><span class="badge badge--action badge--action-${escapeAttr(l.action || 'view')}">${escapeHtml(l.action || 'view')}</span></td>
+          <td class="table__cell">${escapeHtml(l.documentType || 'note')}</td>
+          <td class="table__cell table__cell--muted"><code>${escapeHtml(truncate(l.documentId || '—', 16))}</code></td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`;
 }
 
-/**
- * Handles role update
- */
-async function handleRoleChange(uid, newRole, selectElement) {
-  const user = state.users.find(u => (u.id || u.uid) === uid);
-  const userName = user?.displayName || user?.email || uid;
-
-  if (uid === AppState.user?.uid && newRole !== 'admin') {
-    if (!confirm('Warning: You are demoting your own account from admin. You may lose access to this admin panel. Continue?')) {
-      if (selectElement) selectElement.value = 'admin';
-      return;
-    }
-  }
-
-  try {
-    showToast(`Updating role for ${userName}...`, 'info');
-    await FirestoreService.updateUserRole(uid, newRole);
-
-    if (user) {
-      user.role = newRole;
-    }
-
-    showToast(`Role updated to ${newRole}`, 'success');
-  } catch (err) {
-    console.error('Failed to update user role:', err);
-    showToast(`Failed to update role: ${err.message}`, 'error');
-    if (user && selectElement) {
-      selectElement.value = user.role || 'user';
-    }
-  }
+function formatDate(ts) {
+  const ms = millis(ts);
+  return ms ? new Date(ms).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 }
+function formatDateTime(ts) {
+  const ms = millis(ts);
+  return ms ? new Date(ms).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+}
+function millis(ts) {
+  if (!ts) return 0;
+  if (typeof ts.toDate === 'function') return ts.toDate().getTime();
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (ts.seconds) return ts.seconds * 1000;
+  if (ts instanceof Date) return ts.getTime();
+  return Number(ts) || 0;
+}
+function truncate(str, max) {
+  const s = String(str ?? '');
+  return s.length > max ? s.slice(0, max) + '…' : s;
+}
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function escapeAttr(str) { return escapeHtml(str); }
 
-/**
- * Destroy cleanup
- */
+/** Tear down. */
 export function destroy() {
   state.container = null;
-  state.users = [];
-  state.selectedUserId = null;
-  state.userDetails = { notes: [], links: [], logs: [], isLoading: false };
-}
-
-/**
- * Helpers
- */
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-function truncate(str, max = 30) {
-  if (!str) return '';
-  return str.length > max ? str.substring(0, max) + '...' : str;
-}
-
-function getInitials(name, email) {
-  if (name && name.trim()) {
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return parts[0].substring(0, 2).toUpperCase();
-  }
-  if (email && email.length >= 2) {
-    return email.substring(0, 2).toUpperCase();
-  }
-  return 'U';
-}
-
-function formatTimestamp(ts) {
-  if (!ts) return 'Never';
-  let d;
-  if (ts.toDate) d = ts.toDate();
-  else if (ts.seconds) d = new Date(ts.seconds * 1000);
-  else d = new Date(ts);
-
-  if (isNaN(d.getTime())) return 'Never';
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  state.users = []; state.notes = []; state.links = []; state.logs = [];
+  state.selectedUid = '';
 }

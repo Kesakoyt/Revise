@@ -1,381 +1,344 @@
-# Revise — Fiches & Cloud
+# Fiches & Cloud
 
-> Modern study notes and resource manager built with Windows 11 Fluent Design, powered by Firebase and real-time Markdown + KaTeX mathematical typesetting.
+> A minimalist, Windows 11 "Fluent" study workspace — Markdown notes, math
+> rendering and link curation, backed by Firebase. Zero build step.
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](PATCH_NOTES.md)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Design](https://img.shields.io/badge/Design-Windows%2011%20Fluent-0078d4.svg)](#)
+Fiches & Cloud is a single-page application built with plain **HTML5 / CSS3 /
+ES Modules**. It stores nothing but **Markdown** and **link metadata** in
+Firestore: any PDF or DOCX you import is converted to Markdown *in the browser*
+before it is ever uploaded.
 
 ---
 
-## Overview
+## Table of contents
 
-**Revise (Fiches & Cloud)** is an all-in-one web workspace tailored for students, researchers, and lifelong learners. Combining the elegance of Windows 11 Fluent Design (Mica/Acrylic glassmorphism, depth, fluid transitions) with a serverless Firebase backend, Revise lets you draft rich study revision cards ("fiches"), organize web references, import academic PDFs and Word documents, and inspect learning analytics—all within an adaptive split-screen productivity environment.
+1. [Features](#features)
+2. [Architecture](#architecture)
+3. [Project structure](#project-structure)
+4. [Running the app](#running-the-app)
+5. [Firebase configuration](#firebase-configuration)
+6. [Firestore data model](#firestore-data-model)
+7. [Security rules](#security-rules)
+8. [Design system](#design-system)
+9. [Browser support](#browser-support)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Features
 
-- **📁 Interactive File Explorer**
-  - Grid and list views with real-time subject and topic filtering.
-  - Multi-attribute sorting (date created, date updated, title, character count).
-  - Instant full-text search across titles, topics, and contents.
-  - Public revision cards showcase for community notes sharing.
-  - Live character quota visual progress indicator.
+### Core
+- **Markdown study notes** with a live split-pane editor (source ↔ preview).
+- **KaTeX math** — `$inline$`, `$$display$$`, `\(…\)` and `\[…\]`.
+- **PDF & DOCX import** — drag-and-drop, converted to clean Markdown client-side
+  (PDF.js + Mammoth.js).
+- **Link manager** — bookmark external resources (title, URL, description, subject).
+- **Subjects & topics** — classify, filter and sort every note.
+- **Public notes** — publish a note and browse what others have shared.
+- **Character quota** — a strict, account-wide character allowance is enforced
+  before every write and shown as a live bar.
 
-- **✍️ Split-Pane Markdown & Math Editor**
-  - Live side-by-side editing: reactive Markdown textarea paired with parsed HTML preview.
-  - First-class mathematical typesetting powered by **KaTeX** (inline `$E = mc^2$` and block `$$\int_{-\infty}^{\infty} e^{-x^2} dx = \sqrt{\pi}$$`).
-  - Integrated toolbar for heading styles, formatting, code blocks, lists, and math templates.
-  - Subject, topic, visibility (public/private), and character limit tracking with auto-save indicators.
+### Shell
+- **Top navigation bar** with the account name, role badge, a **user-configurable
+  shortcut bar** (backed by the `shortcuts` collection) and a theme toggle.
+- **Left dock** application launcher with tooltips.
+- **Split screen** — up to **3 panels side-by-side**, with draggable dividers,
+  maximize and per-panel close.
+- **Light / dark themes** following the OS preference, persisted in `localStorage`.
 
-- **📄 Document Import & Conversion Engine**
-  - Drag-and-drop ingestion of `.pdf` and `.docx` files directly into the file explorer or editor.
-  - In-browser parsing of PDF pages via **PDF.js** extracted directly into cleanly formatted Markdown.
-  - Structured Word conversion via **Mammoth.js**, preserving headers, tables, formatting, and lists.
-
-- **🔗 Link & Resource Manager**
-  - Catalog educational websites, research papers, video lectures, and tools.
-  - Organize bookmarks by subject tags with metadata and direct external launch.
-  - Fast search, filter, and management modal dialogues.
-
-- **🪟 Multitasking Split-Screen Workspace**
-  - Multi-panel environment allowing up to **3 concurrent panels** side-by-side.
-  - Drag-to-resize dividers between panels.
-  - Independent panel maximize and close actions, enabling simultaneous note-taking, link referencing, and file browsing.
-
-- **🎨 Windows 11 Fluent Design System**
-  - Authentic Mica and Acrylic translucent materials using CSS backdrop filters.
-  - High-fidelity light and dark themes with dynamic variable switching and saved preferences.
-  - Consistent iconography using Icons8 Fluency suite.
-  - Responsive layout with desktop-style application Dock and Navigation Bar.
-
-- **📊 Character Storage Quota System**
-  - Per-user storage quota enforcement (default 500,000 characters per account).
-  - Quota validation before saving notes to prevent database bloat.
-  - Live visual storage gauges and auto-recalculated usage upon content deletion.
-
-- **🛡️ Role-Based Access Control & Admin Suite**
-  - Distinct `user` and `admin` permission tiers.
-  - **Database Inspector**: Explore, edit, and delete raw records in `notes`, `links`, and `users` collections.
-  - **User Management**: View user profiles, inspect individual user file repositories, promote/demote roles, and view user audit logs.
-  - **Analytics Dashboard**: Real-time aggregated metrics (total notes, links, characters, active users) with CSS subject distribution bar charts and recent audit trail.
+### Admin (role `admin`)
+- **Database** — inspect and delete documents across `notes`, `links`,
+  `shortcuts` and `users`, with search, pagination and a JSON inspector.
+- **Users** — account list, role management, per-user document browsing and the
+  document **access log**.
+- **Statistics** — totals for notes, links, shortcuts, stored characters,
+  active users and a per-subject breakdown.
 
 ---
 
-## Tech Stack
+## Architecture
 
-| Technology | Purpose |
-| :--- | :--- |
-| **HTML5 & CSS3** | Semantic markup, custom CSS variables, Fluent glassmorphic styling, flex/grid layouts |
-| **Vanilla JavaScript (ES6+)** | Modular architecture, native DOM manipulation, pub/sub EventBus, zero heavy framework lock-in |
-| **Firebase Auth (Compat 10.7.1)** | Secure email/password authentication and persistent session management |
-| **Cloud Firestore (Compat 10.7.1)** | Real-time NoSQL cloud document storage, filtering, and role-based permissions |
-| **Marked.js (v11+)** | High-performance client-side Markdown rendering |
-| **KaTeX (v0.16.9)** | Rapid LaTeX mathematical expression rendering and auto-delimiter detection |
-| **PDF.js (v3.11.174)** | Client-side PDF binary parsing and text stream extraction |
-| **Mammoth.js (v1.6.0)** | Client-side `.docx` to semantic HTML/Markdown transformation |
-| **Icons8 Fluency** | Fluent-style icons for desktop and docking elements |
+- **Zero build.** No bundler, no `package.json`, no transpilation. The browser
+  loads the ES modules directly.
+- **CDN globals.** Firebase (compat), Marked, KaTeX, PDF.js and Mammoth are
+  loaded as `<script>` tags *before* the modules run, and consumed through
+  `window.*`.
+- **Event bus.** Components are decoupled through a tiny
+  `EventBus.on / off / emit` in `src/app.js` (`app:open`, `panel:close`,
+  `auth:login`, `auth:logout`, `note:saved`, `note:deleted`, `link:saved`,
+  `link:deleted`, `quota:updated`, `theme:changed`).
+- **Global state.** `AppState` (`src/app.js`) holds the current `user`, their
+  `profile`, the `theme` and `isAdmin`.
+- **Component contract.** Every component default-exports `render(container, params)`
+  and `destroy()`. Because the workspace keeps **one instance per app id**,
+  components may safely use a module-level singleton `state` object.
+- **Lazy loading.** The workspace `import()`s an app module only when its panel
+  is opened.
+
+### Deep modules
+
+| Module | Responsibility |
+| --- | --- |
+| `src/app.js` | EventBus, AppState, `iconUrl()`/`iconImg()`, toasts, modals, auth modal, bootstrap |
+| `src/components/workspace.js` | `APP_REGISTRY`, `openPanel` / `closePanel`, panel chrome |
+| `src/components/split-screen.js` | 3-panel flex layout + draggable dividers |
+| `src/services/firestore-service.js` | All CRUD by collection, admin reads, stats |
+| `src/services/converter-service.js` | PDF/DOCX → Markdown, Markdown → HTML, KaTeX |
+| `src/services/quota-manager.js` | Character accounting & enforcement |
+| `src/services/firebase-config.js` | Base64 decode + Firebase init |
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
-Revise/
-├── index.html                  # Main application entry point & container layouts
-├── README.md                   # Project documentation & setup instructions
-├── PATCH_NOTES.md              # Version changelog and release notes
-├── .gitignore                  # Git ignore rules (ignoring env-config.js)
+.
+├── index.html                  # App shell: CDN tags, mount points, boot splash
+├── README.md
+├── LICENSE
+├── PATCH_NOTES.md
+├── .gitignore                  # ignores src/env-config.js (real keys)
+├── assets/                     # Local static assets (logo fallback). Icons come from Icons8.
 └── src/
-    ├── app.js                  # Application bootstrapper, EventBus & global AppState
-    ├── env-config.js.template  # Obfuscated credentials template for Firebase
-    ├── env-config.js           # Decoded/local config (gitignored)
-    ├── services/
-    │   ├── firebase-config.js  # Firebase compat SDK initialization & exports
-    │   ├── auth-service.js     # User authentication, session, & profile management
-    │   ├── firestore-service.js# Firestore database operations & queries
-    │   ├── quota-manager.js    # Character storage quota tracker & validator
-    │   └── converter-service.js# PDF/DOCX parser, Markdown & KaTeX math renderer
+    ├── app.js                  # Entry point + shared primitives
+    ├── env-config.js           # Base64 Firebase credentials (git-ignored)
+    ├── env-config.js.template  # Copy-me template
     ├── components/
-    │   ├── navbar.js           # Top header bar, user status, theme switch, quick links
-    │   ├── dock.js             # Left app launcher dock with Fluency iconography
-    │   ├── workspace.js        # Dynamic multi-panel workspace orchestrator
-    │   ├── split-screen.js     # Flexible 1-3 panel resizable layout manager
-    │   ├── file-explorer.js    # Note navigator, filter/sort controls, drag-and-drop
-    │   ├── markdown-editor.js  # Live split-pane Markdown editor with KaTeX math
-    │   ├── link-manager.js     # Curated web bookmarks and resource organizer
-    │   ├── admin-database.js   # Administrator collection viewer & document inspector
-    │   ├── admin-users.js      # User management, role elevation, and audit logs
-    │   └── admin-statistics.js # Analytics dashboard and subject breakdown charts
+    │   ├── navbar.js           # Brand, shortcuts, theme, account
+    │   ├── dock.js             # App launcher (+ admin section)
+    │   ├── workspace.js        # Panel orchestration / APP_REGISTRY
+    │   ├── split-screen.js     # 1–3 panel layout
+    │   ├── file-explorer.js    # Notes browser + import + quota
+    │   ├── markdown-editor.js  # Split editor + KaTeX preview
+    │   ├── link-manager.js     # Bookmarks CRUD
+    │   ├── admin-database.js   # Collections inspector
+    │   ├── admin-users.js      # Accounts, roles, audit log
+    │   └── admin-statistics.js # Metrics dashboard
+    ├── services/
+    │   ├── firebase-config.js
+    │   ├── auth-service.js
+    │   ├── firestore-service.js
+    │   ├── quota-manager.js
+    │   └── converter-service.js
     └── styles/
-        └── style.css           # Fluent Design System tokens, animations & components
+        └── style.css           # Fluent design tokens + every component rule
 ```
 
 ---
 
-## Getting Started / Setup
+## Running the app
 
-### Prerequisites
-- A modern standards-compliant web browser (Edge, Chrome, Firefox, Safari).
-- A [Firebase Console](https://console.firebase.google.com/) account.
-- A local HTTP static server (e.g., VS Code *Live Server*, `npx serve`, or Python's `http.server`).
+ES modules are subject to the browser's CORS rules, so the app **must be served
+over HTTP** (opening `index.html` from `file://` will not work).
 
----
+Pick any static server:
 
-### Step 1: Clone or Open the Repository
 ```bash
-git clone https://github.com/your-username/revise.git
-cd revise
+# Python 3
+python -m http.server 5173
+
+# Node (npx)
+npx serve .
+
+# PHP
+php -S localhost:5173
 ```
 
+Then open <http://localhost:5173>.
+
+There is **no install and no build step**.
+
 ---
 
-### Step 2: Configure Environment Template
-Copy the template configuration file to create your active configuration:
-```bash
-# On Windows PowerShell:
-Copy-Item "src/env-config.js.template" -Destination "src/env-config.js"
+## Firebase configuration
 
-# On Unix / macOS:
+Credentials live in `src/env-config.js`, which is **git-ignored**. Every value
+is stored **Base64-encoded** and decoded at runtime by
+`src/services/firebase-config.js`.
+
+### 1. Create / select a project
+
+In the [Firebase console](https://console.firebase.google.com/) create a project
+and add a **Web app**. Enable:
+
+- **Authentication → Sign-in method → Email/Password**
+- **Firestore Database** (production mode)
+
+### 2. Fill in your keys
+
+```bash
 cp src/env-config.js.template src/env-config.js
 ```
 
----
+Encode each value (browser console):
 
-### Step 3: Setup Firebase Project
-1. Navigate to [Firebase Console](https://console.firebase.google.com/) and click **Add Project**.
-2. Under **Build > Authentication**, click **Get Started** and enable the **Email/Password** sign-in provider.
-3. Under **Build > Firestore Database**, click **Create Database** (start in Test mode or immediately apply the security rules detailed below).
-4. Go to **Project Settings** (gear icon) > **General** > **Your apps** > Select **Web app (`</>`)**.
-5. Register the app name (e.g. `Revise Web`) and locate the `firebaseConfig` object containing:
-   - `apiKey`
-   - `authDomain`
-   - `projectId`
-   - `storageBucket`
-   - `messagingSenderId`
-   - `appId`
-
----
-
-### Step 4: Encode and Populate Firebase Credentials
-To safeguard keys from direct automated scrapers, base64-encode each configuration value.
-
-#### How to base64-encode values:
-Open your browser developer console (`F12` > **Console**) or run in terminal:
-```javascript
-// Run in browser console:
-btoa("AIzaSyExampleApiKey12345")
-// Output: "QUl6YVN5RXhhbXBsZUFwaUtleTEyMzQ1"
+```js
+btoa("AIzaSy…")
 ```
 
-Or in PowerShell:
+…or PowerShell:
+
 ```powershell
-[Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("AIzaSyExampleApiKey12345"))
+[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("AIzaSy…"))
 ```
 
-#### Paste encoded values into `src/env-config.js`:
-```javascript
-// src/env-config.js
-export const FIREBASE_CONFIG_ENCODED = {
-  apiKey: "QUl6YVN5RXhhbXBsZUFwaUtleTEyMzQ1",
-  authDomain: "eW91ci1wcm9qZWN0LmZpcmViYXNlYXBwLmNvbQ==",
-  projectId: "eW91ci1wcm9qZWN0",
-  storageBucket: "eW91ci1wcm9qZWN0LmFwcHNwb3QuY29t",
-  messagingSenderId: "MTIzNDU2Nzg5MDEy",
-  appId: "MTo4Mzc2MTI1NzQ5MTI6d2ViOmExYjJjM2Q0ZTVmNg=="
-};
-```
+Paste the encoded strings into `src/env-config.js` and reload.
+
+> **This repository ships pre-filled for the demo project `revise-61c6b`.** If it
+> is not yours, replace every field.
+
+### Security note
+
+Firebase **Web App** config values are *identifiers*, not secrets: they ship to
+every client by design. **Base64 is obfuscation, not encryption.** Real access
+control lives entirely in the [Security rules](#security-rules) and Firebase
+Auth. The `isConfigured` flag in `firebase-config.js` only distinguishes real
+keys from placeholders so the UI can warn you.
 
 ---
 
-### Step 5: Deploy Firestore Security Rules
-Go to **Firestore Database** > **Rules** in the Firebase Console and deploy the following production rules:
+## Firestore data model
 
-```javascript
+| Collection | Document |
+| --- | --- |
+| `users/{uid}` | `email`, `displayName`, `role` (`user`\|`admin`), `createdAt`, `lastLogin`, `quotaUsed`, `quotaLimit`, `shortcuts[]` |
+| `notes/{id}` | `uid`, `title`, `content`, `subject`, `topic`, `isPublic`, `charCount`, `createdAt`, `updatedAt` |
+| `links/{id}` | `uid`, `title`, `url`, `description`, `subject`, `createdAt`, `updatedAt` |
+| `shortcuts/{id}` | `uid`, `label`, `icon`, `action`, `order`, `createdAt` |
+| `accessLogs/{id}` | `uid`, `documentId`, `documentType`, `action`, `timestamp` |
+
+**Character quota** = the sum of every note's `charCount` for a user. The default
+allowance is `500 000` characters (`quotaLimit` on the user document).
+
+---
+
+## Security rules
+
+Paste into **Firestore → Rules**:
+
+```js
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Authorization helpers
-    function isAuthenticated() {
+
+    function isSignedIn() {
       return request.auth != null;
     }
-    
+
     function isOwner(uid) {
-      return isAuthenticated() && request.auth.uid == uid;
-    }
-    
-    function isAdmin() {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isSignedIn() && request.auth.uid == uid;
     }
 
-    // Users Collection
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // User profiles: owners edit themselves, admins manage everyone.
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isAdmin();
+      allow read:   if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && request.resource.data.role == 'user';
+      allow update: if isAdmin()
+                    || (isOwner(userId)
+                        && !request.resource.data.diff(resource.data).affectedKeys()
+                             .hasAny(['role', 'quotaLimit']));
       allow delete: if isAdmin();
     }
 
-    // Notes Collection
+    // Notes: owners write; everyone reads public notes.
     match /notes/{noteId} {
-      allow read: if isAuthenticated() && (
-        resource.data.isPublic == true || 
-        resource.data.uid == request.auth.uid || 
-        isAdmin()
-      );
-      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
-      allow update: if isAuthenticated() && (
-        resource.data.uid == request.auth.uid || 
-        isAdmin()
-      );
-      allow delete: if isAuthenticated() && (
-        resource.data.uid == request.auth.uid || 
-        isAdmin()
-      );
+      allow read:   if isAdmin()
+                    || (resource.data.isPublic == true)
+                    || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin()
+                    || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
-    // Links Collection
+    // Links and shortcuts: strictly private to their owner (admins may read).
     match /links/{linkId} {
-      allow read: if isAuthenticated() && (
-        resource.data.uid == request.auth.uid || 
-        isAdmin()
-      );
-      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
-      allow update: if isAuthenticated() && (
-        resource.data.uid == request.auth.uid || 
-        isAdmin()
-      );
-      allow delete: if isAuthenticated() && (
-        resource.data.uid == request.auth.uid || 
-        isAdmin()
-      );
+      allow read:   if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow write:  if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
-    // Access Logs Collection
+    match /shortcuts/{shortcutId} {
+      allow read:   if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin()
+                    || (isSignedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // Audit log: append-only; admins read.
     match /accessLogs/{logId} {
-      allow create: if isAuthenticated();
-      allow read, delete, update: if isAdmin();
+      allow create: if isSignedIn();
+      allow read:   if isAdmin();
     }
   }
 }
 ```
 
----
+### Creating the first admin
 
-### Step 6: Serve the Application Locally
-Since the project uses ES6 JavaScript Modules (`import`/`export`), it must be served over an HTTP protocol rather than opened directly via `file://`.
+The first account is a normal `user`. Promote it once, manually, from the
+Firebase console: **Firestore → `users` → your document → set `role` to `admin`**.
 
-Run any lightweight web server from the project directory:
+### Recommended composite indexes
 
-```bash
-# Using Node.js npx serve:
-npx serve .
+The services fall back to client-side sorting when an index is missing, but for
+best performance create:
 
-# Using Python 3:
-python -m http.server 8000
-
-# Using PHP:
-php -S localhost:8000
-```
-Open your browser at `http://localhost:3000` (or `http://localhost:8000`).
-
----
-
-## Firebase Configuration & Obfuscation Strategy
-
-### Why Base64 Obfuscation?
-Firebase Web API keys are identifiers used by client applications to associate requests with your Google Cloud Project. In single-page applications, these keys are inherently accessible to end-user clients.
-
-However, committing raw API keys directly into public version control systems (such as GitHub or GitLab) frequently triggers:
-- Public secrets scanning alerts and automated security reports.
-- Unintentional scraping by malicious bot crawlers seeking vulnerable or misconfigured Firebase instances.
-- Accidental leaks in multi-developer working copies.
-
-To prevent this:
-1. `src/env-config.js` is added to `.gitignore`.
-2. A generic placeholder template `src/env-config.js.template` is tracked instead.
-3. Credentials stored in `src/env-config.js` are encoded in Base64 format and decoded at runtime via `atob()` in `src/services/firebase-config.js`.
-
-> [!WARNING]
-> **Obfuscation is NOT Encryption.**
-> Base64 is an encoding format, not cryptographic encryption. Anyone with access to the browser console can decode these values via `atob()`. True application security is enforced **strictly** through **Firestore Security Rules** and Firebase Authentication tokens.
+| Collection | Fields |
+| --- | --- |
+| `notes` | `uid` ASC, `updatedAt` DESC |
+| `notes` | `uid` ASC, `subject` ASC, `updatedAt` DESC |
+| `notes` | `isPublic` ASC, `updatedAt` DESC |
+| `links` | `uid` ASC, `updatedAt` DESC |
+| `shortcuts` | `uid` ASC, `order` ASC |
+| `accessLogs` | `uid` ASC, `timestamp` DESC |
+| `accessLogs` | `timestamp` DESC |
 
 ---
 
-## Usage Guide
+## Design system
 
-### 1. Authentication & Onboarding
-- Click **Sign In** on initial visit.
-- If you don't have an account, switch to **Create an account** tab, fill in your email, password (min 6 characters), and display name.
-- First-time accounts are granted the `user` role with an initial 500,000 character quota.
-- *(To create an initial admin, elevate your role to `admin` directly in the Firebase Console under the `users` document).*
+The stylesheet (`src/styles/style.css`) implements the Windows 11 / Fluent
+language entirely with CSS custom properties:
 
-### 2. Exploring & Creating Revision Cards (Notes)
-- Open **File Explorer** from the dock (left bar).
-- Click **+ New Note** to launch the Markdown Editor.
-- Fill in:
-  - **Title**: Document title.
-  - **Subject & Topic**: Academic tagging (e.g., `Mathematics`, `Linear Algebra`).
-  - **Visibility**: Toggle "Make Public" to allow all authenticated students to read your note.
-- Type in the left editor pane; watch the formatted markdown and math equations compile instantly in the right preview pane.
-- Click **Save Note** (`Ctrl+S` / Save button).
-
-### 3. Inserting Mathematical Equations
-- **Inline Math**: Enclose expression with single dollar signs: `$f(x) = \sum_{n=0}^{\infty} \frac{f^{(n)}(a)}{n!} (x-a)^n$`
-- **Display / Block Math**: Enclose expressions with double dollar signs:
-  ```latex
-  $$\mathcal{L}\{f(t)\} = \int_0^\infty e^{-st} f(t) dt$$
-  ```
-
-### 4. Importing PDFs and Word Documents
-- In the **File Explorer**, drag and drop any `.pdf` or `.docx` file into the dashed drop zone.
-- Or click the **Import** button in the top toolbar.
-- The converter parses the document text, extracts headings and formatting, calculates character count against your quota, and automatically creates a new ready-to-edit note.
-
-### 5. Managing Reference Links
-- Click the **Links** icon in the dock to open the Link Manager.
-- Add external bookmarks with URLs, titles, descriptions, and subject tags.
-- Click any link card to launch the resource in a new tab.
-
-### 6. Multi-Panel Split Screen Workspace
-- Click any icon in the Dock to open up to 3 panels simultaneously side-by-side.
-- Drag the vertical partition dividers between panels to adjust widths to your workflow.
-- Use the panel toolbar to maximize or close specific panels.
-
-### 7. Admin Dashboard (Admin Only)
-Users with `role: 'admin'` will see elevated controls in the Dock:
-- **Database**: Full CRUD browser across `notes`, `links`, and `users` collections.
-- **Users**: List of all registered users, character usages, last login timestamps, user role modifier dropdown (`user` ↔ `admin`), and security audit logs.
-- **Statistics**: Visual dashboard with aggregate cards and subject frequency charts.
+- **Tokens** in `:root` and a `[data-theme='dark']` override (accent, surfaces,
+  text, borders, semantic colours, radii, shadows, motion).
+- **Acrylic / Mica** via `backdrop-filter: blur(...) saturate(...)` on the
+  navbar, dock, cards, modals and toasts.
+- **Rounded corners** of 8–12 px (`--radius`, `--radius-lg`).
+- **Soft shadows** layered for depth rather than hard borders.
+- Icons are **only** ever requested from Icons8 Fluency at 200 px:
+  `https://img.icons8.com/fluency/200/[icon-name].png` — centralised in
+  `iconUrl()` / `iconImg()` (`src/app.js`).
 
 ---
 
-## Security Notes
+## Browser support
 
-1. **Client-Side Obfuscation**:
-   Base64 encoding prevents accidental plaintext exposure and satisfies repository scanning heuristics. Never rely on client obfuscation as a security perimeter.
-2. **Database Isolation**:
-   Firestore rules strictly enforce that:
-   - Users can only edit or delete their own notes and links.
-   - Private notes cannot be read by other regular users.
-   - Quota limits and role modifications are guarded by security rules.
-   - Access logs can only be read and reviewed by authorized administrators.
-3. **Cross-Site Scripting (XSS) Sanitization**:
-   Marked.js parses markdown safely, and KaTeX prevents script execution within LaTeX math expressions.
+Any evergreen browser with ES modules, `backdrop-filter` and
+`Intl.NumberFormat`: **Chrome/Edge 90+, Firefox 103+, Safari 15+**.
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause / fix |
+| --- | --- |
+| Blank page, console CORS/module error | Opened via `file://`. Serve over HTTP (see above). |
+| "Configuration requise" modal | `src/env-config.js` still has placeholder keys — fill in your Base64 values. |
+| `auth/operation-not-allowed` | Enable **Email/Password** in Firebase Authentication. |
+| "Missing or insufficient permissions" | Publish the security rules above. |
+| Notes list empty but data exists | A composite index is missing; check the console link Firestore prints, or rely on the built-in fallback. |
+| Icons blank | Icons8 CDN blocked/offline — the logo has a local SVG fallback (`assets/logo-mark.svg`). |
+| PDF import fails | The PDF.js worker is fetched from the CDN; a strictly offline network will block it. |
 
 ---
 
 ## License
 
-This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for full details.
-
----
-
-## Version
-
-**v1.0.0** — Initial Production Release (October 2026).
-For historical updates and release tracking, refer to [PATCH_NOTES.md](PATCH_NOTES.md).
+MIT — see [LICENSE](LICENSE).
