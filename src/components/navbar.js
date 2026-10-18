@@ -16,17 +16,21 @@ const bound = {};
 
 /** Icons offered when creating a shortcut. */
 const ICON_CHOICES = [
-  'folder', 'document', 'link', 'database', 'group', 'combo-chart',
+  'opened-folder', 'document', 'link', 'database', 'group', 'combo-chart',
   'star', 'bookmark', 'search', 'clock', 'settings', 'key'
 ];
 
 /** In-app destinations offered when creating a shortcut. */
 const ACTION_CHOICES = [
-  { value: 'file-explorer', label: 'Explorateur de fiches' },
+  { value: 'file-explorer', label: 'Fichiers & dossiers' },
   { value: 'markdown-editor', label: 'Éditeur Markdown' },
-  { value: 'link-manager', label: 'Gestionnaire de liens' },
+  { value: 'user-profile', label: 'Mon profil' },
   { value: '__url__', label: 'Adresse web (URL)…' }
 ];
+
+/** Legacy values kept working after apps / icons were renamed or removed. */
+const ACTION_ALIASES = { 'link-manager': 'file-explorer' };
+const ICON_ALIASES = { folder: 'opened-folder', grid: 'thumbnails', logout: 'logout-rounded' };
 
 /** @param {HTMLElement} container */
 export function render(container) {
@@ -54,7 +58,7 @@ export function render(container) {
             <span class="badge badge--user" id="navbar-user-role"></span>
           </button>
           <button type="button" class="navbar__icon-btn navbar__logout-btn" id="navbar-logout-btn" title="Déconnexion" aria-label="Se déconnecter">
-            ${iconImg('logout', { size: 20, alt: '' })}
+            ${iconImg('logout-rounded', { size: 20, alt: '' })}
           </button>
         </div>
       </div>
@@ -116,8 +120,8 @@ function renderShortcuts() {
   }
 
   bar.innerHTML = shortcuts.map(sc => `
-    <button type="button" class="navbar__shortcut" data-action="${escapeAttr(sc.action)}" title="${escapeAttr(sc.label)}">
-      ${iconImg(sc.icon, { size: 18, alt: '', className: 'navbar__shortcut-icon' })}
+    <button type="button" class="navbar__shortcut" data-action="${escapeAttr(resolveAction(sc.action))}" title="${escapeAttr(sc.label)}">
+      ${iconImg(resolveIcon(sc.icon), { size: 18, alt: '', className: 'navbar__shortcut-icon' })}
       <span class="navbar__shortcut-label">${escapeHtml(sc.label)}</span>
     </button>
   `).join('');
@@ -277,6 +281,9 @@ function escapeHtml(str) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+
+function resolveAction(action) { return ACTION_ALIASES[action] || action; }
+function resolveIcon(name) { return ICON_ALIASES[name] || name; }
 
 function escapeAttr(str) {
   return escapeHtml(str);

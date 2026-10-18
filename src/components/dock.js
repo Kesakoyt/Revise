@@ -12,8 +12,7 @@ let activeAppId = null;
 const bound = {};
 
 const STANDARD_APPS = [
-  { id: 'file-explorer', icon: 'folder', label: 'Explorateur', title: 'Explorateur de fiches' },
-  { id: 'link-manager', icon: 'link', label: 'Liens', title: 'Gestionnaire de liens' }
+  { id: 'file-explorer', icon: 'opened-folder', label: 'Explorateur', title: 'Fichiers & dossiers' }
 ];
 
 const ADMIN_APPS = [

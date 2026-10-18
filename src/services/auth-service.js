@@ -21,9 +21,9 @@ function serverTimestamp() {
 
 /** Shortcut bar defaults granted to every new account. */
 export const DEFAULT_SHORTCUTS = [
-  { icon: 'folder',   label: 'Fiches',   action: 'file-explorer' },
-  { icon: 'add',      label: 'Nouvelle', action: 'markdown-editor' },
-  { icon: 'link',     label: 'Liens',    action: 'link-manager' }
+  { icon: 'opened-folder', label: 'Fichiers', action: 'file-explorer' },
+  { icon: 'add',           label: 'Nouvelle', action: 'markdown-editor' },
+  { icon: 'guest-male',    label: 'Profil',   action: 'user-profile' }
 ];
 
 export const AuthService = {

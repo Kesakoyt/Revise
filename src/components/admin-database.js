@@ -1,8 +1,9 @@
 /**
  * Fiches & Cloud — admin "Database" app.
  *
- * Read/inspect/delete browser across the `notes`, `links`, `shortcuts` and
- * `users` collections, with search, pagination and a JSON inspector.
+ * Read/inspect/delete browser across the `notes`, `links`, `folders`,
+ * `shortcuts` and `users` collections, with search, pagination and a JSON
+ * inspector.
  */
 
 import { FirestoreService } from '../services/firestore-service.js';
@@ -12,11 +13,11 @@ const PAGE_SIZE = 10;
 
 const state = {
   container: null,
-  tab: 'notes',       // notes | links | shortcuts | users
+  tab: 'notes',       // notes | links | folders | shortcuts | users
   query: '',
   page: 1,
   expandedId: null,
-  data: { notes: [], links: [], shortcuts: [], users: [] },
+  data: { notes: [], links: [], folders: [], shortcuts: [], users: [] },
   userMap: {}
 };
 
@@ -45,6 +46,7 @@ export async function render(container) {
         <div class="tabs-row">
           ${tab('notes', 'Fiches')}
           ${tab('links', 'Liens')}
+          ${tab('folders', 'Dossiers')}
           ${tab('shortcuts', 'Raccourcis')}
           ${tab('users', 'Utilisateurs')}
         </div>
@@ -109,19 +111,20 @@ async function loadAll() {
   const safe = p => p.catch(err => { console.warn('[DB] collection failed:', err); return []; });
 
   try {
-    const [notes, links, shortcuts, users] = await Promise.all([
+    const [notes, links, folders, shortcuts, users] = await Promise.all([
       safe(FirestoreService.getAllNotes()),
       safe(FirestoreService.getAllLinks()),
+      safe(FirestoreService.getAllFolders()),
       safe(FirestoreService.getAllShortcuts()),
       safe(FirestoreService.getAllUsers())
     ]);
 
-    state.data = { notes, links, shortcuts, users };
+    state.data = { notes, links, folders, shortcuts, users };
 
     state.userMap = {};
     users.forEach(u => { state.userMap[u.id || u.uid] = u.displayName || u.email || `Utilisateur ${(u.id || u.uid).slice(0, 5)}`; });
 
-    ['notes', 'links', 'shortcuts', 'users'].forEach(id => {
+    ['notes', 'links', 'folders', 'shortcuts', 'users'].forEach(id => {
       const el = state.container.querySelector(`[data-count="${id}"]`);
       if (el) el.textContent = state.data[id].length;
     });
@@ -141,7 +144,7 @@ function items() {
 
   return rows.filter(row => {
     const owner = state.userMap[row.uid] || row.uid || '';
-    return [row.title, row.label, row.subject, row.url, row.email, row.displayName, row.role, owner, row.action]
+    return [row.title, row.name, row.label, row.subject, row.url, row.email, row.displayName, row.role, owner, row.action]
       .filter(Boolean)
       .some(v => String(v).toLowerCase().includes(q));
   });
@@ -175,6 +178,7 @@ function renderTable() {
   const render = {
     notes: notesTable,
     links: linksTable,
+    folders: foldersTable,
     shortcuts: shortcutsTable,
     users: usersTable
   }[state.tab];
@@ -223,6 +227,26 @@ function linksTable(rows) {
         </td>
       </tr>
       ${state.expandedId === l.id ? jsonRow(l, 6) : ''}`).join('')}
+    </tbody>`;
+}
+
+function foldersTable(rows) {
+  return `
+    <thead><tr class="table__head">
+      <th>Nom</th><th>Propriétaire</th><th>Dossier parent</th><th>Créé</th><th class="table__cell--actions">Actions</th>
+    </tr></thead>
+    <tbody>${rows.map(f => `
+      <tr class="table__row" data-id="${f.id}">
+        <td class="table__cell table__cell--strong">${escapeHtml(f.name || 'Sans nom')}</td>
+        <td class="table__cell">${escapeHtml(state.userMap[f.uid] || f.uid || '—')}</td>
+        <td class="table__cell table__cell--muted">${f.parentId ? escapeHtml(truncate(f.parentId, 16)) : '— (racine)'}</td>
+        <td class="table__cell table__cell--muted">${formatDate(f.createdAt)}</td>
+        <td class="table__cell table__cell--actions">
+          <button class="btn btn--sm btn-json" data-id="${f.id}">JSON</button>
+          <button class="btn btn--sm btn--danger btn-del" data-id="${f.id}" data-kind="folder">Suppr.</button>
+        </td>
+      </tr>
+      ${state.expandedId === f.id ? jsonRow(f, 5) : ''}`).join('')}
     </tbody>`;
 }
 
@@ -321,9 +345,10 @@ function bindRows() {
         showToast('Suppression…', 'info');
         if (kind === 'note') { await FirestoreService.deleteNote(id); state.data.notes = state.data.notes.filter(d => d.id !== id); EventBus.emit('note:deleted', { noteId: id }); }
         else if (kind === 'link') { await FirestoreService.deleteLink(id); state.data.links = state.data.links.filter(d => d.id !== id); EventBus.emit('link:deleted', { linkId: id }); }
+        else if (kind === 'folder') { await FirestoreService.deleteFolder(id); state.data.folders = state.data.folders.filter(d => d.id !== id); }
         else if (kind === 'shortcut') { await FirestoreService.deleteShortcut(id); state.data.shortcuts = state.data.shortcuts.filter(d => d.id !== id); }
 
-        ['notes', 'links', 'shortcuts', 'users'].forEach(t => {
+        ['notes', 'links', 'folders', 'shortcuts', 'users'].forEach(t => {
           const el = c.querySelector(`[data-count="${t}"]`);
           if (el) el.textContent = state.data[t].length;
         });
@@ -364,7 +389,7 @@ function escapeAttr(str) { return escapeHtml(str); }
 /** Tear down. */
 export function destroy() {
   state.container = null;
-  state.data = { notes: [], links: [], shortcuts: [], users: [] };
+  state.data = { notes: [], links: [], folders: [], shortcuts: [], users: [] };
   state.userMap = {};
   state.expandedId = null;
 }

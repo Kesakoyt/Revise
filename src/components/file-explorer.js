@@ -1,32 +1,42 @@
 /**
  * Fiches & Cloud — File Explorer.
  *
- * Browses personal and public notes with search / filter / sort, drag-and-drop
- * PDF/DOCX import, note deletion and a live storage-quota indicator.
+ * A hierarchical file manager for the signed-in user: folders that contain
+ * sub-folders, Markdown **fiches** and **links**. Supports navigation (breadcrumb),
+ * creation / rename / move / delete, drag-and-drop PDF/DOCX import, a public-notes
+ * view, search / filter / sort and a live storage-quota indicator.
+ *
+ * Links are managed here — the former standalone link app has been folded in.
  */
 
 import { FirestoreService } from '../services/firestore-service.js';
 import { QuotaManager } from '../services/quota-manager.js';
 import { ConverterService } from '../services/converter-service.js';
-import { EventBus, AppState, showToast, showModal, iconImg } from '../app.js';
+import { EventBus, AppState, showToast, showModal, iconUrl, iconImg } from '../app.js';
 import { showContextMenu, closeContextMenu } from './context-menu.js';
+
+/** Icons (Icons8 Fluency slugs verified to exist). */
+const ICON_FOLDER = 'opened-folder';
+const ICON_GRID = 'thumbnails';
 
 const state = {
   container: null,
-  tab: 'mine',        // 'mine' | 'public'
-  view: 'list',       // 'list' | 'grid'
+  tab: 'mine',            // 'mine' | 'public'
+  view: 'list',           // 'list' | 'grid'
   subject: 'all',
   sort: 'date-desc',
   query: '',
+  currentFolderId: null,  // null = root
+  folders: [],
   notes: [],
+  links: [],
   subjects: [],
-  selectedId: null,
-  handlers: []
+  selection: null,        // { kind, id }
+  handlers: [],
+  reloadTimer: null
 };
 
-/**
- * @param {HTMLElement} container
- */
+/** @param {HTMLElement} container */
 export async function render(container) {
   state.container = container;
   container.classList.add('file-explorer-container');
@@ -36,7 +46,7 @@ export async function render(container) {
       <div class="file-explorer__header">
         <div class="file-explorer__tabs">
           <button class="tab-btn ${state.tab === 'mine' ? 'tab-btn--active' : ''}" data-tab="mine">
-            ${iconImg('folder', { size: 18, alt: '', className: 'tab-btn__icon' })}Mes fiches
+            ${iconImg(ICON_FOLDER, { size: 18, alt: '', className: 'tab-btn__icon' })}Mes fichiers
           </button>
           <button class="tab-btn ${state.tab === 'public' ? 'tab-btn--active' : ''}" data-tab="public">
             ${iconImg('bookmark', { size: 18, alt: '', className: 'tab-btn__icon' })}Fiches publiques
@@ -47,11 +57,13 @@ export async function render(container) {
         </button>
       </div>
 
+      <nav class="file-explorer__breadcrumb" id="fe-breadcrumb" aria-label="Chemin"></nav>
+
       <div class="file-explorer__toolbar">
         <div class="search-field">
           ${iconImg('search', { size: 18, alt: '', className: 'search-field__icon' })}
           <input type="text" class="input input--search" id="fe-search"
-                 placeholder="Rechercher par titre, matière ou contenu…" value="${escapeAttr(state.query)}">
+                 placeholder="Rechercher dans ce dossier…" value="${escapeAttr(state.query)}">
           <button type="button" class="btn-clear" id="fe-clear" ${state.query ? '' : 'hidden'}>&times;</button>
         </div>
 
@@ -60,10 +72,10 @@ export async function render(container) {
             <option value="all">Toutes les matières</option>
           </select>
           <select class="input select" id="fe-sort" aria-label="Trier">
-            <option value="date-desc" ${state.sort === 'date-desc' ? 'selected' : ''}>Plus récentes</option>
-            <option value="date-asc" ${state.sort === 'date-asc' ? 'selected' : ''}>Plus anciennes</option>
-            <option value="title-asc" ${state.sort === 'title-asc' ? 'selected' : ''}>Titre (A→Z)</option>
-            <option value="title-desc" ${state.sort === 'title-desc' ? 'selected' : ''}>Titre (Z→A)</option>
+            <option value="date-desc" ${state.sort === 'date-desc' ? 'selected' : ''}>Plus récents</option>
+            <option value="date-asc" ${state.sort === 'date-asc' ? 'selected' : ''}>Plus anciens</option>
+            <option value="title-asc" ${state.sort === 'title-asc' ? 'selected' : ''}>Nom (A→Z)</option>
+            <option value="title-desc" ${state.sort === 'title-desc' ? 'selected' : ''}>Nom (Z→A)</option>
             <option value="subject-asc" ${state.sort === 'subject-asc' ? 'selected' : ''}>Matière (A→Z)</option>
           </select>
           <div class="view-toggle">
@@ -71,14 +83,14 @@ export async function render(container) {
               ${iconImg('list', { size: 18, alt: '' })}
             </button>
             <button class="view-toggle__btn ${state.view === 'grid' ? 'view-toggle__btn--active' : ''}" id="fe-view-grid" title="Grille" aria-label="Vue grille">
-              ${iconImg('grid', { size: 18, alt: '' })}
+              ${iconImg(ICON_GRID, { size: 18, alt: '' })}
             </button>
           </div>
         </div>
       </div>
 
       <div class="file-explorer__body" id="fe-body">
-        <div class="loading-block"><span class="spinner"></span><p>Chargement des fiches…</p></div>
+        <div class="loading-block"><span class="spinner"></span><p>Chargement…</p></div>
       </div>
 
       <div class="drop-zone" id="fe-drop">
@@ -107,9 +119,10 @@ export async function render(container) {
 
   bindToolbar();
   bindDropZone();
-  bindContextMenu();
+  bindBody();
   bindBus();
-  await Promise.all([loadNotes(), refreshQuota()]);
+  updateChrome();
+  await Promise.all([loadData(), refreshQuota()]);
 }
 
 // ---------------------------------------------------------------------------
@@ -124,8 +137,11 @@ function bindToolbar() {
       const tab = btn.dataset.tab;
       if (tab === state.tab) return;
       state.tab = tab;
+      state.currentFolderId = null;
+      state.selection = null;
       c.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('tab-btn--active', b === btn));
-      await loadNotes();
+      updateChrome();
+      await loadData();
     });
   });
 
@@ -160,6 +176,16 @@ function setView(view) {
   c.querySelector('#fe-view-list')?.classList.toggle('view-toggle__btn--active', view === 'list');
   c.querySelector('#fe-view-grid')?.classList.toggle('view-toggle__btn--active', view === 'grid');
   renderList();
+}
+
+/** Show/hide chrome that only applies to the personal "Mes fichiers" tab. */
+function updateChrome() {
+  const c = state.container;
+  const mine = state.tab === 'mine';
+  c.querySelector('#fe-new')?.toggleAttribute('hidden', !mine);
+  c.querySelector('#fe-drop')?.toggleAttribute('hidden', !mine);
+  const bc = c.querySelector('#fe-breadcrumb');
+  if (bc) bc.hidden = !mine;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +233,11 @@ async function importFile(file) {
     showToast('Fichier converti.', 'success');
     EventBus.emit('app:open', {
       appId: 'markdown-editor',
-      params: { importedContent: result.markdown, importedTitle: result.title || 'Document importé' }
+      params: {
+        importedContent: result.markdown,
+        importedTitle: result.title || 'Document importé',
+        parentId: state.currentFolderId
+      }
     });
   } catch (err) {
     console.error('[Explorer] conversion failed:', err);
@@ -219,25 +249,42 @@ async function importFile(file) {
 // Data
 // ---------------------------------------------------------------------------
 
-async function loadNotes() {
+async function loadData() {
   const body = state.container?.querySelector('#fe-body');
   if (!body) return;
 
-  body.innerHTML = `<div class="loading-block"><span class="spinner"></span><p>Chargement des fiches…</p></div>`;
+  body.innerHTML = `<div class="loading-block"><span class="spinner"></span><p>Chargement…</p></div>`;
 
   try {
     const uid = AppState.user?.uid;
-    if (state.tab === 'mine') {
-      state.notes = uid ? await FirestoreService.getUserNotes(uid, {}) : [];
-    } else {
+    if (state.tab === 'public') {
+      state.folders = [];
+      state.links = [];
       state.notes = await FirestoreService.getPublicNotes({});
+    } else if (uid) {
+      const [folders, notes, links] = await Promise.all([
+        FirestoreService.getUserFolders(uid),
+        FirestoreService.getUserNotes(uid),
+        FirestoreService.getUserLinks(uid)
+      ]);
+      state.folders = folders;
+      state.notes = notes;
+      state.links = links;
+    } else {
+      state.folders = []; state.notes = []; state.links = [];
+    }
+
+    if (state.currentFolderId && !state.folders.some(f => f.id === state.currentFolderId)) {
+      state.currentFolderId = null;
     }
 
     const subjects = new Set();
     state.notes.forEach(n => { if (n.subject?.trim()) subjects.add(n.subject.trim()); });
+    state.links.forEach(l => { if (l.subject?.trim()) subjects.add(l.subject.trim()); });
     state.subjects = [...subjects].sort();
 
     populateSubjectFilter();
+    renderBreadcrumb();
     renderList();
   } catch (err) {
     console.error('[Explorer] load failed:', err);
@@ -247,8 +294,14 @@ async function loadNotes() {
         <p class="empty-state__description">${escapeHtml(err.message)}</p>
         <button class="btn btn--secondary" id="fe-retry">Réessayer</button>
       </div>`;
-    body.querySelector('#fe-retry')?.addEventListener('click', loadNotes);
+    body.querySelector('#fe-retry')?.addEventListener('click', loadData);
   }
+}
+
+/** Debounced reload, so bursts of events cause a single refresh. */
+function scheduleReload() {
+  clearTimeout(state.reloadTimer);
+  state.reloadTimer = setTimeout(() => { loadData(); refreshQuota(); }, 60);
 }
 
 function populateSubjectFilter() {
@@ -258,89 +311,251 @@ function populateSubjectFilter() {
     state.subjects.map(s => `<option value="${escapeAttr(s)}" ${state.subject === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
 }
 
+// ---------------------------------------------------------------------------
+// Breadcrumb
+// ---------------------------------------------------------------------------
+
+function parentOf(item) { return item.parentId || null; }
+
+/** Ancestor folders from root down to `folderId`. */
+function folderPath(folderId) {
+  const byId = new Map(state.folders.map(f => [f.id, f]));
+  const path = [];
+  const guard = new Set();
+  let cur = folderId;
+  while (cur && byId.has(cur) && !guard.has(cur)) {
+    guard.add(cur);
+    const folder = byId.get(cur);
+    path.unshift(folder);
+    cur = parentOf(folder);
+  }
+  return path;
+}
+
+function renderBreadcrumb() {
+  const nav = state.container?.querySelector('#fe-breadcrumb');
+  if (!nav) return;
+  if (state.tab !== 'mine') { nav.hidden = true; nav.innerHTML = ''; return; }
+
+  nav.hidden = false;
+  const path = folderPath(state.currentFolderId);
+  const parts = [
+    `<button type="button" class="breadcrumb__crumb" data-folder="">
+      ${iconImg(ICON_FOLDER, { size: 15, alt: '' })}<span>Mes fichiers</span>
+    </button>`
+  ];
+
+  path.forEach(folder => {
+    parts.push('<span class="breadcrumb__sep" aria-hidden="true">&rsaquo;</span>');
+    parts.push(`<button type="button" class="breadcrumb__crumb" data-folder="${escapeAttr(folder.id)}">${escapeHtml(folder.name || 'Sans nom')}</button>`);
+  });
+
+  nav.innerHTML = `<div class="breadcrumb">${parts.join('')}</div>`;
+  nav.querySelectorAll('[data-folder]').forEach(btn => {
+    btn.addEventListener('click', () => enterFolder(btn.dataset.folder || null));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Listing
+// ---------------------------------------------------------------------------
+
+function childrenOf(folderId) {
+  return {
+    folders: state.folders.filter(f => parentOf(f) === folderId),
+    notes: state.notes.filter(n => parentOf(n) === folderId),
+    links: state.links.filter(l => parentOf(l) === folderId)
+  };
+}
+
+function countChildren(folderId) {
+  const { folders, notes, links } = childrenOf(folderId);
+  return folders.length + notes.length + links.length;
+}
+
+function matchesQuery(obj, keys) {
+  if (!state.query) return true;
+  return keys.some(k => (obj[k] || '').toLowerCase().includes(state.query));
+}
+
+function matchesSubject(obj) {
+  if (state.subject === 'all') return true;
+  return (obj.subject || '').trim() === state.subject;
+}
+
+function sortFiles(entries) {
+  const [field, dir] = state.sort.split('-');
+  const sign = dir === 'desc' ? -1 : 1;
+  const value = entry => {
+    if (field === 'title') return (entry.data.title || '').toLowerCase();
+    if (field === 'subject') return (entry.data.subject || '').toLowerCase();
+    return millis(entry.data.updatedAt || entry.data.createdAt);
+  };
+  return [...entries].sort((a, b) => {
+    const x = value(a);
+    const y = value(b);
+    const cmp = typeof x === 'string' ? x.localeCompare(y) : (x - y);
+    if (cmp !== 0) return sign * cmp;
+    return (a.data.title || '').localeCompare(b.data.title || '');
+  });
+}
+
 function renderList() {
   const body = state.container?.querySelector('#fe-body');
   if (!body) return;
 
-  const filtered = state.notes.filter(note => {
-    if (state.subject !== 'all' && (note.subject || '').trim() !== state.subject) return false;
-    if (!state.query) return true;
-    const q = state.query;
-    return ['title', 'subject', 'topic', 'content'].some(k => (note[k] || '').toLowerCase().includes(q));
-  });
+  const { folders, notes, links } = childrenOf(state.currentFolderId);
 
-  const [field, dir] = state.sort.split('-');
-  filtered.sort((a, b) => {
-    let cmp = 0;
-    if (field === 'date') {
-      cmp = millis(a.updatedAt || a.createdAt) - millis(b.updatedAt || b.createdAt);
-    } else if (field === 'title') {
-      cmp = (a.title || '').localeCompare(b.title || '');
-    } else if (field === 'subject') {
-      cmp = (a.subject || '').localeCompare(b.subject || '');
-    }
-    return dir === 'desc' ? -cmp : cmp;
-  });
+  const shownFolders = folders
+    .filter(f => matchesQuery(f, ['name']))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-  if (filtered.length === 0) {
+  let files = [
+    ...notes.filter(n => matchesSubject(n) && matchesQuery(n, ['title', 'subject', 'topic', 'content']))
+      .map(data => ({ kind: 'note', id: data.id, data })),
+    ...links.filter(l => matchesSubject(l) && matchesQuery(l, ['title', 'url', 'description', 'subject']))
+      .map(data => ({ kind: 'link', id: data.id, data }))
+  ];
+  files = sortFiles(files);
+
+  state.selection = null;
+
+  if (shownFolders.length === 0 && files.length === 0) {
     body.innerHTML = emptyStateHtml();
-    body.querySelector('#fe-empty-new')?.addEventListener('click', openNewNote);
+    body.querySelector('#fe-empty-new-folder')?.addEventListener('click', () => openFolderDialog({ parentId: state.currentFolderId }));
+    body.querySelector('#fe-empty-new-note')?.addEventListener('click', () => openNewNote());
     return;
   }
 
-  body.innerHTML = state.view === 'grid'
-    ? `<div class="file-grid">${filtered.map(gridCard).join('')}</div>`
-    : `<div class="file-list">${filtered.map(listRow).join('')}</div>`;
-
-  body.querySelectorAll('[data-note-id]').forEach(el => {
-    el.addEventListener('click', e => {
-      if (e.target.closest('.btn-delete')) return;
-      const noteId = el.dataset.noteId;
-      if (!noteId) return;
-      EventBus.emit('app:open', { appId: 'markdown-editor', params: { noteId } });
-    });
-    el.addEventListener('dblclick', e => {
-      if (e.target.closest('.btn-delete')) return;
-      const noteId = el.dataset.noteId;
-      if (!noteId) return;
-      EventBus.emit('app:open', { appId: 'markdown-editor', params: { noteId } });
-    });
-  });
-
-  body.querySelectorAll('.btn-delete').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      deleteNote(btn.dataset.noteId);
-    });
-  });
+  if (state.view === 'grid') {
+    body.innerHTML = `<div class="file-grid">
+      ${shownFolders.map(folderCard).join('')}
+      ${files.map(entryCard).join('')}
+    </div>`;
+  } else {
+    body.innerHTML = `<div class="file-list">
+      ${shownFolders.map(folderRow).join('')}
+      ${files.map(entryRow).join('')}
+    </div>`;
+  }
 }
 
 function emptyStateHtml() {
   const searching = Boolean(state.query) || state.subject !== 'all';
-  const title = searching
-    ? 'Aucune fiche ne correspond'
-    : (state.tab === 'mine' ? 'Aucune fiche pour le moment' : 'Aucune fiche publique');
-  const desc = searching
-    ? 'Effacez la recherche ou réinitialisez le filtre de matière.'
-    : (state.tab === 'mine'
-      ? 'Créez votre première fiche ou déposez un PDF/DOCX ci-dessus.'
-      : 'Revenez plus tard ou rendez une de vos fiches publique.');
+  const inFolder = Boolean(state.currentFolderId);
+
+  if (searching) {
+    return `
+      <div class="empty-state">
+        ${iconImg('search', { size: 48, alt: '', className: 'empty-state__icon' })}
+        <h3 class="empty-state__title">Aucun résultat</h3>
+        <p class="empty-state__description">Aucun élément de ce dossier ne correspond à la recherche ou au filtre.</p>
+      </div>`;
+  }
+
+  if (state.tab === 'public') {
+    return `
+      <div class="empty-state">
+        ${iconImg('document', { size: 48, alt: '', className: 'empty-state__icon' })}
+        <h3 class="empty-state__title">Aucune fiche publique</h3>
+        <p class="empty-state__description">Revenez plus tard ou rendez une de vos fiches publique.</p>
+      </div>`;
+  }
+
+  const title = inFolder ? 'Dossier vide' : 'Aucun contenu pour le moment';
+  const desc = inFolder
+    ? 'Créez un sous-dossier, une fiche ou un lien dans ce dossier.'
+    : 'Créez votre premier dossier, une fiche Markdown ou un lien, ou déposez un PDF/DOCX.';
 
   return `
     <div class="empty-state">
-      ${iconImg('document', { size: 48, alt: '', className: 'empty-state__icon' })}
+      ${iconImg(ICON_FOLDER, { size: 48, alt: '', className: 'empty-state__icon' })}
       <h3 class="empty-state__title">${title}</h3>
       <p class="empty-state__description">${desc}</p>
-      ${(state.tab === 'mine' && !searching)
-        ? `<button class="btn btn--primary" id="fe-empty-new">${iconImg('add', { size: 18, alt: '' })}<span>Créer une fiche</span></button>`
-        : ''}
+      <div class="empty-state__actions">
+        <button class="btn btn--secondary" id="fe-empty-new-folder">${iconImg('add-folder', { size: 18, alt: '' })}<span>Nouveau dossier</span></button>
+        <button class="btn btn--primary" id="fe-empty-new-note">${iconImg('document', { size: 18, alt: '' })}<span>Nouvelle fiche</span></button>
+      </div>
     </div>`;
 }
 
-function gridCard(note) {
+// ---------------------------------------------------------------------------
+// Row / card renderers
+// ---------------------------------------------------------------------------
+
+function itemAttrs(kind, id) {
+  return `data-kind="${kind}" data-id="${escapeAttr(id)}" tabindex="0" role="button"`;
+}
+
+function folderRow(folder) {
+  const count = countChildren(folder.id);
+  return `
+    <div class="file-item file-item--folder" ${itemAttrs('folder', folder.id)}>
+      ${iconImg(ICON_FOLDER, { size: 24, alt: '', className: 'file-item__icon' })}
+      <div class="file-item__info">
+        <div class="file-item__row">
+          <span class="file-item__title">${escapeHtml(folder.name || 'Sans nom')}</span>
+          <span class="badge badge--folder">Dossier</span>
+        </div>
+        <div class="file-item__meta">${count} élément${count === 1 ? '' : 's'}</div>
+      </div>
+      <div class="file-item__actions"></div>
+    </div>`;
+}
+
+function noteRow(note) {
   const owner = AppState.user && note.uid === AppState.user.uid;
   return `
-    <article class="file-card" data-note-id="${note.id}" tabindex="0">
+    <div class="file-item" ${itemAttrs('note', note.id)}>
+      ${iconImg('document', { size: 24, alt: '', className: 'file-item__icon' })}
+      <div class="file-item__info">
+        <div class="file-item__row">
+          <span class="file-item__title">${escapeHtml(note.title || 'Sans titre')}</span>
+          <span class="badge badge--subject">${escapeHtml(note.subject || 'Général')}</span>
+          ${note.isPublic ? '<span class="badge badge--public">Public</span>' : ''}
+        </div>
+        <div class="file-item__meta">${charLabel(note)} &middot; Modifiée ${formatDate(note.updatedAt || note.createdAt)}</div>
+      </div>
+      <div class="file-item__actions">${owner ? deleteBtn() : ''}</div>
+    </div>`;
+}
+
+function linkRow(link) {
+  const domain = domainOf(link.url);
+  return `
+    <div class="file-item" ${itemAttrs('link', link.id)}>
+      <img class="file-item__favicon" src="${faviconUrl(domain)}" alt="" width="22" height="22"
+           onerror="this.onerror=null;this.src='${iconUrl('link')}'">
+      <div class="file-item__info">
+        <div class="file-item__row">
+          <span class="file-item__title">${escapeHtml(link.title || domain || 'Sans titre')}</span>
+          <span class="badge badge--subject">${escapeHtml(link.subject || 'Général')}</span>
+        </div>
+        <div class="file-item__meta">${escapeHtml(domain)} &middot; Modifié ${formatDate(link.updatedAt || link.createdAt)}</div>
+      </div>
+      <div class="file-item__actions">${deleteBtn()}</div>
+    </div>`;
+}
+
+function folderCard(folder) {
+  const count = countChildren(folder.id);
+  return `
+    <article class="file-card" ${itemAttrs('folder', folder.id)}>
+      <div class="file-card__header">
+        ${iconImg(ICON_FOLDER, { size: 32, alt: '', className: 'file-card__icon' })}
+        <div class="file-card__badges"><span class="badge badge--folder">Dossier</span></div>
+      </div>
+      <h4 class="file-card__title">${escapeHtml(folder.name || 'Sans nom')}</h4>
+      <div class="file-card__footer">
+        <div class="file-card__meta"><span>${count} élément${count === 1 ? '' : 's'}</span></div>
+      </div>
+    </article>`;
+}
+
+function noteCard(note) {
+  const owner = AppState.user && note.uid === AppState.user.uid;
+  return `
+    <article class="file-card" ${itemAttrs('note', note.id)}>
       <div class="file-card__header">
         ${iconImg('document', { size: 32, alt: '', className: 'file-card__icon' })}
         <div class="file-card__badges">
@@ -355,33 +570,242 @@ function gridCard(note) {
           <span>${charLabel(note)}</span>
           <span>${formatDate(note.updatedAt || note.createdAt)}</span>
         </div>
-        ${owner ? deleteBtn(note.id) : ''}
+        ${owner ? deleteBtn() : ''}
       </div>
     </article>`;
 }
 
-function listRow(note) {
-  const owner = AppState.user && note.uid === AppState.user.uid;
+function linkCard(link) {
+  const domain = domainOf(link.url);
   return `
-    <div class="file-item" data-note-id="${note.id}" tabindex="0" role="button">
-      ${iconImg('document', { size: 24, alt: '', className: 'file-item__icon' })}
-      <div class="file-item__info">
-        <div class="file-item__row">
-          <span class="file-item__title">${escapeHtml(note.title || 'Sans titre')}</span>
-          <span class="badge badge--subject">${escapeHtml(note.subject || 'Général')}</span>
-          ${note.topic ? `<span class="badge badge--topic">${escapeHtml(note.topic)}</span>` : ''}
-          ${note.isPublic ? '<span class="badge badge--public">Public</span>' : ''}
-        </div>
-        <div class="file-item__meta">${charLabel(note)} &middot; Modifiée ${formatDate(note.updatedAt || note.createdAt)}</div>
+    <article class="file-card" ${itemAttrs('link', link.id)}>
+      <div class="file-card__header">
+        <img class="file-card__favicon" src="${faviconUrl(domain)}" alt="" width="32" height="32"
+             onerror="this.onerror=null;this.src='${iconUrl('link')}'">
+        <div class="file-card__badges"><span class="badge badge--subject">${escapeHtml(link.subject || 'Général')}</span></div>
       </div>
-      <div class="file-item__actions">${owner ? deleteBtn(note.id) : ''}</div>
-    </div>`;
+      <h4 class="file-card__title">${escapeHtml(link.title || domain || 'Sans titre')}</h4>
+      <p class="file-card__topic">${escapeHtml(truncate(link.description || link.url, 90))}</p>
+      <div class="file-card__footer">
+        <div class="file-card__meta">
+          <span>${escapeHtml(domain)}</span>
+          <span>${formatDate(link.updatedAt || link.createdAt)}</span>
+        </div>
+        ${deleteBtn()}
+      </div>
+    </article>`;
 }
 
-function deleteBtn(id) {
-  return `<button type="button" class="btn btn--icon btn--danger btn-delete" data-note-id="${id}" title="Supprimer" aria-label="Supprimer la fiche">
+function entryRow(entry) { return entry.kind === 'note' ? noteRow(entry.data) : linkRow(entry.data); }
+function entryCard(entry) { return entry.kind === 'note' ? noteCard(entry.data) : linkCard(entry.data); }
+
+function deleteBtn() {
+  return `<button type="button" class="btn btn--icon btn--danger btn-delete" title="Supprimer" aria-label="Supprimer">
     ${iconImg('delete', { size: 16, alt: '' })}
   </button>`;
+}
+
+// ---------------------------------------------------------------------------
+// Body events (delegated: survives list re-renders)
+// ---------------------------------------------------------------------------
+
+function bindBody() {
+  const body = state.container?.querySelector('#fe-body');
+  if (!body) return;
+
+  body.addEventListener('click', e => {
+    if (e.target.closest('.btn-delete')) {
+      const row = e.target.closest('[data-kind][data-id]');
+      if (row) deleteEntry(row.dataset.kind, row.dataset.id);
+      return;
+    }
+    const item = e.target.closest('[data-kind][data-id]');
+    if (!item) { setSelection(null); return; }
+    activate(item.dataset.kind, item.dataset.id);
+  });
+
+  body.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const item = e.target.closest('[data-kind][data-id]');
+    if (!item) return;
+    e.preventDefault();
+    activate(item.dataset.kind, item.dataset.id);
+  });
+
+  body.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    const item = e.target.closest('[data-kind][data-id]');
+    if (item) {
+      const sel = { kind: item.dataset.kind, id: item.dataset.id };
+      setSelection(sel);
+      showContextMenu(e.clientX, e.clientY, itemMenu(sel));
+      return;
+    }
+    setSelection(null);
+    showContextMenu(e.clientX, e.clientY, backgroundMenuItems());
+  });
+}
+
+function setSelection(sel) {
+  state.selection = sel;
+  state.container?.querySelectorAll('[data-kind][data-id]').forEach(el => {
+    const on = sel && el.dataset.kind === sel.kind && el.dataset.id === sel.id;
+    if (el.classList.contains('file-item')) el.classList.toggle('file-item--selected', on);
+    if (el.classList.contains('file-card')) el.classList.toggle('file-card--selected', on);
+  });
+}
+
+function activate(kind, id) {
+  if (kind === 'folder') { enterFolder(id); return; }
+  if (kind === 'note') { EventBus.emit('app:open', { appId: 'markdown-editor', params: { noteId: id } }); return; }
+  if (kind === 'link') {
+    const link = state.links.find(l => l.id === id);
+    if (link?.url) window.open(link.url, '_blank', 'noopener,noreferrer');
+  }
+}
+
+function enterFolder(folderId) {
+  state.currentFolderId = folderId || null;
+  state.selection = null;
+  renderBreadcrumb();
+  renderList();
+  state.container?.querySelector('#fe-body')?.scrollTo?.({ top: 0 });
+}
+
+// ---------------------------------------------------------------------------
+// Menus
+// ---------------------------------------------------------------------------
+
+function openNewMenu(anchor) {
+  if (!anchor) return;
+  const rect = anchor.getBoundingClientRect();
+  showContextMenu(rect.left, rect.bottom + 4, newMenuItems());
+}
+
+function newMenuItems() {
+  return [
+    { label: 'Nouveau dossier', icon: 'add-folder', onSelect: () => openFolderDialog({ parentId: state.currentFolderId }) },
+    { label: 'Nouvelle fiche', icon: 'document', shortcut: 'Ctrl+N', onSelect: () => openNewNote() },
+    { label: 'Nouveau lien', icon: 'link', onSelect: () => openLinkDialog() },
+    { separator: true },
+    { label: 'Importer un fichier (PDF/DOCX)…', icon: 'import', onSelect: () => browseForFile() }
+  ];
+}
+
+function backgroundMenuItems() {
+  const sortSubmenu = [
+    { label: 'Plus récents', checked: state.sort === 'date-desc', onSelect: () => setSort('date-desc') },
+    { label: 'Plus anciens', checked: state.sort === 'date-asc', onSelect: () => setSort('date-asc') },
+    { label: 'Nom (A→Z)', checked: state.sort === 'title-asc', onSelect: () => setSort('title-asc') },
+    { label: 'Nom (Z→A)', checked: state.sort === 'title-desc', onSelect: () => setSort('title-desc') },
+    { label: 'Matière (A→Z)', checked: state.sort === 'subject-asc', onSelect: () => setSort('subject-asc') }
+  ];
+  const viewSubmenu = [
+    { label: 'Liste', icon: 'list', checked: state.view === 'list', onSelect: () => setView('list') },
+    { label: 'Grille', icon: ICON_GRID, checked: state.view === 'grid', onSelect: () => setView('grid') }
+  ];
+  return [
+    { label: 'Nouveau dossier', icon: 'add-folder', onSelect: () => openFolderDialog({ parentId: state.currentFolderId }) },
+    { label: 'Nouvelle fiche', icon: 'document', shortcut: 'Ctrl+N', onSelect: () => openNewNote() },
+    { label: 'Nouveau lien', icon: 'link', onSelect: () => openLinkDialog() },
+    { label: 'Importer un fichier (PDF/DOCX)…', icon: 'import', onSelect: () => browseForFile() },
+    { separator: true },
+    { label: 'Rafraîchir', icon: 'refresh', onSelect: () => { scheduleReload(); showToast('Explorateur rafraîchi.', 'info'); } },
+    { separator: true },
+    { label: 'Affichage', icon: ICON_GRID, submenu: viewSubmenu },
+    { label: 'Trier par', icon: 'sorting-arrows', submenu: sortSubmenu }
+  ];
+}
+
+function itemMenu(sel) {
+  if (sel.kind === 'folder') return folderMenuItems(state.folders.find(f => f.id === sel.id));
+  if (sel.kind === 'note') return noteMenuItems(state.notes.find(n => n.id === sel.id));
+  return linkMenuItems(state.links.find(l => l.id === sel.id));
+}
+
+function folderMenuItems(folder) {
+  if (!folder) return [];
+  return [
+    { label: 'Ouvrir', icon: ICON_FOLDER, onSelect: () => enterFolder(folder.id) },
+    { label: 'Renommer', icon: 'edit', onSelect: () => openFolderDialog({ folder }) },
+    { label: 'Déplacer vers…', icon: 'move', onSelect: () => openMoveDialog('folder', folder) },
+    { separator: true },
+    { label: 'Nouvelle fiche', icon: 'document', onSelect: () => openNewNote(folder.id) },
+    { label: 'Nouveau lien', icon: 'link', onSelect: () => openLinkDialog(null, folder.id) },
+    { separator: true },
+    { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteFolder(folder) }
+  ];
+}
+
+function noteMenuItems(note) {
+  if (!note) return [];
+  const owner = AppState.user && note.uid === AppState.user.uid;
+  const items = [{ label: 'Ouvrir', icon: 'document', onSelect: () => openNote(note.id) }];
+  if (owner) {
+    items.push(
+      { label: 'Renommer', icon: 'edit', onSelect: () => renameNote(note) },
+      { label: 'Dupliquer', icon: 'copy', onSelect: () => duplicateNote(note) },
+      { label: 'Déplacer vers…', icon: 'move', onSelect: () => openMoveDialog('note', note) },
+      { label: note.isPublic ? 'Rendre privée' : 'Rendre publique', icon: note.isPublic ? 'lock' : 'unlock', onSelect: () => togglePublic(note) },
+      { separator: true },
+      { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteEntry('note', note.id) }
+    );
+  } else {
+    items.push(
+      { separator: true },
+      { label: 'Copier le titre', icon: 'copy', onSelect: () => copyText(note.title || 'Sans titre', 'Titre copié.') }
+    );
+  }
+  return items;
+}
+
+function linkMenuItems(link) {
+  if (!link) return [];
+  return [
+    { label: 'Ouvrir dans un onglet', icon: 'external-link', onSelect: () => window.open(link.url, '_blank', 'noopener,noreferrer') },
+    { label: 'Modifier', icon: 'edit', onSelect: () => openLinkDialog(link) },
+    { label: 'Déplacer vers…', icon: 'move', onSelect: () => openMoveDialog('link', link) },
+    { label: 'Copier l’URL', icon: 'copy', onSelect: () => copyText(link.url, 'URL copiée.') },
+    { separator: true },
+    { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteEntry('link', link.id) }
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Actions
+// ---------------------------------------------------------------------------
+
+function openNewNote(parentId = state.currentFolderId) {
+  EventBus.emit('app:open', { appId: 'markdown-editor', params: { parentId } });
+}
+function openNote(noteId) {
+  if (!noteId) return;
+  EventBus.emit('app:open', { appId: 'markdown-editor', params: { noteId } });
+}
+function browseForFile() {
+  state.container?.querySelector('#fe-file')?.click();
+}
+function setSort(sort) {
+  state.sort = sort;
+  const select = state.container?.querySelector('#fe-sort');
+  if (select) select.value = sort;
+  renderList();
+}
+function copyText(text, successMsg) {
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(String(text || '')).then(
+      () => { if (successMsg) showToast(successMsg, 'success'); },
+      () => showToast('Copie impossible.', 'error')
+    );
+  } else {
+    showToast('Clipboard non disponible.', 'error');
+  }
+}
+
+function deleteEntry(kind, id) {
+  if (kind === 'note') deleteNote(id);
+  else if (kind === 'link') deleteLink(id);
 }
 
 async function deleteNote(noteId) {
@@ -393,16 +817,340 @@ async function deleteNote(noteId) {
     const uid = AppState.user?.uid;
     await FirestoreService.deleteNote(noteId);
     if (uid) FirestoreService.logAccess({ uid, documentId: noteId, documentType: 'note', action: 'delete' });
-
-    state.notes = state.notes.filter(n => n.id !== noteId);
     EventBus.emit('note:deleted', { noteId });
     showToast('Fiche supprimée.', 'success');
-    renderList();
-    refreshQuota();
   } catch (err) {
-    console.error('[Explorer] delete failed:', err);
+    console.error('[Explorer] delete note failed:', err);
     showToast(`Suppression échouée : ${err.message}`, 'error');
   }
+}
+
+async function deleteLink(linkId) {
+  const link = state.links.find(l => l.id === linkId);
+  if (!confirm(`Supprimer « ${link?.title || 'ce lien'} » ?`)) return;
+
+  try {
+    showToast('Suppression…', 'info');
+    const uid = AppState.user?.uid;
+    await FirestoreService.deleteLink(linkId);
+    if (uid) FirestoreService.logAccess({ uid, documentId: linkId, documentType: 'link', action: 'delete' });
+    EventBus.emit('link:deleted', { linkId });
+    showToast('Lien supprimé.', 'success');
+  } catch (err) {
+    console.error('[Explorer] delete link failed:', err);
+    showToast(`Suppression échouée : ${err.message}`, 'error');
+  }
+}
+
+/** Ids of every folder nested (directly or not) inside `folderId`. */
+function descendantIds(folderId) {
+  const ids = new Set();
+  const walk = id => {
+    state.folders.forEach(f => {
+      if (parentOf(f) === id && !ids.has(f.id)) { ids.add(f.id); walk(f.id); }
+    });
+  };
+  walk(folderId);
+  return ids;
+}
+
+async function deleteFolder(folder) {
+  const ids = new Set([folder.id, ...descendantIds(folder.id)]);
+  const folders = state.folders.filter(f => ids.has(f.id));
+  const notes = state.notes.filter(n => ids.has(n.parentId));
+  const links = state.links.filter(l => ids.has(l.parentId));
+
+  const parts = [`${folders.length} dossier${folders.length === 1 ? '' : 's'}`];
+  if (notes.length) parts.push(`${notes.length} fiche${notes.length === 1 ? '' : 's'}`);
+  if (links.length) parts.push(`${links.length} lien${links.length === 1 ? '' : 's'}`);
+  if (!confirm(`Supprimer « ${folder.name} » et tout son contenu (${parts.join(', ')}) ? Action définitive.`)) return;
+
+  try {
+    showToast('Suppression…', 'info');
+    const uid = AppState.user?.uid;
+    await Promise.all([
+      ...folders.map(f => FirestoreService.deleteFolder(f.id)),
+      ...notes.map(n => FirestoreService.deleteNote(n.id)),
+      ...links.map(l => FirestoreService.deleteLink(l.id))
+    ]);
+
+    if (notes.length && uid) QuotaManager.recalculateQuota(uid).then(q => EventBus.emit('quota:updated', q)).catch(() => {});
+    if (state.currentFolderId && ids.has(state.currentFolderId)) state.currentFolderId = null;
+
+    if (notes.length) EventBus.emit('note:deleted', { folderId: folder.id });
+    if (links.length) EventBus.emit('link:deleted', { folderId: folder.id });
+    showToast('Dossier supprimé.', 'success');
+    scheduleReload();
+  } catch (err) {
+    console.error('[Explorer] delete folder failed:', err);
+    showToast(`Suppression échouée : ${err.message}`, 'error');
+  }
+}
+
+function renameNote(note) {
+  openTextDialog({
+    title: 'Renommer la fiche',
+    label: 'Nom de la fiche',
+    value: note.title || '',
+    onSave: async name => {
+      const uid = AppState.user?.uid;
+      await FirestoreService.updateNote(note.id, { title: name });
+      if (uid) FirestoreService.logAccess({ uid, documentId: note.id, documentType: 'note', action: 'edit' });
+      EventBus.emit('note:saved', { noteId: note.id });
+      showToast('Fiche renommée.', 'success');
+    }
+  });
+}
+
+async function duplicateNote(note) {
+  const uid = AppState.user?.uid;
+  if (!uid) { showToast('Connectez-vous pour dupliquer.', 'error'); return; }
+  try {
+    showToast('Duplication…', 'info');
+    const id = await FirestoreService.createNote({
+      uid,
+      title: `${note.title || 'Sans titre'} (copie)`,
+      content: note.content || '',
+      subject: note.subject,
+      topic: note.topic,
+      isPublic: false,
+      parentId: note.parentId || null
+    });
+    FirestoreService.logAccess({ uid, documentId: id, documentType: 'note', action: 'create' });
+    EventBus.emit('note:saved', { noteId: id });
+    showToast('Fiche dupliquée.', 'success');
+  } catch (err) {
+    console.error('[Explorer] duplicate failed:', err);
+    showToast(`Duplication échouée : ${err.message}`, 'error');
+  }
+}
+
+async function togglePublic(note) {
+  const uid = AppState.user?.uid;
+  try {
+    const next = !note.isPublic;
+    await FirestoreService.updateNote(note.id, { isPublic: next });
+    if (uid) FirestoreService.logAccess({ uid, documentId: note.id, documentType: 'note', action: 'edit' });
+    EventBus.emit('note:saved', { noteId: note.id });
+    showToast(next ? 'Fiche rendue publique.' : 'Fiche rendue privée.', 'success');
+  } catch (err) {
+    console.error('[Explorer] toggle public failed:', err);
+    showToast(`Modification échouée : ${err.message}`, 'error');
+  }
+}
+
+async function moveEntry(kind, id, destinationId) {
+  if (kind === 'folder') await FirestoreService.updateFolder(id, { parentId: destinationId });
+  else if (kind === 'note') await FirestoreService.updateNote(id, { parentId: destinationId });
+  else await FirestoreService.updateLink(id, { parentId: destinationId });
+}
+
+// ---------------------------------------------------------------------------
+// Dialogs
+// ---------------------------------------------------------------------------
+
+/** Generic single-field text dialog (folder create/rename, note rename). */
+function openTextDialog({ title, label, value = '', onSave }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dialog card';
+  wrap.innerHTML = `
+    <h3 class="dialog__title">${escapeHtml(title)}</h3>
+    <form class="dialog__form" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="dlg-name">${escapeHtml(label)}</label>
+        <input class="input" type="text" id="dlg-name" maxlength="60" required>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn--secondary" data-action="cancel">Annuler</button>
+        <button type="submit" class="btn btn--primary">Enregistrer</button>
+      </div>
+    </form>
+  `;
+  const input = wrap.querySelector('#dlg-name');
+  input.value = value;
+  const { hide } = showModal(wrap);
+  setTimeout(() => { input.focus(); input.select(); }, 30);
+  wrap.querySelector('[data-action="cancel"]').addEventListener('click', hide);
+  wrap.querySelector('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const name = input.value.trim();
+    if (!name) { showToast('Le nom ne peut pas être vide.', 'error'); input.focus(); return; }
+    try {
+      await onSave(name);
+      hide();
+    } catch (err) {
+      console.error('[Explorer] dialog save failed:', err);
+      showToast(`Échec : ${err.message}`, 'error');
+    }
+  });
+}
+
+function openFolderDialog({ folder = null, parentId = null }) {
+  const uid = AppState.user?.uid;
+  if (!uid) { showToast('Connectez-vous pour créer un dossier.', 'error'); return; }
+
+  if (folder) {
+    openTextDialog({
+      title: 'Renommer le dossier',
+      label: 'Nom du dossier',
+      value: folder.name || '',
+      onSave: async name => {
+        await FirestoreService.updateFolder(folder.id, { name });
+        scheduleReload();
+        showToast('Dossier renommé.', 'success');
+      }
+    });
+    return;
+  }
+
+  openTextDialog({
+    title: 'Nouveau dossier',
+    label: 'Nom du dossier',
+    value: '',
+    onSave: async name => {
+      await FirestoreService.createFolder({ uid, name, parentId });
+      scheduleReload();
+      showToast('Dossier créé.', 'success');
+    }
+  });
+}
+
+function openLinkDialog(link = null, parentId = undefined) {
+  const uid = AppState.user?.uid;
+  if (!uid) { showToast('Connectez-vous pour enregistrer un lien.', 'error'); return; }
+
+  const editing = Boolean(link);
+  const targetParent = editing ? (link.parentId || null) : (parentId === undefined ? state.currentFolderId : parentId);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'dialog card';
+  wrap.innerHTML = `
+    <h3 class="dialog__title">${editing ? 'Modifier le lien' : 'Nouveau lien'}</h3>
+    <form class="dialog__form" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="dlg-url">URL <span class="required">*</span></label>
+        <input class="input" type="url" id="dlg-url" placeholder="https://exemple.fr/article" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="dlg-title">Titre <span class="required">*</span></label>
+        <input class="input" type="text" id="dlg-title" placeholder="Nom de la ressource" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="dlg-subject">Matière</label>
+        <input class="input" type="text" id="dlg-subject" list="dlg-subjects" placeholder="ex : Informatique">
+        <datalist id="dlg-subjects">${state.subjects.map(s => `<option value="${escapeAttr(s)}"></option>`).join('')}</datalist>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="dlg-desc">Description (facultatif)</label>
+        <textarea class="textarea" id="dlg-desc" rows="2" placeholder="Résumé ou note personnelle…"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn--secondary" data-action="cancel">Annuler</button>
+        <button type="submit" class="btn btn--primary">${iconImg('save', { size: 16, alt: '' })}<span>${editing ? 'Mettre à jour' : 'Enregistrer'}</span></button>
+      </div>
+    </form>
+  `;
+
+  wrap.querySelector('#dlg-url').value = link?.url || '';
+  wrap.querySelector('#dlg-title').value = link?.title || '';
+  wrap.querySelector('#dlg-subject').value = link?.subject || '';
+  wrap.querySelector('#dlg-desc').value = link?.description || '';
+
+  const { hide } = showModal(wrap);
+  setTimeout(() => wrap.querySelector('#dlg-url').focus(), 30);
+  wrap.querySelector('[data-action="cancel"]').addEventListener('click', hide);
+
+  wrap.querySelector('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    let url = wrap.querySelector('#dlg-url').value.trim();
+    const title = wrap.querySelector('#dlg-title').value.trim();
+    const subject = wrap.querySelector('#dlg-subject').value.trim() || 'Général';
+    const description = wrap.querySelector('#dlg-desc').value.trim();
+
+    if (!url) { showToast('Veuillez saisir une URL.', 'error'); return; }
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    try { new URL(url); }
+    catch { showToast('Adresse URL invalide.', 'error'); return; }
+    if (!title) { showToast('Veuillez saisir un titre.', 'error'); return; }
+
+    try {
+      if (editing) {
+        await FirestoreService.updateLink(link.id, { title, url, description, subject });
+        FirestoreService.logAccess({ uid, documentId: link.id, documentType: 'link', action: 'edit' });
+        EventBus.emit('link:saved', { linkId: link.id });
+        showToast('Lien mis à jour.', 'success');
+      } else {
+        const id = await FirestoreService.createLink({ uid, title, url, description, subject, parentId: targetParent });
+        FirestoreService.logAccess({ uid, documentId: id, documentType: 'link', action: 'create' });
+        EventBus.emit('link:saved', { linkId: id });
+        showToast('Lien ajouté.', 'success');
+      }
+      hide();
+    } catch (err) {
+      console.error('[Explorer] link save failed:', err);
+      showToast(`Enregistrement échoué : ${err.message}`, 'error');
+    }
+  });
+}
+
+function openMoveDialog(kind, item) {
+  const excluded = kind === 'folder' ? new Set([item.id, ...descendantIds(item.id)]) : new Set();
+  const targets = flattenTree(state.folders.filter(f => !excluded.has(f.id)));
+  const currentParent = item.parentId || null;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'dialog card';
+  wrap.innerHTML = `
+    <h3 class="dialog__title">Déplacer « ${escapeHtml(displayName(kind, item))} »</h3>
+    <form class="dialog__form" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="dlg-dest">Dossier de destination</label>
+        <select class="input select" id="dlg-dest">
+          <option value="">Racine — Mes fichiers</option>
+          ${targets.map(t => `<option value="${escapeAttr(t.id)}" ${t.id === currentParent ? 'selected' : ''}>${escapeHtml('— '.repeat(t.depth) + t.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn--secondary" data-action="cancel">Annuler</button>
+        <button type="submit" class="btn btn--primary">Déplacer</button>
+      </div>
+    </form>
+  `;
+
+  const { hide } = showModal(wrap);
+  wrap.querySelector('[data-action="cancel"]').addEventListener('click', hide);
+  wrap.querySelector('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const dest = wrap.querySelector('#dlg-dest').value || null;
+    if (dest === currentParent) { hide(); return; }
+    try {
+      await moveEntry(kind, item.id, dest);
+      hide();
+      scheduleReload();
+      showToast('Élément déplacé.', 'success');
+    } catch (err) {
+      console.error('[Explorer] move failed:', err);
+      showToast(`Déplacement échoué : ${err.message}`, 'error');
+    }
+  });
+}
+
+/** Flatten folders into `{ id, name, depth }`, roots first, for a select. */
+function flattenTree(folders, parentId = null, depth = 0, out = []) {
+  folders
+    .filter(f => parentOf(f) === parentId)
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .forEach(f => {
+      out.push({ id: f.id, name: f.name || 'Sans nom', depth });
+      flattenTree(folders, f.id, depth + 1, out);
+    });
+  return out;
+}
+
+function displayName(kind, item) {
+  if (kind === 'folder') return item.name || 'ce dossier';
+  if (kind === 'link') return item.title || domainOf(item.url);
+  return item.title || 'cette fiche';
 }
 
 // ---------------------------------------------------------------------------
@@ -439,19 +1187,40 @@ async function refreshQuota() {
 // ---------------------------------------------------------------------------
 
 function bindBus() {
-  const onSaved = async () => { await loadNotes(); await refreshQuota(); };
-  const onDeleted = () => refreshQuota();
+  // Guard against duplicate listeners if render() runs again on an open panel.
+  state.handlers.forEach(([ev, fn]) => EventBus.off(ev, fn));
+  state.handlers = [];
+
+  const onNotesSaved = () => scheduleReload();
+  const onDeleted = () => scheduleReload();
+  const onLinks = () => scheduleReload();
   const onQuota = () => refreshQuota();
 
-  EventBus.on('note:saved', onSaved);
+  EventBus.on('note:saved', onNotesSaved);
   EventBus.on('note:deleted', onDeleted);
+  EventBus.on('link:saved', onLinks);
+  EventBus.on('link:deleted', onLinks);
   EventBus.on('quota:updated', onQuota);
-  state.handlers.push(['note:saved', onSaved], ['note:deleted', onDeleted], ['quota:updated', onQuota]);
+  state.handlers.push(
+    ['note:saved', onNotesSaved],
+    ['note:deleted', onDeleted],
+    ['link:saved', onLinks],
+    ['link:deleted', onLinks],
+    ['quota:updated', onQuota]
+  );
 }
 
 function charLabel(note) {
   const count = note.charCount ?? (note.content || '').length;
   return `${count.toLocaleString('fr-FR')} car.`;
+}
+
+function domainOf(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); }
+  catch { return 'externe'; }
+}
+function faviconUrl(domain) {
+  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`;
 }
 
 function millis(ts) {
@@ -476,6 +1245,10 @@ function formatDate(ts) {
   });
 }
 
+function truncate(str, max) {
+  const s = String(str ?? '');
+  return s.length > max ? s.slice(0, max) + '…' : s;
+}
 function escapeHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -483,223 +1256,16 @@ function escapeHtml(str) {
 }
 function escapeAttr(str) { return escapeHtml(str); }
 
-// ---------------------------------------------------------------------------
-// Context menu
-// ---------------------------------------------------------------------------
-
-function bindContextMenu() {
-  const body = state.container?.querySelector('#fe-body');
-  if (!body) return;
-  body.addEventListener('contextmenu', e => {
-    e.preventDefault();
-    e.stopPropagation();
-    const x = e.clientX;
-    const y = e.clientY;
-    const target = e.target;
-    const itemEl = target.closest('[data-note-id]');
-    if (itemEl) {
-      const note = state.notes.find(n => n.id === itemEl.dataset.noteId);
-      if (note) {
-        setSelectedNote(note.id);
-        showContextMenu(x, y, noteMenuItems(note));
-        return;
-      }
-    }
-    setSelectedNote(null);
-    showContextMenu(x, y, backgroundMenuItems());
-  });
-  body.addEventListener('click', () => setSelectedNote(null));
-}
-
-function setSelectedNote(id) {
-  state.selectedId = id;
-  state.container?.querySelectorAll('[data-note-id]').forEach(el => {
-    const isItem = el.classList.contains('file-item');
-    const isCard = el.classList.contains('file-card');
-    const match = el.dataset.noteId === id;
-    if (isItem) el.classList.toggle('file-item--selected', match);
-    if (isCard) el.classList.toggle('file-card--selected', match);
-  });
-}
-
-function openNewMenu(anchor) {
-  if (!anchor) return;
-  const rect = anchor.getBoundingClientRect();
-  showContextMenu(rect.left, rect.bottom + 4, newMenuItems());
-}
-
-function newMenuItems() {
-  return [
-    { label: 'Nouvelle fiche', icon: 'document', shortcut: 'Ctrl+N', onSelect: openNewNote },
-    { label: 'Nouveau lien', icon: 'link', onSelect: openNewLink },
-    { separator: true },
-    { label: 'Importer un fichier (PDF/DOCX)…', icon: 'import', onSelect: browseForFile }
-  ];
-}
-
-function backgroundMenuItems() {
-  const sortSubmenu = [
-    { label: 'Plus récentes', checked: state.sort === 'date-desc', onSelect: () => setSort('date-desc') },
-    { label: 'Plus anciennes', checked: state.sort === 'date-asc', onSelect: () => setSort('date-asc') },
-    { label: 'Titre (A→Z)', checked: state.sort === 'title-asc', onSelect: () => setSort('title-asc') },
-    { label: 'Titre (Z→A)', checked: state.sort === 'title-desc', onSelect: () => setSort('title-desc') },
-    { label: 'Matière (A→Z)', checked: state.sort === 'subject-asc', onSelect: () => setSort('subject-asc') }
-  ];
-  const viewSubmenu = [
-    { label: 'Liste', icon: 'list', checked: state.view === 'list', onSelect: () => setView('list') },
-    { label: 'Grille', icon: 'grid', checked: state.view === 'grid', onSelect: () => setView('grid') }
-  ];
-  return [
-    { label: 'Nouvelle fiche', icon: 'document', shortcut: 'Ctrl+N', onSelect: openNewNote },
-    { label: 'Nouveau lien', icon: 'link', onSelect: openNewLink },
-    { label: 'Importer un fichier (PDF/DOCX)…', icon: 'import', onSelect: browseForFile },
-    { separator: true },
-    { label: 'Rafraîchir', icon: 'refresh', onSelect: refresh },
-    { separator: true },
-    { label: 'Affichage', icon: 'grid', submenu: viewSubmenu },
-    { label: 'Trier par', icon: 'sorting-arrows', submenu: sortSubmenu }
-  ];
-}
-
-function noteMenuItems(note) {
-  const owner = AppState.user && note.uid === AppState.user.uid;
-  const items = [
-    { label: 'Ouvrir', icon: 'document', onSelect: () => openNote(note.id) }
-  ];
-  if (owner) {
-    items.push(
-      { label: 'Renommer', icon: 'edit', onSelect: () => renameNote(note) },
-      { label: 'Dupliquer', icon: 'copy', onSelect: () => duplicateNote(note) },
-      { label: note.isPublic ? 'Rendre privée' : 'Rendre publique', icon: note.isPublic ? 'lock' : 'unlock', onSelect: () => togglePublic(note) },
-      { separator: true },
-      { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteNote(note.id) }
-    );
-  } else {
-    items.push(
-      { separator: true },
-      { label: 'Copier le titre', icon: 'copy', onSelect: () => copyText(note.title || 'Sans titre', 'Titre copié.') }
-    );
-  }
-  return items;
-}
-
-function openNewNote() {
-  EventBus.emit('app:open', { appId: 'markdown-editor' });
-}
-function openNewLink() {
-  EventBus.emit('app:open', { appId: 'link-manager', params: { newLink: true } });
-}
-function openNote(noteId) {
-  if (!noteId) return;
-  EventBus.emit('app:open', { appId: 'markdown-editor', params: { noteId } });
-}
-function browseForFile() {
-  state.container?.querySelector('#fe-file')?.click();
-}
-function setSort(sort) {
-  state.sort = sort;
-  const select = state.container?.querySelector('#fe-sort');
-  if (select) select.value = sort;
-  renderList();
-}
-function refresh() {
-  loadNotes();
-  refreshQuota();
-  showToast('Explorateur rafraîchi.', 'info');
-}
-function copyText(text, successMsg) {
-  if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(String(text || '')).then(
-      () => { if (successMsg) showToast(successMsg, 'success'); },
-      () => showToast('Copie impossible.', 'error')
-    );
-  } else {
-    showToast('Clipboard non disponible.', 'error');
-  }
-}
-function renameNote(note) {
-  const wrap = document.createElement('div');
-  wrap.className = 'dialog card';
-  wrap.innerHTML = `
-    <h3 class="dialog__title">Renommer la fiche</h3>
-    <form class="dialog__form" novalidate>
-      <div class="form-group">
-        <label class="form-label" for="dlg-name">Nom de la fiche</label>
-        <input class="input" type="text" id="dlg-name" required placeholder="Titre de la fiche">
-      </div>
-      <div class="form-actions">
-        <button type="button" class="btn btn--secondary" data-action="cancel">Annuler</button>
-        <button type="submit" class="btn btn--primary">Enregistrer</button>
-      </div>
-    </form>
-  `;
-  const input = wrap.querySelector('#dlg-name');
-  input.value = note.title || '';
-  const { hide } = showModal(wrap);
-  setTimeout(() => { input.focus(); input.select(); }, 30);
-  wrap.querySelector('[data-action="cancel"]').addEventListener('click', hide);
-  wrap.querySelector('form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const title = input.value.trim();
-    if (!title) {
-      showToast('Le nom ne peut pas être vide.', 'error');
-      input.focus();
-      return;
-    }
-    try {
-      const uid = AppState.user?.uid;
-      await FirestoreService.updateNote(note.id, { title });
-      if (uid) FirestoreService.logAccess({ uid, documentId: note.id, documentType: 'note', action: 'edit' });
-      hide();
-      EventBus.emit('note:saved', { noteId: note.id });
-      showToast('Fiche renommée.', 'success');
-    } catch (err) {
-      console.error('[Explorer] rename failed:', err);
-      showToast(`Renommage échoué : ${err.message}`, 'error');
-    }
-  });
-}
-async function duplicateNote(note) {
-  const uid = AppState.user?.uid;
-  if (!uid) { showToast('Connectez-vous pour dupliquer.', 'error'); return; }
-  try {
-    showToast('Duplication…', 'info');
-    const id = await FirestoreService.createNote({
-      uid,
-      title: `${note.title || 'Sans titre'} (copie)`,
-      content: note.content || '',
-      subject: note.subject,
-      topic: note.topic,
-      isPublic: false
-    });
-    FirestoreService.logAccess({ uid, documentId: id, documentType: 'note', action: 'create' });
-    EventBus.emit('note:saved', { noteId: id });
-    showToast('Fiche dupliquée.', 'success');
-  } catch (err) {
-    console.error('[Explorer] duplicate failed:', err);
-    showToast(`Duplication échouée : ${err.message}`, 'error');
-  }
-}
-async function togglePublic(note) {
-  const uid = AppState.user?.uid;
-  try {
-    const next = !note.isPublic;
-    await FirestoreService.updateNote(note.id, { isPublic: next });
-    if (uid) FirestoreService.logAccess({ uid, documentId: note.id, documentType: 'note', action: 'edit' });
-    EventBus.emit('note:saved', { noteId: note.id });
-    showToast(next ? 'Fiche rendue publique.' : 'Fiche rendue privée.', 'success');
-  } catch (err) {
-    console.error('[Explorer] toggle public failed:', err);
-    showToast(`Modification échouée : ${err.message}`, 'error');
-  }
-}
-
 /** Tear down. */
 export function destroy() {
   state.handlers.forEach(([ev, fn]) => EventBus.off(ev, fn));
   state.handlers = [];
+  clearTimeout(state.reloadTimer);
   closeContextMenu();
   state.container = null;
+  state.folders = [];
   state.notes = [];
-  state.selectedId = null;
+  state.links = [];
+  state.selection = null;
+  state.currentFolderId = null;
 }

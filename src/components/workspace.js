@@ -14,8 +14,7 @@ const bound = {};
 
 /** Registry of launchable applications. */
 export const APP_REGISTRY = {
-  'file-explorer':    { title: 'Explorateur de fiches', icon: 'folder',      modulePath: './file-explorer.js' },
-  'link-manager':     { title: 'Gestionnaire de liens', icon: 'link',        modulePath: './link-manager.js' },
+  'file-explorer':    { title: 'Fichiers & dossiers',   icon: 'opened-folder', modulePath: './file-explorer.js' },
   'markdown-editor':  { title: 'Éditeur Markdown',      icon: 'document',    modulePath: './markdown-editor.js' },
   'user-profile':     { title: 'Mon profil',            icon: 'guest-male',  modulePath: './user-profile.js' },
   'admin-database':   { title: 'Base de données',       icon: 'database',    modulePath: './admin-database.js' },
@@ -211,9 +210,9 @@ function renderEmptyState() {
         en Markdown avec KaTeX, ou organisez vos ressources web.
       </p>
       <div class="empty-state__grid">
-        ${card('quick-explorer', 'folder', 'Explorateur', 'Parcourir toutes les fiches')}
+        ${card('quick-explorer', 'opened-folder', 'Fichiers', 'Dossiers, fiches et liens')}
         ${card('quick-editor', 'document', 'Nouvelle fiche', 'Rédiger en Markdown + Math')}
-        ${card('quick-links', 'link', 'Liens utiles', 'Vos favoris et ressources')}
+        ${card('quick-profile', 'guest-male', 'Mon profil', 'Compte, bio et sécurité')}
         ${admin ? card('quick-stats', 'combo-chart', 'Statistiques', "Métriques d'administration") : ''}
       </div>
     </div>
@@ -221,7 +220,7 @@ function renderEmptyState() {
 
   el.querySelector('#quick-explorer')?.addEventListener('click', () => openPanel('file-explorer'));
   el.querySelector('#quick-editor')?.addEventListener('click', () => openPanel('markdown-editor'));
-  el.querySelector('#quick-links')?.addEventListener('click', () => openPanel('link-manager'));
+  el.querySelector('#quick-profile')?.addEventListener('click', () => openPanel('user-profile'));
   el.querySelector('#quick-stats')?.addEventListener('click', () => openPanel('admin-statistics'));
 
   host.appendChild(el);

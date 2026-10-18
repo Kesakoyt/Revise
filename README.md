@@ -1,12 +1,12 @@
 # Fiches & Cloud
 
 > A minimalist, Windows 11 "Fluent" study workspace — Markdown notes, math
-> rendering and link curation, backed by Firebase. Zero build step.
+> rendering and a hierarchical file manager, backed by Firebase. Zero build step.
 
 Fiches & Cloud is a single-page application built with plain **HTML5 / CSS3 /
-ES Modules**. It stores nothing but **Markdown** and **link metadata** in
-Firestore: any PDF or DOCX you import is converted to Markdown *in the browser*
-before it is ever uploaded.
+ES Modules**. It stores nothing but **Markdown**, **folder structure** and **link
+metadata** in Firestore: any PDF or DOCX you import is converted to Markdown *in
+the browser* before it is ever uploaded.
 
 ---
 
@@ -32,7 +32,11 @@ before it is ever uploaded.
 - **KaTeX math** — `$inline$`, `$$display$$`, `\(…\)` and `\[…\]`.
 - **PDF & DOCX import** — drag-and-drop, converted to clean Markdown client-side
   (PDF.js + Mammoth.js).
-- **Link manager** — bookmark external resources (title, URL, description, subject).
+- **File explorer** — a hierarchical workspace of **folders** containing
+  sub-folders, Markdown **fiches** and **links**, with breadcrumb navigation,
+  create / rename / move / delete and a public-notes view.
+- **Links** — bookmark external resources (title, URL, description, subject);
+  managed directly from the file explorer.
 - **Subjects & topics** — classify, filter and sort every note.
 - **Public notes** — publish a note and browse what others have shared.
 - **Character quota** — a strict, account-wide character allowance is enforced
@@ -50,7 +54,7 @@ before it is ever uploaded.
 - **Light / dark themes** following the OS preference, persisted in `localStorage`.
 
 ### Admin (role `admin`)
-- **Database** — inspect and delete documents across `notes`, `links`,
+- **Database** — inspect and delete documents across `notes`, `links`, `folders`,
   `shortcuts` and `users`, with search, pagination and a JSON inspector.
 - **Users** — account list, role management, per-user document browsing and the
   document **access log**.
@@ -113,9 +117,8 @@ before it is ever uploaded.
     │   ├── dock.js             # App launcher (+ admin section)
     │   ├── workspace.js        # Panel orchestration / APP_REGISTRY
     │   ├── split-screen.js     # 1–3 panel layout
-    │   ├── file-explorer.js    # Notes browser + import + quota
+    │   ├── file-explorer.js    # Folders + fiches + links, import, quota
     │   ├── markdown-editor.js  # Split editor + KaTeX preview
-    │   ├── link-manager.js     # Bookmarks CRUD
     │   ├── user-profile.js     # Account profile: identity, storage, password
     │   ├── admin-database.js   # Collections inspector
     │   ├── admin-users.js      # Accounts, roles, audit log
@@ -260,13 +263,18 @@ keys from placeholders so the UI can warn you.
 | Collection | Document |
 | --- | --- |
 | `users/{uid}` | `email`, `displayName`, `bio`, `avatarColor`, `role` (`user`\|`admin`), `createdAt`, `lastLogin`, `updatedAt`, `quotaUsed`, `quotaLimit`, `shortcuts[]` |
-| `notes/{id}` | `uid`, `title`, `content`, `subject`, `topic`, `isPublic`, `charCount`, `createdAt`, `updatedAt` |
-| `links/{id}` | `uid`, `title`, `url`, `description`, `subject`, `createdAt`, `updatedAt` |
+| `folders/{id}` | `uid`, `name`, `parentId` (`null` = root), `createdAt`, `updatedAt` |
+| `notes/{id}` | `uid`, `title`, `content`, `subject`, `topic`, `isPublic`, `parentId` (`null` = root), `charCount`, `createdAt`, `updatedAt` |
+| `links/{id}` | `uid`, `title`, `url`, `description`, `subject`, `parentId` (`null` = root), `createdAt`, `updatedAt` |
 | `shortcuts/{id}` | `uid`, `label`, `icon`, `action`, `order`, `createdAt` |
 | `accessLogs/{id}` | `uid`, `documentId`, `documentType`, `action`, `timestamp` |
 
 **Character quota** = the sum of every note's `charCount` for a user. The default
 allowance is `500 000` characters (`quotaLimit` on the user document).
+
+**File hierarchy** — `folders` model the tree; each folder, note and link carries
+a `parentId` (`null` = top level). Deleting a folder recursively removes its
+sub-folders, notes and links (after a confirmation).
 
 **Profiles** — owners may edit `displayName`, `bio` and `avatarColor` on their own
 `users/{uid}` document; `role` and `quotaLimit` stay admin-only, enforced by the
@@ -318,8 +326,14 @@ service cloud.firestore {
                     || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
-    // Links and shortcuts: strictly private to their owner (admins may read).
+    // Links, folders and shortcuts: strictly private to their owner (admins may read).
     match /links/{linkId} {
+      allow read:   if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow write:  if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    match /folders/{folderId} {
       allow read:   if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
       allow write:  if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
@@ -357,6 +371,7 @@ best performance create:
 | `notes` | `uid` ASC, `subject` ASC, `updatedAt` DESC |
 | `notes` | `isPublic` ASC, `updatedAt` DESC |
 | `links` | `uid` ASC, `updatedAt` DESC |
+| `folders` | `uid` ASC, `name` ASC |
 | `shortcuts` | `uid` ASC, `order` ASC |
 | `accessLogs` | `uid` ASC, `timestamp` DESC |
 | `accessLogs` | `timestamp` DESC |

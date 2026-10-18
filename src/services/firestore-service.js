@@ -4,6 +4,7 @@
  * Single entry point for every database operation grouped by domain:
  *   • Notes      — Markdown study cards      (collection `notes`)
  *   • Links      — external bookmarks         (collection `links`)
+ *   • Folders    — explorer hierarchy          (collection `folders`)
  *   • Shortcuts  — nav-bar quick actions      (collection `shortcuts`)
  *   • Logs       — audit trail                (collection `accessLogs`)
  *   • Admin      — cross-user reads, roles, statistics
@@ -17,6 +18,7 @@ import { db } from './firebase-config.js';
 export const COLLECTIONS = Object.freeze({
   NOTES: 'notes',
   LINKS: 'links',
+  FOLDERS: 'folders',
   SHORTCUTS: 'shortcuts',
   USERS: 'users',
   LOGS: 'accessLogs'
@@ -70,10 +72,10 @@ export const FirestoreService = {
 
   /**
    * Create a note.
-   * @param {{uid:string,title:string,content?:string,subject?:string,topic?:string,isPublic?:boolean}} p
+   * @param {{uid:string,title:string,content?:string,subject?:string,topic?:string,isPublic?:boolean,parentId?:string|null}} p
    * @returns {Promise<string>} new document id
    */
-  async createNote({ uid, title, content = '', subject = 'Général', topic = '', isPublic = false }) {
+  async createNote({ uid, title, content = '', subject = 'Général', topic = '', isPublic = false, parentId = null }) {
     if (!db) throw new Error("Firestore n'est pas initialisé.");
     const timestamp = serverTimestamp();
 
@@ -84,6 +86,7 @@ export const FirestoreService = {
       subject: subject?.trim() || 'Général',
       topic: topic?.trim() || '',
       isPublic: Boolean(isPublic),
+      parentId: parentId || null,
       charCount: (content || '').length,
       createdAt: timestamp,
       updatedAt: timestamp
@@ -172,10 +175,10 @@ export const FirestoreService = {
 
   /**
    * Create a bookmark.
-   * @param {{uid:string,title:string,url:string,description?:string,subject?:string}} p
+   * @param {{uid:string,title:string,url:string,description?:string,subject?:string,parentId?:string|null}} p
    * @returns {Promise<string>} new document id
    */
-  async createLink({ uid, title, url, description = '', subject = 'Général' }) {
+  async createLink({ uid, title, url, description = '', subject = 'Général', parentId = null }) {
     if (!db) throw new Error("Firestore n'est pas initialisé.");
     const timestamp = serverTimestamp();
 
@@ -185,6 +188,7 @@ export const FirestoreService = {
       url: url?.trim() || '',
       description: description?.trim() || '',
       subject: subject?.trim() || 'Général',
+      parentId: parentId || null,
       createdAt: timestamp,
       updatedAt: timestamp
     });
@@ -233,6 +237,69 @@ export const FirestoreService = {
     }
 
     return sortBy(snapshot.docs.map(d => ({ id: d.id, ...d.data() })), 'updatedAt', 'desc');
+  },
+
+  // ==========================================================================
+  // Folders (file-explorer hierarchy)
+  // ==========================================================================
+
+  /**
+   * Create a folder.
+   * @param {{uid:string,name:string,parentId?:string|null}} p
+   * @returns {Promise<string>} new document id
+   */
+  async createFolder({ uid, name, parentId = null }) {
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    const timestamp = serverTimestamp();
+
+    const ref = await db.collection(COLLECTIONS.FOLDERS).add({
+      uid,
+      name: name?.trim() || 'Nouveau dossier',
+      parentId: parentId || null,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    });
+
+    return ref.id;
+  },
+
+  /** @param {string} folderId @returns {Promise<Object|null>} */
+  async getFolder(folderId) {
+    if (!db || !folderId) return null;
+    const doc = await db.collection(COLLECTIONS.FOLDERS).doc(folderId).get();
+    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+  },
+
+  /**
+   * Every folder owned by a user (flat list; build the tree client-side).
+   * @param {string} uid
+   * @returns {Promise<Array<Object>>}
+   */
+  async getUserFolders(uid) {
+    if (!db || !uid) return [];
+
+    let snapshot;
+    try {
+      snapshot = await db.collection(COLLECTIONS.FOLDERS).where('uid', '==', uid).orderBy('name', 'asc').get();
+    } catch (err) {
+      console.warn('[Firestore] getUserFolders fallback (no index):', err.message);
+      snapshot = await db.collection(COLLECTIONS.FOLDERS).where('uid', '==', uid).get();
+    }
+
+    return sortBy(snapshot.docs.map(d => ({ id: d.id, ...d.data() })), 'name', 'asc');
+  },
+
+  /** Patch a folder (rename or move); `updatedAt` is refreshed. */
+  async updateFolder(folderId, data) {
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    if (!folderId) throw new Error('Identifiant de dossier requis.');
+    await db.collection(COLLECTIONS.FOLDERS).doc(folderId).update({ ...data, updatedAt: serverTimestamp() });
+  },
+
+  /** Delete a folder document (its contents are handled by the caller). */
+  async deleteFolder(folderId) {
+    if (!db || !folderId) return;
+    await db.collection(COLLECTIONS.FOLDERS).doc(folderId).delete();
   },
 
   // ==========================================================================
@@ -363,6 +430,13 @@ export const FirestoreService = {
   async getAllShortcuts() {
     if (!db) throw new Error("Firestore n'est pas initialisé.");
     const snap = await db.collection(COLLECTIONS.SHORTCUTS).get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  /** @returns {Promise<Array<Object>>} every folder */
+  async getAllFolders() {
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    const snap = await db.collection(COLLECTIONS.FOLDERS).get();
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
 

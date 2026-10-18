@@ -14,6 +14,7 @@ const state = {
   container: null,
   panelId: null,
   noteId: null,
+  parentId: null,
   initialContent: '',
   initialTitle: '',
   initialChars: 0,
@@ -25,12 +26,13 @@ const state = {
 
 /**
  * @param {HTMLElement} container
- * @param {{noteId?:string, importedContent?:string, importedTitle?:string}} [params]
+ * @param {{noteId?:string, parentId?:string|null, importedContent?:string, importedTitle?:string}} [params]
  */
 export async function render(container, params = {}) {
   state.container = container;
   state.panelId = container.closest('.workspace__panel')?.dataset.panelId || null;
   state.noteId = params.noteId || null;
+  state.parentId = params.parentId || null;
   state.dirty = false;
 
   container.classList.add('editor-panel-container');
@@ -269,7 +271,7 @@ async function save() {
       await FirestoreService.updateNote(state.noteId, { title, content, subject, topic, isPublic });
       FirestoreService.logAccess({ uid, documentId: state.noteId, documentType: 'note', action: 'edit' });
     } else {
-      id = await FirestoreService.createNote({ uid, title, content, subject, topic, isPublic });
+      id = await FirestoreService.createNote({ uid, title, content, subject, topic, isPublic, parentId: state.parentId });
       state.noteId = id;
       FirestoreService.logAccess({ uid, documentId: id, documentType: 'note', action: 'create' });
       ensureDeleteButton();
@@ -342,5 +344,6 @@ export function destroy() {
   state.container = null;
   state.panelId = null;
   state.noteId = null;
+  state.parentId = null;
   state.dirty = false;
 }

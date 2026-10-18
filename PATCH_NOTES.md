@@ -2,6 +2,44 @@
 
 ---
 
+## v1.2.0 — File manager with folders
+**Date:** 2026-10-18
+**Scope:** turn the explorer into a real hierarchical file manager and fold the
+link app into it.
+
+### Added
+- **`folders` collection** modelled with `uid`, `name` and `parentId`; notes and
+  links gained a `parentId` field (`null` = root).
+- `FirestoreService`: `createFolder`, `getFolder`, `getUserFolders`,
+  `updateFolder`, `deleteFolder`, `getAllFolders`; `parentId` support on
+  `createNote` / `createLink`.
+- File explorer: **breadcrumb navigation**, sub-folders, create / rename / move /
+  delete folders (recursive, with confirmation), and a unified list/grid mixing
+  folders, fiches and links.
+- In-explorer **link creation / editing** modal (URL, title, subject,
+  description) with copy-URL and open-in-tab actions.
+- `folders` tab in the admin **Database** inspector.
+
+### Changed
+- **Removed the standalone `link-manager` app** (dock, registry, empty state,
+  shortcut destinations); `src/components/link-manager.js` and its CSS were
+  deleted. Links are now managed from the file explorer.
+- New notes land in the folder you are browsing (the editor accepts a
+  `parentId`).
+- Empty-state cards now offer **Fichiers** and **Mon profil** instead of
+  "Liens utiles"; default shortcuts updated accordingly.
+- Fixed broken Icons8 slugs: `folder` → `opened-folder`, `grid` → `thumbnails`,
+  `logout` → `logout-rounded`; legacy shortcut values are auto-remapped.
+- Dock / explorer labels shortened to "Fichiers & dossiers".
+- README data model, security rules (`folders`), indexes and structure updated.
+
+### Notes
+- Add a `folders` rule block in the Firestore console (see README §Security
+  rules). Existing notes/links without `parentId` are treated as root-level.
+- Deleting a folder recursively deletes everything inside it.
+
+---
+
 ## v1.1.0 — User profile
 **Date:** 2026-10-17
 **Scope:** add a real, editable account profile for every signed-in user.
