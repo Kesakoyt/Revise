@@ -1,0 +1,102 @@
+rules_version = '2';
+
+//
+//  Fiches & Cloud — Firestore security rules
+//
+//  HOW TO APPLY
+//  ------------
+//  1. Firebase console → Firestore Database → Rules
+//  2. Replace the whole editor content with this file, OR
+//     deploy it with the Firebase CLI:  firebase deploy --only firestore:rules
+//  3. Edit freely — this file is yours. Every change here is what actually runs.
+//
+//  A `match` with no matching `allow` is DENIED by default, so any new
+//  collection the app uses MUST have a block below (e.g. `folders`).
+//
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ---------------------------------------------------------------------
+    // User profiles — owners edit themselves, admins manage everyone.
+    // ---------------------------------------------------------------------
+    match /users/{userId} {
+      allow read:   if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && request.resource.data.role == 'user';
+      allow update: if isAdmin()
+                    || (isOwner(userId)
+                        && !request.resource.data.diff(resource.data).affectedKeys()
+                             .hasAny(['role', 'quotaLimit']));
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // Notes (fiches) — owners write; everyone reads public notes.
+    // ---------------------------------------------------------------------
+    match /notes/{noteId} {
+      allow read:   if isAdmin()
+                    || (resource.data.isPublic == true)
+                    || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin()
+                    || (isSignedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // ---------------------------------------------------------------------
+    // Links — strictly private to their owner (admins may read).
+    // ---------------------------------------------------------------------
+    match /links/{linkId} {
+      allow read:   if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow write:  if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // ---------------------------------------------------------------------
+    // Folders — file-manager hierarchy. Strictly private to their owner.
+    // ---------------------------------------------------------------------
+    match /folders/{folderId} {
+      allow read:   if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow write:  if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // ---------------------------------------------------------------------
+    // Shortcuts — nav-bar quick actions, private to their owner.
+    // ---------------------------------------------------------------------
+    match /shortcuts/{shortcutId} {
+      allow read:   if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin()
+                    || (isSignedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // ---------------------------------------------------------------------
+    // Access logs — append-only; admins read.
+    // ---------------------------------------------------------------------
+    match /accessLogs/{logId} {
+      allow create: if isSignedIn();
+      allow read:   if isAdmin();
+    }
+
+    // NOTE: anything not matched above is denied. If you add a new collection
+    // in the app, add a matching block here or reads/writes will fail.
+  }
+}
