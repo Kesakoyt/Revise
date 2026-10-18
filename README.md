@@ -284,7 +284,14 @@ rules below.
 
 ## Security rules
 
-Paste into **Firestore → Rules**:
+The rules live in [`firestore.rules`](firestore.rules) at the project root.
+Apply them either way:
+
+- **Firebase console** → Firestore → Rules → paste the file's content, or
+- **Firebase CLI** → `firebase deploy --only firestore:rules`
+  (`firebase.json` already points at `firestore.rules`).
+
+Reference copy:
 
 ```js
 rules_version = '2';
