@@ -262,14 +262,30 @@ async function loadData() {
       state.links = [];
       state.notes = await FirestoreService.getPublicNotes({});
     } else if (uid) {
+      // Each collection loads independently: a denial or index error on one
+      // (e.g. a missing `folders` rule) must not blank out the whole explorer.
+      const failures = [];
+      const safe = (label, p) => p.catch(err => {
+        console.warn(`[Explorer] ${label} load failed:`, err.message);
+        failures.push(label);
+        return [];
+      });
       const [folders, notes, links] = await Promise.all([
-        FirestoreService.getUserFolders(uid),
-        FirestoreService.getUserNotes(uid),
-        FirestoreService.getUserLinks(uid)
+        safe('dossiers', FirestoreService.getUserFolders(uid)),
+        safe('fiches', FirestoreService.getUserNotes(uid)),
+        safe('liens', FirestoreService.getUserLinks(uid))
       ]);
       state.folders = folders;
       state.notes = notes;
       state.links = links;
+
+      if (failures.length) {
+        showToast(
+          `Certaines données sont indisponibles (${failures.join(', ')}). ` +
+          'Vérifiez les règles de sécurité Firestore.',
+          'error'
+        );
+      }
     } else {
       state.folders = []; state.notes = []; state.links = [];
     }
