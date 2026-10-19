@@ -31,10 +31,19 @@ export const APP_REGISTRY = {
   'file-explorer':    { title: 'Fichiers & dossiers',   icon: 'opened-folder', modulePath: './file-explorer.js' },
   'markdown-editor':  { title: 'Éditeur Markdown',      icon: 'document',    modulePath: './markdown-editor.js' },
   'user-profile':     { title: 'Mon profil',            icon: 'guest-male',  modulePath: './user-profile.js' },
-  'admin-database':   { title: 'Base de données',       icon: 'database',    modulePath: './admin-database.js' },
-  'admin-users':      { title: 'Utilisateurs',          icon: 'group',       modulePath: './admin-users.js' },
-  'admin-shares':     { title: 'Partages',              icon: 'share',       modulePath: './admin-shares.js' },
-  'admin-statistics': { title: 'Statistiques',          icon: 'combo-chart', modulePath: './admin-statistics.js' }
+  'admin':            { title: 'Administration',        icon: 'database',    modulePath: './admin.js' }
+};
+
+/**
+ * Legacy admin app ids still reachable from stored shortcuts. Each maps to a
+ * section of the single Administration app.
+ */
+const ADMIN_APP_SECTIONS = {
+  'admin-database':   'database',
+  'admin-public-files': 'public',
+  'admin-users':      'users',
+  'admin-shares':     'shares',
+  'admin-statistics': 'statistics'
 };
 
 function escapeHtml(str) {
@@ -87,6 +96,13 @@ export function render(container) {
  */
 export async function openPanel(appId, params = {}) {
   if (!root || !host) return null;
+
+  // Legacy admin app ids (stored shortcuts, quick-stat cards) fold into the
+  // single Administration app, opening it on the matching section.
+  if (ADMIN_APP_SECTIONS[appId]) {
+    params = { ...params, section: params.section || ADMIN_APP_SECTIONS[appId] };
+    appId = 'admin';
+  }
 
   const meta = APP_REGISTRY[appId];
   if (!meta) {

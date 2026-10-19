@@ -22,6 +22,7 @@ const state = {
   initialContent: '',
   initialTitle: '',
   initialChars: 0,
+  initialPublic: false,
   saving: false,
   dirty: false,
   readOnly: false,
@@ -40,6 +41,7 @@ export async function render(container, params = {}) {
   state.parentId = params.parentId || null;
   state.dirty = false;
   state.readOnly = false;
+  state.initialPublic = false;
 
   container.classList.add('editor-panel-container');
 
@@ -119,9 +121,10 @@ async function loadNote(noteId) {
     c.querySelector('#ed-public').checked = Boolean(note.isPublic);
     c.querySelector('#ed-content').value = note.content || '';
 
-    state.initialContent = note.content || '';
+      state.initialContent = note.content || '';
     state.initialTitle = note.title || '';
     state.initialChars = note.charCount ?? (note.content || '').length;
+    state.initialPublic = Boolean(note.isPublic);
     state.dirty = false;
 
     // Shared or public fiches are readable but not writable by anyone except
@@ -321,6 +324,12 @@ async function save() {
     state.initialContent = content;
     state.initialTitle = title;
     state.initialChars = newChars;
+
+    // Publishing/unpublishing reshuffles the public folder branches.
+    if (state.initialPublic !== isPublic) {
+      await FirestoreService.syncTreeFlags(uid, AppState.user?.displayName || '');
+      state.initialPublic = isPublic;
+    }
     state.dirty = false;
 
     QuotaManager.recalculateQuota(uid).then(q => EventBus.emit('quota:updated', q)).catch(() => {});

@@ -39,6 +39,7 @@ const state = {
   links: [],              // owned links
   publicLinks: [],        // other users' public links (root of "Mes fichiers")
   publicNotes: [],        // every user's public fiches
+  publicFolders: [],      // folder branches leading to public content
   sharedFolders: [],      // folders owned by others but shared with me
   sharedNotes: [],
   sharedLinks: [],
@@ -268,7 +269,7 @@ async function loadData() {
   try {
     const [
       folders, notes, links,
-      publicNotes, publicLinks,
+      publicNotes, publicLinks, publicFolders,
       sharedFolders, sharedNotes, sharedLinks,
       directory
     ] = await Promise.all([
@@ -277,6 +278,7 @@ async function loadData() {
       uid ? safe('liens', () => FirestoreService.getUserLinks(uid)) : [],
       safe('fiches publiques', () => FirestoreService.getPublicNotes({})),
       safe('liens publics', () => FirestoreService.getPublicLinks({})),
+      safe('dossiers publics', () => FirestoreService.getPublicFolders()),
       uid ? safe('dossiers partagés', () => FirestoreService.getSharedFolders(uid)) : [],
       uid ? safe('fiches partagées', () => FirestoreService.getSharedNotes(uid)) : [],
       uid ? safe('liens partagés', () => FirestoreService.getSharedLinks(uid)) : [],
@@ -286,11 +288,19 @@ async function loadData() {
     state.folders = folders;
     state.notes = notes;
     state.links = links;
-    state.publicNotes = publicNotes;
-    // Public links from everyone; the user's own are already in `links` (so
-    // they appear inside their folders, not only at the root).
-    const ownIds = new Set(links.map(l => l.id));
-    state.publicLinks = publicLinks.filter(l => !ownIds.has(l.id));
+    state.publicFolders = publicFolders;
+
+    // Public content is browsable as a tree. A fiche/link whose folder isn't in
+    // the public branch list (legacy doc, or a flag that hasn't been re-synced
+    // yet) is parked at the root rather than hidden.
+    const publicIds = new Set(publicFolders.map(f => f.id));
+    const park = item => ({
+      ...item,
+      parentId: item.parentId && publicIds.has(item.parentId) ? item.parentId : null
+    });
+    state.publicNotes = publicNotes.map(park);
+    state.publicLinks = publicLinks.map(park);
+
     state.sharedFolders = sharedFolders;
     state.sharedNotes = sharedNotes;
     state.sharedLinks = sharedLinks;
@@ -355,22 +365,22 @@ const PLACE = {
 /** Folders backing the current place. */
 function activeFolders() {
   if (state.tab === 'shared') return state.sharedFolders;
-  if (state.tab === 'mine') return state.folders;
-  return [];
+  if (state.tab === 'public') return state.publicFolders;
+  return state.folders;
 }
 
-/** Fiches visible in the content area (public fiches have no hierarchy). */
+/** Fiches visible in the content area. */
 function activeNotes() {
   if (state.tab === 'shared') return state.sharedNotes;
-  if (state.tab === 'mine') return state.notes;
-  return state.publicNotes;
+  if (state.tab === 'public') return state.publicNotes;
+  return state.notes;
 }
 
 /** Links visible in the content area. */
 function activeLinks() {
   if (state.tab === 'shared') return state.sharedLinks;
-  if (state.tab === 'mine') return state.links;
-  return [];
+  if (state.tab === 'public') return state.publicLinks;
+  return state.links;
 }
 
 /** Display name for a uid, using the `directory` when it is loaded. */
@@ -393,15 +403,19 @@ function renderNav() {
   const sharedIds = new Set(state.sharedFolders.map(f => f.id));
   // A shared folder whose parent is not shared with me is the root of a grant.
   const sharedRoots = state.sharedFolders.filter(f => !f.parentId || !sharedIds.has(f.parentId));
+  const publicIds = new Set(state.publicFolders.map(f => f.id));
+  const publicRoots = state.publicFolders.filter(f => !f.parentId || !publicIds.has(f.parentId));
 
   const mineCount = state.folders.length + state.notes.length + state.links.length;
+  const publicCount = state.publicFolders.length + state.publicNotes.length + state.publicLinks.length;
 
   nav.innerHTML = `
     ${navItem('mine', PLACE.mine.icon, PLACE.mine.label, mineCount)}
     <div class="explorer-nav__tree">${ownRoots.map(f => treeNode(f, 'mine', 0, state.folders)).join('')}</div>
     ${navItem('shared', PLACE.shared.icon, PLACE.shared.label, state.sharedFolders.length)}
     <div class="explorer-nav__tree">${sharedRoots.map(f => treeNode(f, 'shared', 0, state.sharedFolders)).join('')}</div>
-    ${navItem('public', PLACE.public.icon, PLACE.public.label, state.publicNotes.length)}
+    ${navItem('public', PLACE.public.icon, PLACE.public.label, publicCount)}
+    <div class="explorer-nav__tree">${publicRoots.map(f => treeNode(f, 'public', 0, state.publicFolders)).join('')}</div>
   `;
 
   nav.querySelectorAll('[data-nav]').forEach(btn => {
@@ -437,8 +451,8 @@ function treeNode(folder, tab, depth, pool) {
   const children = pool.filter(f => f.parentId === folder.id);
   const open = state.expanded.has(folder.id);
   const active = state.tab === tab && state.currentFolderId === folder.id;
-  const shared = Array.isArray(folder.sharedWith) && folder.sharedWith.length > 0;
-  const icon = tab === 'shared' ? 'shared-folder' : 'user-folder';
+  const shared = tab !== 'public' && Array.isArray(folder.sharedWith) && folder.sharedWith.length > 0;
+  const icon = tab === 'shared' ? 'shared-folder' : tab === 'public' ? 'opened-folder' : 'user-folder';
 
   return `
     <div class="explorer-tree__node">
@@ -462,7 +476,9 @@ function treeNode(folder, tab, depth, pool) {
 
 /** Expand every ancestor of `folderId` so it is visible in the tree. */
 function expandAncestors(tab, folderId) {
-  const pool = tab === 'shared' ? state.sharedFolders : state.folders;
+  const pool = tab === 'shared' ? state.sharedFolders
+    : tab === 'public' ? state.publicFolders
+    : state.folders;
   const byId = new Map(pool.map(f => [f.id, f]));
   const guard = new Set();
   let cur = byId.get(folderId)?.parentId || null;
@@ -514,8 +530,6 @@ function folderPath(folderId, pool = activeFolders()) {
 function renderBreadcrumb() {
   const nav = state.container?.querySelector('#fe-breadcrumb');
   if (!nav) return;
-  // The public place is a flat list — there is no path to show.
-  if (state.tab === 'public') { nav.hidden = true; nav.innerHTML = ''; return; }
 
   nav.hidden = false;
   const place = PLACE[state.tab];
@@ -546,13 +560,10 @@ function renderBreadcrumb() {
  * @param {string|null} folderId
  */
 function childrenOf(folderId) {
-  const folders = activeFolders();
-  const notes = state.tab === 'mine' ? state.notes : state.sharedNotes;
-  const links = state.tab === 'mine' ? state.links : state.sharedLinks;
   return {
-    folders: folders.filter(f => parentOf(f) === folderId),
-    notes: state.tab === 'public' ? [] : notes.filter(n => parentOf(n) === folderId),
-    links: state.tab === 'public' ? [] : links.filter(l => parentOf(l) === folderId)
+    folders: activeFolders().filter(f => parentOf(f) === folderId),
+    notes: activeNotes().filter(n => parentOf(n) === folderId),
+    links: activeLinks().filter(l => parentOf(l) === folderId)
   };
 }
 
@@ -587,11 +598,9 @@ function renderList() {
   const body = state.container?.querySelector('#fe-body');
   if (!body) return;
 
-  // The public place lists everything flat (no folder hierarchy); the other two
-  // places are real folders and list their direct children.
-  const { folders, notes, links } = state.tab === 'public'
-    ? { folders: [], notes: state.publicNotes, links: [] }
-    : childrenOf(state.currentFolderId);
+  // Every place is a real folder tree, so the listing is always the direct
+  // children of the current folder.
+  const { folders, notes, links } = childrenOf(state.currentFolderId);
 
   const shownFolders = folders
     .filter(f => matchesQuery(f, ['name']))
@@ -599,23 +608,30 @@ function renderList() {
 
   const linkMatches = l => matchesSubject(l) && matchesQuery(l, ['title', 'url', 'description', 'subject']);
 
-  let files = [
+  const files = [
     ...notes.filter(n => matchesSubject(n) && matchesQuery(n, ['title', 'subject', 'topic', 'content']))
       .map(data => ({ kind: 'note', id: data.id, data })),
     ...links.filter(linkMatches).map(data => ({ kind: 'link', id: data.id, data }))
   ];
 
-  // Public links from everyone surface at the root of "Mes fichiers" (their
-  // owners' folder trees aren't browsable, so they live at the top level).
+  // Public links from everyone surface at the root of "Mes fichiers" too (their
+  // owners' folder trees aren't browsable from there); the user's own public
+  // links already appear inside their folders, so they are left out here.
   if (state.tab === 'mine' && state.currentFolderId === null) {
-    files.push(...state.publicLinks.filter(linkMatches).map(data => ({ kind: 'link', id: data.id, data })));
+    const self = AppState.user?.uid;
+    files.push(
+      ...state.publicLinks
+        .filter(l => l.uid !== self)
+        .filter(linkMatches)
+        .map(data => ({ kind: 'link', id: data.id, data }))
+    );
   }
 
-  files = sortFiles(files);
+  const sorted = sortFiles(files);
 
   state.selection = null;
 
-  if (shownFolders.length === 0 && files.length === 0) {
+  if (shownFolders.length === 0 && sorted.length === 0) {
     body.innerHTML = emptyStateHtml();
     body.querySelector('#fe-empty-new-folder')?.addEventListener('click', () => openFolderDialog({ parentId: state.currentFolderId }));
     body.querySelector('#fe-empty-new-note')?.addEventListener('click', () => openNewNote());
@@ -625,12 +641,12 @@ function renderList() {
   if (state.view === 'grid') {
     body.innerHTML = `<div class="file-grid">
       ${shownFolders.map(folderCard).join('')}
-      ${files.map(entryCard).join('')}
+      ${sorted.map(entryCard).join('')}
     </div>`;
   } else {
     body.innerHTML = `<div class="file-list">
       ${shownFolders.map(folderRow).join('')}
-      ${files.map(entryRow).join('')}
+      ${sorted.map(entryRow).join('')}
     </div>`;
   }
 }
@@ -649,11 +665,14 @@ function emptyStateHtml() {
   }
 
   if (state.tab === 'public') {
+    const inPublicFolder = Boolean(state.currentFolderId);
     return `
       <div class="empty-state">
-        ${iconImg('document', { size: 48, alt: '', className: 'empty-state__icon' })}
-        <h3 class="empty-state__title">Aucune fiche publique</h3>
-        <p class="empty-state__description">Revenez plus tard ou rendez une de vos fiches publique.</p>
+        ${iconImg('bookmark', { size: 48, alt: '', className: 'empty-state__icon' })}
+        <h3 class="empty-state__title">${inPublicFolder ? 'Dossier vide' : 'Aucun contenu public'}</h3>
+        <p class="empty-state__description">${inPublicFolder
+          ? 'Ce dossier public ne contient aucun élément pour le moment.'
+          : 'Personne n\'a encore rendu de fiche ou de lien public.'}</p>
       </div>`;
   }
 
@@ -1024,6 +1043,7 @@ async function deleteNote(noteId) {
     const uid = AppState.user?.uid;
     await FirestoreService.deleteNote(noteId);
     if (uid) FirestoreService.logAccess({ uid, documentId: noteId, documentType: 'note', action: 'delete' });
+    if (note?.isPublic && uid) await FirestoreService.syncTreeFlags(uid, AppState.user?.displayName || '');
     EventBus.emit('note:deleted', { noteId });
     showToast('Fiche supprimée.', 'success');
   } catch (err) {
@@ -1041,6 +1061,7 @@ async function deleteLink(linkId) {
     const uid = AppState.user?.uid;
     await FirestoreService.deleteLink(linkId);
     if (uid) FirestoreService.logAccess({ uid, documentId: linkId, documentType: 'link', action: 'delete' });
+    if (link?.isPublic && uid) await FirestoreService.syncTreeFlags(uid, AppState.user?.displayName || '');
     EventBus.emit('link:deleted', { linkId });
     showToast('Lien supprimé.', 'success');
   } catch (err) {
@@ -1086,6 +1107,9 @@ async function deleteFolder(folder) {
     ]);
 
     if (notes.length && uid) QuotaManager.recalculateQuota(uid).then(q => EventBus.emit('quota:updated', q)).catch(() => {});
+    if (uid && (notes.some(n => n.isPublic) || links.some(l => l.isPublic))) {
+      await FirestoreService.syncTreeFlags(uid, AppState.user?.displayName || '');
+    }
     if (state.currentFolderId && ids.has(state.currentFolderId)) state.currentFolderId = null;
 
     if (notes.length) EventBus.emit('note:deleted', { folderId: folder.id });
@@ -1142,6 +1166,8 @@ async function togglePublic(note) {
     const next = !note.isPublic;
     await FirestoreService.updateNote(note.id, { isPublic: next });
     if (uid) FirestoreService.logAccess({ uid, documentId: note.id, documentType: 'note', action: 'edit' });
+    // Publishing changes the folder branches that lead to public content.
+    if (uid) await FirestoreService.syncTreeFlags(uid, AppState.user?.displayName || '');
     EventBus.emit('note:saved', { noteId: note.id });
     showToast(next ? 'Fiche rendue publique.' : 'Fiche rendue privée.', 'success');
   } catch (err) {
@@ -1156,6 +1182,7 @@ async function toggleLinkPublic(link) {
     const next = !link.isPublic;
     await FirestoreService.updateLink(link.id, { isPublic: next });
     if (uid) FirestoreService.logAccess({ uid, documentId: link.id, documentType: 'link', action: 'edit' });
+    if (uid) await FirestoreService.syncTreeFlags(uid, AppState.user?.displayName || '');
     EventBus.emit('link:saved', { linkId: link.id });
     showToast(next ? 'Lien rendu public.' : 'Lien rendu privé.', 'success');
   } catch (err) {

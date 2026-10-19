@@ -612,6 +612,7 @@ async function setNotePublic(note, isPublic) {
   try {
     await FirestoreService.updateNote(note.id, { isPublic });
     logAccess(note.id, 'note', 'edit');
+    await FirestoreService.syncTreeFlags(note.uid, state.userMap[note.uid] || '');
     EventBus.emit('note:saved', { noteId: note.id });
     showToast(isPublic ? 'Fiche rendue publique.' : 'Fiche rendue privée.', 'success');
     notify();
@@ -625,6 +626,7 @@ async function setLinkPublic(link, isPublic) {
   try {
     await FirestoreService.updateLink(link.id, { isPublic });
     logAccess(link.id, 'link', 'edit');
+    await FirestoreService.syncTreeFlags(link.uid, state.userMap[link.uid] || '');
     EventBus.emit('link:saved', { linkId: link.id });
     showToast(isPublic ? 'Lien rendu public.' : 'Lien rendu privé.', 'success');
     notify();
@@ -653,6 +655,7 @@ async function deleteNote(noteId) {
     showToast('Suppression…', 'info');
     await FirestoreService.deleteNote(noteId);
     logAccess(noteId, 'note', 'delete');
+    await FirestoreService.syncTreeFlags(note?.uid, state.userMap[note?.uid] || '');
     EventBus.emit('note:deleted', { noteId });
     await repairOwnerQuota(note?.uid);
     showToast('Fiche supprimée.', 'success');
@@ -671,6 +674,7 @@ async function deleteLink(linkId) {
     showToast('Suppression…', 'info');
     await FirestoreService.deleteLink(linkId);
     logAccess(linkId, 'link', 'delete');
+    await FirestoreService.syncTreeFlags(link?.uid, state.userMap[link?.uid] || '');
     EventBus.emit('link:deleted', { linkId });
     showToast('Lien supprimé.', 'success');
     notify();
@@ -723,6 +727,10 @@ async function deleteFolder(folder) {
       await Promise.all(owners.map(repairOwnerQuota));
     }
 
+    // Recompute the public branches of every owner touched by the cascade.
+    const touched = new Set([...folders, ...notes, ...links].map(d => d.uid).filter(Boolean));
+    await Promise.all([...touched].map(owner => FirestoreService.syncTreeFlags(owner, state.userMap[owner] || '')));
+
     if (state.currentFolderId && ids.has(state.currentFolderId)) state.currentFolderId = null;
     if (notes.length) EventBus.emit('note:deleted', { folderId: folder.id });
     if (links.length) EventBus.emit('link:deleted', { folderId: folder.id });
@@ -738,6 +746,11 @@ async function moveEntry(kind, id, destinationId) {
   if (kind === 'folder') await FirestoreService.updateFolder(id, { parentId: destinationId });
   else if (kind === 'note') await FirestoreService.updateNote(id, { parentId: destinationId });
   else await FirestoreService.updateLink(id, { parentId: destinationId });
+
+  // A move carries the item in or out of branches, so recompute its owner's
+  // public-branch flags as well as the inherited grants.
+  const item = findItem(kind, id);
+  if (item?.uid) await FirestoreService.syncTreeFlags(item.uid, state.userMap[item.uid] || '');
 }
 
 // ---------------------------------------------------------------------------
@@ -845,6 +858,9 @@ function openLinkDialog(link) {
     try {
       await FirestoreService.updateLink(link.id, { title, url, description, subject, isPublic });
       logAccess(link.id, 'link', 'edit');
+      if (Boolean(link.isPublic) !== isPublic) {
+        await FirestoreService.syncTreeFlags(link.uid, state.userMap[link.uid] || '');
+      }
       EventBus.emit('link:saved', { linkId: link.id });
       showToast('Lien mis à jour.', 'success');
       hide();

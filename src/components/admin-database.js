@@ -3,13 +3,12 @@
  *
  * Read/inspect/delete browser across the `notes`, `links`, `folders`,
  * `shortcuts` and `users` collections, with search, pagination and a JSON
- * inspector — plus a file-explorer-style **Fichiers publics** view of every
- * user's public fiches and links, fully editable by the admin.
+ * inspector. It is a section of the Administration shell (`admin.js`); the
+ * file-explorer-style **Fichiers publics** view now lives in its own section.
  */
 
 import { FirestoreService } from '../services/firestore-service.js';
 import { EventBus, AppState, showToast, iconImg } from '../app.js';
-import * as publicFiles from './admin-public-files.js';
 
 const PAGE_SIZE = 10;
 
@@ -18,7 +17,7 @@ const TABLE_TABS = ['notes', 'links', 'folders', 'shortcuts', 'users'];
 
 const state = {
   container: null,
-  tab: 'notes',       // notes | links | folders | shortcuts | users | public
+  tab: 'notes',       // notes | links | folders | shortcuts | users
   query: '',
   page: 1,
   expandedId: null,
@@ -51,7 +50,6 @@ export async function render(container) {
         <div class="tabs-row">
           ${tab('notes', 'Fiches')}
           ${tab('links', 'Liens')}
-          ${tab('public', 'Fichiers publics')}
           ${tab('folders', 'Dossiers')}
           ${tab('shortcuts', 'Raccourcis')}
           ${tab('users', 'Utilisateurs')}
@@ -130,10 +128,10 @@ async function loadAll() {
     state.userMap = {};
     users.forEach(u => { state.userMap[u.id || u.uid] = u.displayName || u.email || `Utilisateur ${(u.id || u.uid).slice(0, 5)}`; });
 
-    [...TABLE_TABS, 'public'].forEach(id => {
+    TABLE_TABS.forEach(id => {
       const el = state.container.querySelector(`[data-count="${id}"]`);
       if (!el) return;
-      el.textContent = id === 'public' ? publicCount() : (state.data[id]?.length ?? 0);
+      el.textContent = state.data[id]?.length ?? 0;
     });
 
     renderTable();
@@ -141,25 +139,6 @@ async function loadAll() {
     console.error('[DB] load failed:', err);
     body.innerHTML = `<div class="empty-state"><p class="empty-state__title">Chargement impossible</p><p class="empty-state__description">${escapeHtml(err.message)}</p></div>`;
   }
-}
-
-/** Public fiches + public links, across every user. */
-function publicCount() {
-  const notes = state.data.notes.filter(n => n.isPublic === true).length;
-  const links = state.data.links.filter(l => l.isPublic === true).length;
-  return notes + links;
-}
-
-/** Everything the public-files browser needs; it filters to `isPublic` itself. */
-function publicFilesData() {
-  return {
-    folders: state.data.folders,
-    notes: state.data.notes,
-    links: state.data.links,
-    userMap: state.userMap,
-    query: state.query,
-    onChanged: loadAll
-  };
 }
 
 /** Filtered rows for the active tab. */
@@ -185,15 +164,6 @@ function renderTable() {
   if (!body) return;
 
   const pagination = c.querySelector('#ad-pagination');
-
-  // "Fichiers publics" is a file-explorer-style browser, not a paginated table.
-  if (state.tab === 'public') {
-    if (pagination) pagination.hidden = true;
-    if (info) info.textContent = '';
-    body.innerHTML = '';
-    publicFiles.render(body, publicFilesData());
-    return;
-  }
 
   if (pagination) pagination.hidden = false;
 
@@ -382,10 +352,17 @@ function bindRows() {
 
       try {
         showToast('Suppression…', 'info');
+        const removed = (state.data[kind === 'note' ? 'notes' : kind === 'link' ? 'links' : kind === 'folder' ? 'folders' : 'shortcuts'] || []).find(d => d.id === id);
         if (kind === 'note') { await FirestoreService.deleteNote(id); state.data.notes = state.data.notes.filter(d => d.id !== id); EventBus.emit('note:deleted', { noteId: id }); }
         else if (kind === 'link') { await FirestoreService.deleteLink(id); state.data.links = state.data.links.filter(d => d.id !== id); EventBus.emit('link:deleted', { linkId: id }); }
         else if (kind === 'folder') { await FirestoreService.deleteFolder(id); state.data.folders = state.data.folders.filter(d => d.id !== id); }
         else if (kind === 'shortcut') { await FirestoreService.deleteShortcut(id); state.data.shortcuts = state.data.shortcuts.filter(d => d.id !== id); }
+
+        // A deleted public note/link (or a folder that held one) changes which
+        // folder branches are public — recompute the owner's flags.
+        if (removed?.uid && (kind === 'folder' || removed.isPublic === true)) {
+          await FirestoreService.syncTreeFlags(removed.uid, state.userMap[removed.uid] || '');
+        }
 
         ['notes', 'links', 'folders', 'shortcuts', 'users'].forEach(t => {
           const el = c.querySelector(`[data-count="${t}"]`);
@@ -427,7 +404,6 @@ function escapeAttr(str) { return escapeHtml(str); }
 
 /** Tear down. */
 export function destroy() {
-  publicFiles.destroy();
   state.container = null;
   state.data = { notes: [], links: [], folders: [], shortcuts: [], users: [] };
   state.userMap = {};

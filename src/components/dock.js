@@ -16,10 +16,7 @@ const STANDARD_APPS = [
 ];
 
 const ADMIN_APPS = [
-  { id: 'admin-database', icon: 'database', label: 'Données', title: 'Base de données' },
-  { id: 'admin-users', icon: 'group', label: 'Utilisateurs', title: 'Gestion des utilisateurs' },
-  { id: 'admin-shares', icon: 'share', label: 'Partages', title: 'Partages de dossiers' },
-  { id: 'admin-statistics', icon: 'combo-chart', label: 'Statistiques', title: 'Statistiques & métriques' }
+  { id: 'admin', icon: 'database', label: 'Administration', title: 'Administration' }
 ];
 
 /** @param {HTMLElement} container */

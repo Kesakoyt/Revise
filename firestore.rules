@@ -20,6 +20,14 @@ rules_version = '2';
 //  queries shared content with `where(field, 'array-contains', myUid)` — the
 //  query constraint that provably matches the `in` check below.
 //
+//  PUBLIC BRANCHES
+//  ---------------
+//  Folders also carry `hasPublic`, true when the folder or one of its
+//  descendants holds a public fiche/link. It lets any signed-in user list the
+//  branches of other users' trees that lead to public content, without exposing
+//  private folders. It is recomputed client-side on every publish, unpublish,
+//  move and delete.
+//
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -94,11 +102,13 @@ service cloud.firestore {
 
     // ---------------------------------------------------------------------
     // Folders — file-manager hierarchy. Private to their owner, unless the
-    // folder (or an ancestor) was shared with the requester.
+    // folder was shared with the requester or leads to public content
+    // (`hasPublic`, recomputed by the client whenever the tree changes).
     // ---------------------------------------------------------------------
     match /folders/{folderId} {
       allow read:   if isAdmin()
                     || (isSignedIn() && resource.data.uid == request.auth.uid)
+                    || (isSignedIn() && resource.data.hasPublic == true)
                     || (isSignedIn() && request.auth.uid in resource.data.sharedWith);
       allow create, update: if isAdmin()
                     || (isSignedIn() && request.resource.data.uid == request.auth.uid);

@@ -42,23 +42,24 @@ function currentUid() {
 }
 
 /**
- * Grant list + owner name inherited from a parent folder, so content created
- * inside a shared folder stays visible to the same recipients.
+ * Grant list, owner name and public branch flag inherited from a parent folder,
+ * so content created inside a shared or public folder stays visible the same way.
  * @param {string|null} parentId
- * @returns {Promise<{sharedWith:string[], ownerName:string}>}
+ * @returns {Promise<{sharedWith:string[], ownerName:string, hasPublic:boolean}>}
  */
 async function inheritedShares(parentId) {
-  if (!db || !parentId) return { sharedWith: [], ownerName: '' };
+  if (!db || !parentId) return { sharedWith: [], ownerName: '', hasPublic: false };
   try {
     const doc = await db.collection(COLLECTIONS.FOLDERS).doc(parentId).get();
     const data = doc.exists ? (doc.data() || {}) : {};
     return {
       sharedWith: Array.isArray(data.sharedWith) ? data.sharedWith : [],
-      ownerName: data.ownerName || ''
+      ownerName: data.ownerName || '',
+      hasPublic: data.hasPublic === true
     };
   } catch (err) {
     console.warn('[Firestore] inherit shares failed:', err.message);
-    return { sharedWith: [], ownerName: '' };
+    return { sharedWith: [], ownerName: '', hasPublic: false };
   }
 }
 
@@ -304,7 +305,7 @@ export const FirestoreService = {
   async createFolder({ uid, name, parentId = null }) {
     if (!db) throw new Error("Firestore n'est pas initialisé.");
     const timestamp = serverTimestamp();
-    const { sharedWith, ownerName } = await inheritedShares(parentId);
+    const { sharedWith, ownerName, hasPublic } = await inheritedShares(parentId);
 
     const ref = await db.collection(COLLECTIONS.FOLDERS).add({
       uid,
@@ -312,6 +313,7 @@ export const FirestoreService = {
       parentId: parentId || null,
       sharedWith,
       ownerName,
+      hasPublic,
       createdAt: timestamp,
       updatedAt: timestamp
     });
@@ -389,6 +391,33 @@ export const FirestoreService = {
   },
 
   /**
+   * Every folder that leads to public content, across all users — the branches
+   * the public browser can open. Readable by any signed-in account.
+   * @returns {Promise<Array<Object>>}
+   */
+  async getPublicFolders() {
+    if (!db) return [];
+    const snap = await db.collection(COLLECTIONS.FOLDERS).where('hasPublic', '==', true).get();
+    return sortBy(snap.docs.map(d => ({ id: d.id, ...d.data() })), 'name', 'asc');
+  },
+
+  /**
+   * Best-effort re-sync of an owner's tree flags (`sharedWith`, `hasPublic`)
+   * after a publish/unpublish or a delete. Never throws.
+   * @param {string} ownerUid
+   * @param {string} [ownerName]
+   * @returns {Promise<void>}
+   */
+  async syncTreeFlags(ownerUid, ownerName = '') {
+    if (!db || !ownerUid) return;
+    try {
+      await this.syncShares({ ownerUid, ownerName });
+    } catch (err) {
+      console.warn('[Firestore] tree flag sync skipped:', err.message);
+    }
+  },
+
+  /**
    * Replace the explicit recipient list of a folder, then re-propagate the
    * inherited grants across the owner's whole tree.
    *
@@ -418,14 +447,19 @@ export const FirestoreService = {
   },
 
   /**
-   * Recompute the inherited `sharedWith` / `ownerName` fields for every folder,
-   * fiche and link owned by `ownerUid` and persist only the documents that
-   * actually change.
+   * Recompute the denormalised tree flags for every folder, fiche and link
+   * owned by `ownerUid` and persist only the documents that actually change.
    *
-   * Sharing lives on folders: a folder carries an explicit recipient list and
-   * every descendant (folders, fiches, links) inherits the union of its
-   * ancestors' lists. The function is idempotent, so it is also the right thing
-   * to run after a move — no stale grants follow an item out of a shared tree.
+   * Two flags are derived from the owner's whole tree:
+   *   • `sharedWith` / `ownerName` — grants. A folder carries an explicit
+   *     recipient list and every descendant inherits the union of its
+   *     ancestors' lists.
+   *   • `hasPublic` (folders only) — true when the folder or one of its
+   *     descendants holds a public fiche or link, so the public browser can list
+   *     exactly the branches that lead to public content.
+   *
+   * The function is idempotent, so it is also the right thing to run after a
+   * move, a publish/unpublish or a delete — no stale grant or branch survives.
    *
    * @param {{ownerUid:string, ownerName?:string, folders?:Array, notes?:Array, links?:Array}} [p]
    * @returns {Promise<{updated:number}>}
@@ -458,17 +492,37 @@ export const FirestoreService = {
     };
     allFolders.forEach(f => resolve(f));
 
+    // Mark every folder on the path from a public item up to the root.
+    const publicFolders = new Set();
+    const markPublic = id => {
+      let guard = 0;
+      while (id && byId.has(id) && !publicFolders.has(id) && guard++ < 1000) {
+        publicFolders.add(id);
+        id = byId.get(id).parentId || null;
+      }
+    };
+    allNotes.forEach(n => { if (n.isPublic === true) markPublic(n.parentId); });
+    allLinks.forEach(l => { if (l.isPublic === true) markPublic(l.parentId); });
+
     const changes = [];
     const sameSet = (a, b) => a.length === b.length && b.every(x => a.includes(x));
 
-    const consider = (collection, doc, nextShared) => {
+    /** `nextPublic` is only defined for folders. */
+    const consider = (collection, doc, nextShared, nextPublic) => {
       const current = Array.isArray(doc.sharedWith) ? doc.sharedWith : [];
       const nextName = nextShared.length ? ownerName : (doc.ownerName || '');
-      if (sameSet(current, nextShared) && (doc.ownerName || '') === nextName) return;
-      changes.push({ collection, id: doc.id, data: { sharedWith: nextShared, ownerName: nextName } });
+
+      const data = { sharedWith: nextShared, ownerName: nextName };
+      if (nextPublic !== undefined) data.hasPublic = nextPublic;
+
+      const sharedSame = sameSet(current, nextShared) && (doc.ownerName || '') === nextName;
+      const publicSame = nextPublic === undefined || (doc.hasPublic === true) === nextPublic;
+      if (sharedSame && publicSame) return;
+
+      changes.push({ collection, id: doc.id, data });
     };
 
-    allFolders.forEach(f => consider(COLLECTIONS.FOLDERS, f, effective.get(f.id) || []));
+    allFolders.forEach(f => consider(COLLECTIONS.FOLDERS, f, effective.get(f.id) || [], publicFolders.has(f.id)));
     allNotes.forEach(n => consider(COLLECTIONS.NOTES, n, effective.get(n.parentId) || []));
     allLinks.forEach(l => consider(COLLECTIONS.LINKS, l, effective.get(l.parentId) || []));
 
