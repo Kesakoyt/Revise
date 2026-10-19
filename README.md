@@ -34,10 +34,11 @@ the browser* before it is ever uploaded.
   (PDF.js + Mammoth.js).
 - **File explorer** — a hierarchical workspace of **folders** containing
   sub-folders, Markdown **fiches** and **links**, with breadcrumb navigation,
-  create / rename / move / delete and public-notes / public-links views.
+  create / rename / move / delete and a public-notes view. **Public links from
+  everyone appear at the root**, mixed in with your own files.
 - **Links** — bookmark external resources (title, URL, description, subject);
-  managed directly from the file explorer. Each link can be made **public** so
-  anyone can discover it in the **Liens publics** tab.
+  managed directly from the file explorer. Each link can be made **public**, and
+  public links surface in the file manager for all users.
 - **Subjects & topics** — classify, filter and sort every note.
 - **Public notes** — publish a note and browse what others have shared.
 - **Character quota** — a strict, account-wide character allowance is enforced

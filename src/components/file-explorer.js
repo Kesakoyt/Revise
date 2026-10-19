@@ -30,6 +30,7 @@ const state = {
   folders: [],
   notes: [],
   links: [],
+  publicLinks: [],        // other users' public links (root of "Mes fichiers")
   subjects: [],
   selection: null,        // { kind, id }
   handlers: [],
@@ -50,9 +51,6 @@ export async function render(container) {
           </button>
           <button class="tab-btn ${state.tab === 'public' ? 'tab-btn--active' : ''}" data-tab="public">
             ${iconImg('bookmark', { size: 18, alt: '', className: 'tab-btn__icon' })}Fiches publiques
-          </button>
-          <button class="tab-btn ${state.tab === 'public-links' ? 'tab-btn--active' : ''}" data-tab="public-links">
-            ${iconImg('link', { size: 18, alt: '', className: 'tab-btn__icon' })}Liens publics
           </button>
         </div>
         <button class="btn btn--primary" id="fe-new" type="button" aria-haspopup="menu">
@@ -260,7 +258,7 @@ async function loadData() {
 
   try {
     const uid = AppState.user?.uid;
-    // Public tabs must not hard-fail (e.g. rule not deployed yet) — degrade to
+    // Public content must not hard-fail (e.g. rule not deployed yet) — degrade to
     // an empty list with a toast instead of the full "Chargement impossible".
     const safePublic = (label, fn) => fn().catch(err => {
       console.warn(`[Explorer] ${label} load failed:`, err.message);
@@ -271,11 +269,8 @@ async function loadData() {
     if (state.tab === 'public') {
       state.folders = [];
       state.links = [];
+      state.publicLinks = [];
       state.notes = await safePublic('fiches publiques', () => FirestoreService.getPublicNotes({}));
-    } else if (state.tab === 'public-links') {
-      state.folders = [];
-      state.notes = [];
-      state.links = await safePublic('liens publics', () => FirestoreService.getPublicLinks({}));
     } else if (uid) {
       // Each collection loads independently: a denial or index error on one
       // (e.g. a missing `folders` rule) must not blank out the whole explorer.
@@ -285,14 +280,19 @@ async function loadData() {
         failures.push(label);
         return [];
       });
-      const [folders, notes, links] = await Promise.all([
+      const [folders, notes, links, publicLinks] = await Promise.all([
         safe('dossiers', FirestoreService.getUserFolders(uid)),
         safe('fiches', FirestoreService.getUserNotes(uid)),
-        safe('liens', FirestoreService.getUserLinks(uid))
+        safe('liens', FirestoreService.getUserLinks(uid)),
+        safePublic('liens publics', () => FirestoreService.getPublicLinks({}))
       ]);
       state.folders = folders;
       state.notes = notes;
       state.links = links;
+      // Public links from everyone; the user's own are already in `links` (so
+      // they appear inside their folders, not only at the root).
+      const ownIds = new Set(links.map(l => l.id));
+      state.publicLinks = publicLinks.filter(l => !ownIds.has(l.id));
 
       if (failures.length) {
         showToast(
@@ -302,7 +302,7 @@ async function loadData() {
         );
       }
     } else {
-      state.folders = []; state.notes = []; state.links = [];
+      state.folders = []; state.notes = []; state.links = []; state.publicLinks = [];
     }
 
     if (state.currentFolderId && !state.folders.some(f => f.id === state.currentFolderId)) {
@@ -312,6 +312,7 @@ async function loadData() {
     const subjects = new Set();
     state.notes.forEach(n => { if (n.subject?.trim()) subjects.add(n.subject.trim()); });
     state.links.forEach(l => { if (l.subject?.trim()) subjects.add(l.subject.trim()); });
+    state.publicLinks.forEach(l => { if (l.subject?.trim()) subjects.add(l.subject.trim()); });
     state.subjects = [...subjects].sort();
 
     populateSubjectFilter();
@@ -439,12 +440,20 @@ function renderList() {
     .filter(f => matchesQuery(f, ['name']))
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
+  const linkMatches = l => matchesSubject(l) && matchesQuery(l, ['title', 'url', 'description', 'subject']);
+
   let files = [
     ...notes.filter(n => matchesSubject(n) && matchesQuery(n, ['title', 'subject', 'topic', 'content']))
       .map(data => ({ kind: 'note', id: data.id, data })),
-    ...links.filter(l => matchesSubject(l) && matchesQuery(l, ['title', 'url', 'description', 'subject']))
-      .map(data => ({ kind: 'link', id: data.id, data }))
+    ...links.filter(linkMatches).map(data => ({ kind: 'link', id: data.id, data }))
   ];
+
+  // Public links from everyone surface at the root of "Mes fichiers" (their
+  // owners' folder trees aren't browsable, so they live at the top level).
+  if (state.tab === 'mine' && state.currentFolderId === null) {
+    files.push(...state.publicLinks.filter(linkMatches).map(data => ({ kind: 'link', id: data.id, data })));
+  }
+
   files = sortFiles(files);
 
   state.selection = null;
@@ -488,15 +497,6 @@ function emptyStateHtml() {
         ${iconImg('document', { size: 48, alt: '', className: 'empty-state__icon' })}
         <h3 class="empty-state__title">Aucune fiche publique</h3>
         <p class="empty-state__description">Revenez plus tard ou rendez une de vos fiches publique.</p>
-      </div>`;
-  }
-
-  if (state.tab === 'public-links') {
-    return `
-      <div class="empty-state">
-        ${iconImg('link', { size: 48, alt: '', className: 'empty-state__icon' })}
-        <h3 class="empty-state__title">Aucun lien public</h3>
-        <p class="empty-state__description">Revenez plus tard ou rendez un de vos liens public.</p>
       </div>`;
   }
 
@@ -605,7 +605,9 @@ function bindBody() {
       const kind = propsBtnEl.dataset.propsKind;
       const id = propsBtnEl.dataset.propsId;
       if (kind && id) {
-        const data = kind === 'folder' ? state.folders.find(f => f.id === id) : kind === 'note' ? state.notes.find(n => n.id === id) : state.links.find(l => l.id === id);
+        const data = kind === 'folder' ? state.folders.find(f => f.id === id)
+          : kind === 'note' ? state.notes.find(n => n.id === id)
+          : findLink(id);
         openPropertiesDialog(kind, data);
       }
       return;
@@ -648,11 +650,16 @@ function setSelection(sel) {
   });
 }
 
+/** Look a link up by id, in the user's own links and in the public root links. */
+function findLink(id) {
+  return state.links.find(l => l.id === id) || state.publicLinks.find(l => l.id === id);
+}
+
 function activate(kind, id) {
   if (kind === 'folder') { enterFolder(id); return; }
   if (kind === 'note') { EventBus.emit('app:open', { appId: 'markdown-editor', params: { noteId: id } }); return; }
   if (kind === 'link') {
-    const link = state.links.find(l => l.id === id);
+    const link = findLink(id);
     if (link?.url) window.open(link.url, '_blank', 'noopener,noreferrer');
   }
 }
@@ -713,7 +720,7 @@ function backgroundMenuItems() {
 function itemMenu(sel) {
   if (sel.kind === 'folder') return folderMenuItems(state.folders.find(f => f.id === sel.id));
   if (sel.kind === 'note') return noteMenuItems(state.notes.find(n => n.id === sel.id));
-  return linkMenuItems(state.links.find(l => l.id === sel.id));
+  return linkMenuItems(findLink(sel.id));
 }
 
 function folderMenuItems(folder) {
@@ -1399,6 +1406,7 @@ export function destroy() {
   state.folders = [];
   state.notes = [];
   state.links = [];
+  state.publicLinks = [];
   state.selection = null;
   state.currentFolderId = null;
 }

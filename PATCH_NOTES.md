@@ -2,6 +2,26 @@
 
 ---
 
+## v1.2.3 — Public links in the files view
+**Date:** 2026-10-19
+**Scope:** Public links merged into the file manager; popup background fixes.
+
+### Changed
+- **Public links now live in the files view.** The separate **Liens publics** tab
+  is gone: links marked *public* — yours and everyone else's — appear directly in
+  **Mes fichiers**, at the root level, mixed in with your folders, fiches and
+  links. Your own public links still sit inside the folder you put them in.
+- **Popups now always have a background.** The Properties dialog rendered
+  transparent (it relied on a shared `.card` class it never had), and other
+  dialogs only worked by luck of that class. Every file-explorer popup (new
+  folder, rename, new link, move, properties) now uses an opaque, solid panel in
+  both light and dark themes.
+- **Public tabs degrade gracefully.** If the Firestore rules aren't published
+  yet, the public views show an empty list with a clear toast instead of the
+  full "Chargement impossible" error.
+
+---
+
 ## v1.2.2 — Properties button & generic link icons
 **Date:** 2026-10-19
 **Scope:** One-click properties access for every explorer item; unified link icons.
