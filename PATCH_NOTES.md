@@ -2,6 +2,24 @@
 
 ---
 
+## v1.2.1 — Properties panel
+**Date:** 2026-10-19
+**Scope:** Windows-style "Properties" info dialog for explorer items.
+
+### Added
+- **Propriétés** entry in the right-click menu of folders, fiches and links
+  (placed at the bottom, as on Windows).
+- Windows-style **properties dialog**: item icon + name header, then a labelled
+  field list — type, location (breadcrumb path), and per-kind details:
+  - *Dossier* — nesting totals (dossiers / fiches / liens), created and modified
+    dates, owner.
+  - *Fiche* — size (characters + words), subject, topic, visibility, created and
+    modified dates, owner.
+  - *Lien* — clickable address, domain, subject, description, created and modified
+    dates, owner; plus **Copier l'URL** and **Ouvrir** shortcuts.
+
+---
+
 ## v1.2.0 — File manager with folders
 **Date:** 2026-10-18
 **Scope:** turn the explorer into a real hierarchical file manager and fold the

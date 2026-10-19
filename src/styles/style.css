@@ -1489,6 +1489,43 @@ body.is-resizing * { cursor: col-resize !important; user-select: none !important
 .dialog__title { font-size: 17px; font-weight: 600; }
 .dialog__form { display: flex; flex-direction: column; gap: 16px; }
 
+/* Properties dialog (Windows-style info panel) ------------------------- */
+.props { min-width: 400px; max-width: 480px; }
+.props__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-card);
+}
+.props__icon { flex: 0 0 40px; width: 40px; height: 40px; display: grid; place-items: center; }
+.props__favicon { border-radius: 6px; object-fit: contain; }
+.props__heading { min-width: 0; }
+.props__name {
+  font-size: 16px; font-weight: 600; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.props__subtitle { font-size: 12.5px; color: var(--text-secondary); }
+.props__rows { display: flex; flex-direction: column; gap: 2px; margin: 0; }
+.props__row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 12px;
+  padding: 6px 0;
+}
+.props__key { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+.props__val {
+  margin: 0; font-size: 13px; color: var(--text-primary);
+  overflow-wrap: anywhere; word-break: break-word;
+}
+.props__link { color: var(--accent); text-decoration: none; }
+.props__link:hover { text-decoration: underline; }
+
+@media (max-width: 560px) {
+  .props { min-width: 0; }
+  .props__row { grid-template-columns: 1fr; gap: 2px; }
+}
+
 /* Context menu ---------------------------------------------------------- */
 .context-menu {
   position: fixed;

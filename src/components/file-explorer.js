@@ -750,7 +750,9 @@ function folderMenuItems(folder) {
     { label: 'Nouvelle fiche', icon: 'document', onSelect: () => openNewNote(folder.id) },
     { label: 'Nouveau lien', icon: 'link', onSelect: () => openLinkDialog(null, folder.id) },
     { separator: true },
-    { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteFolder(folder) }
+    { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteFolder(folder) },
+    { separator: true },
+    { label: 'Propriétés', icon: 'info', onSelect: () => openPropertiesDialog('folder', folder) }
   ];
 }
 
@@ -765,12 +767,16 @@ function noteMenuItems(note) {
       { label: 'Déplacer vers…', icon: 'move', onSelect: () => openMoveDialog('note', note) },
       { label: note.isPublic ? 'Rendre privée' : 'Rendre publique', icon: note.isPublic ? 'lock' : 'unlock', onSelect: () => togglePublic(note) },
       { separator: true },
-      { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteEntry('note', note.id) }
+      { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteEntry('note', note.id) },
+      { separator: true },
+      { label: 'Propriétés', icon: 'info', onSelect: () => openPropertiesDialog('note', note) }
     );
   } else {
     items.push(
       { separator: true },
-      { label: 'Copier le titre', icon: 'copy', onSelect: () => copyText(note.title || 'Sans titre', 'Titre copié.') }
+      { label: 'Copier le titre', icon: 'copy', onSelect: () => copyText(note.title || 'Sans titre', 'Titre copié.') },
+      { separator: true },
+      { label: 'Propriétés', icon: 'info', onSelect: () => openPropertiesDialog('note', note) }
     );
   }
   return items;
@@ -784,7 +790,9 @@ function linkMenuItems(link) {
     { label: 'Déplacer vers…', icon: 'move', onSelect: () => openMoveDialog('link', link) },
     { label: 'Copier l’URL', icon: 'copy', onSelect: () => copyText(link.url, 'URL copiée.') },
     { separator: true },
-    { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteEntry('link', link.id) }
+    { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteEntry('link', link.id) },
+    { separator: true },
+    { label: 'Propriétés', icon: 'info', onSelect: () => openPropertiesDialog('link', link) }
   ];
 }
 
@@ -1167,6 +1175,134 @@ function displayName(kind, item) {
   if (kind === 'folder') return item.name || 'ce dossier';
   if (kind === 'link') return item.title || domainOf(item.url);
   return item.title || 'cette fiche';
+}
+
+// ---------------------------------------------------------------------------
+// Properties (Windows-style info panel)
+// ---------------------------------------------------------------------------
+
+function kindLabel(kind) {
+  return { folder: 'Dossier de fichiers', note: 'Fiche Markdown', link: 'Lien web' }[kind] || 'Élément';
+}
+
+/** Human-readable location, e.g. "Mes fichiers / Cours / Maths". */
+function locationOf(item) {
+  const parts = folderPath(item?.parentId || null).map(f => f.name || 'Sans nom');
+  return ['Mes fichiers', ...parts].join(' / ');
+}
+
+/** Recursive totals for a folder and everything nested inside it. */
+function folderStats(folderId) {
+  const ids = new Set([folderId, ...descendantIds(folderId)]);
+  return {
+    folders: ids.size - 1,
+    notes: state.notes.filter(n => ids.has(n.parentId)).length,
+    links: state.links.filter(l => ids.has(l.parentId)).length
+  };
+}
+
+/** Full French date + time, e.g. "18 octobre 2026 à 14:03". */
+function formatFullDate(ts) {
+  const ms = millis(ts);
+  if (!ms) return '—';
+  return new Date(ms).toLocaleString('fr-FR', {
+    day: 'numeric', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+
+function propRow(label, value) {
+  return `<div class="props__row">
+    <dt class="props__key">${escapeHtml(label)}</dt>
+    <dd class="props__val">${value || '—'}</dd>
+  </div>`;
+}
+
+/** Windows-style "Properties" dialog for a folder, fiche or link. */
+function openPropertiesDialog(kind, item) {
+  if (!item) return;
+
+  const canManage = AppState.user && item.uid === AppState.user.uid;
+  const ownerName = canManage
+    ? (AppState.user.displayName || AppState.user.email || 'Vous')
+    : 'Autre utilisateur';
+
+  const name = kind === 'folder'
+    ? (item.name || 'Sans nom')
+    : kind === 'link'
+      ? (item.title || domainOf(item.url) || 'Sans titre')
+      : (item.title || 'Sans titre');
+
+  const rows = [
+    propRow('Type', escapeHtml(kindLabel(kind))),
+    propRow('Emplacement', escapeHtml(locationOf(item)))
+  ];
+
+  if (kind === 'folder') {
+    const { folders, notes, links } = folderStats(item.id);
+    const bits = [
+      `${folders} dossier${folders === 1 ? '' : 's'}`,
+      `${notes} fiche${notes === 1 ? '' : 's'}`,
+      `${links} lien${links === 1 ? '' : 's'}`
+    ];
+    rows.push(propRow('Contient', escapeHtml(bits.join(', '))));
+    rows.push(propRow('Créé le', escapeHtml(formatFullDate(item.createdAt))));
+    rows.push(propRow('Modifié le', escapeHtml(formatFullDate(item.updatedAt || item.createdAt))));
+  } else if (kind === 'note') {
+    const content = item.content || '';
+    const count = item.charCount ?? content.length;
+    const words = content.trim() ? content.trim().split(/\s+/).length : 0;
+    const sizeText = `${count.toLocaleString('fr-FR')} caractères · ${words.toLocaleString('fr-FR')} mot${words === 1 ? '' : 's'}`;
+    rows.push(propRow('Taille', escapeHtml(sizeText)));
+    rows.push(propRow('Matière', escapeHtml(item.subject || 'Général')));
+    if (item.topic) rows.push(propRow('Sujet', escapeHtml(item.topic)));
+    rows.push(propRow('Visibilité', escapeHtml(item.isPublic ? 'Publique' : 'Privée')));
+    rows.push(propRow('Créée le', escapeHtml(formatFullDate(item.createdAt))));
+    rows.push(propRow('Modifiée le', escapeHtml(formatFullDate(item.updatedAt || item.createdAt))));
+  } else {
+    const domain = domainOf(item.url);
+    rows.push(propRow('Adresse',
+      `<a class="props__link" href="${escapeAttr(item.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.url)}</a>`));
+    rows.push(propRow('Domaine', escapeHtml(domain)));
+    rows.push(propRow('Matière', escapeHtml(item.subject || 'Général')));
+    if (item.description) rows.push(propRow('Description', escapeHtml(item.description)));
+    rows.push(propRow('Créé le', escapeHtml(formatFullDate(item.createdAt))));
+    rows.push(propRow('Modifié le', escapeHtml(formatFullDate(item.updatedAt || item.createdAt))));
+  }
+
+  rows.push(propRow('Propriétaire', escapeHtml(ownerName)));
+
+  const iconHtml = kind === 'link'
+    ? `<img class="props__favicon" src="${faviconUrl(domainOf(item.url))}" alt="" width="40" height="40"
+         onerror="this.onerror=null;this.src='${iconUrl('link')}'">`
+    : iconImg(kind === 'folder' ? ICON_FOLDER : 'document', { size: 40, alt: '' });
+
+  const wrap = document.createElement('div');
+  wrap.className = 'dialog props';
+  wrap.innerHTML = `
+    <div class="props__head">
+      <div class="props__icon">${iconHtml}</div>
+      <div class="props__heading">
+        <div class="props__name" title="${escapeAttr(name)}">${escapeHtml(name)}</div>
+        <div class="props__subtitle">${escapeHtml(kindLabel(kind))}</div>
+      </div>
+    </div>
+    <dl class="props__rows">${rows.join('')}</dl>
+    <div class="form-actions">
+      ${kind === 'link' && item.url ? `<button type="button" class="btn btn--secondary" data-action="copy">${iconImg('copy', { size: 16, alt: '' })}<span>Copier l’URL</span></button>` : ''}
+      ${kind !== 'folder' && canManage ? `<button type="button" class="btn btn--secondary" data-action="open">${iconImg('edit', { size: 16, alt: '' })}<span>Ouvrir</span></button>` : ''}
+      <button type="button" class="btn btn--primary" data-action="close">Fermer</button>
+    </div>
+  `;
+
+  const { hide } = showModal(wrap);
+  wrap.querySelector('[data-action="close"]')?.addEventListener('click', hide);
+  wrap.querySelector('[data-action="copy"]')?.addEventListener('click', () => copyText(item.url, 'URL copiée.'));
+  wrap.querySelector('[data-action="open"]')?.addEventListener('click', () => {
+    hide();
+    if (kind === 'note') openNote(item.id);
+    else if (kind === 'link' && item.url) window.open(item.url, '_blank', 'noopener,noreferrer');
+  });
 }
 
 // ---------------------------------------------------------------------------
