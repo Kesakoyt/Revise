@@ -51,8 +51,11 @@ the browser* before it is ever uploaded.
   display name, bio and avatar colour, review storage usage and reset your
   password.
 - **Left dock** application launcher with tooltips.
-- **Split screen** — up to **3 panels side-by-side**, with draggable dividers,
-  maximize and per-panel close.
+- **Windows, full screen by default** — each app opens in its own full-screen
+  window; when several are open, a strip along the top switches between them.
+  The header's **Écran divisé** button lays up to **3 windows side-by-side** with
+  draggable dividers, and **Plein écran** brings a single window back to full
+  size. Closing works from the header or the window strip.
 - **Light / dark themes** following the OS preference, persisted in `localStorage`.
 
 ### Admin (role `admin`)

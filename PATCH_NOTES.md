@@ -2,6 +2,40 @@
 
 ---
 
+## v1.2.5 — Full-screen windows + split-screen button
+**Date:** 2026-10-19
+**Scope:** Workspace window manager (full screen first, split screen on demand).
+
+### Changed
+- **Windows now open full screen.** The workspace has two layouts — `full`
+  (default) and `split`. A freshly opened window always starts in `full`, showing
+  only itself.
+- The single *maximize* button in the panel header was replaced by two explicit
+  buttons: **Plein écran** and **Écran divisé** (the active layout is
+  highlighted). Clicking *Écran divisé* puts every open window side by side with
+  the usual draggable dividers; *Plein écran* collapses back to one.
+- Panels now genuinely honour the `hidden` attribute. Previously
+  `.workspace__panel { display: flex }` beat the UA `[hidden]` rule, so
+  "maximized" panels merely collapsed their neighbours to zero width.
+
+### Added
+- **Window strip** — a row of tabs above the workspace, shown in the full layout
+  as soon as 2+ windows are open. Click a tab to bring that window forward, or
+  use its ✕ to close it in place. It is hidden in the split layout (where every
+  window is already visible) and when only one window exists.
+- The **dock** highlight follows the window that is in front (new `app:focus`
+  event on the bus), instead of the window that was launched last.
+- Closing a window while its app is still importing no longer leaves a ghost
+  panel; if an app finishes rendering after its window was closed, its
+  `destroy()` is called to unhook its listeners.
+
+### Layout structure
+- `.workspace` is now a column (`window strip` + `.workspace__stage`); the
+  stage is the flex row that `split-screen.js` populates, so the splitter logic
+  itself is unchanged.
+
+---
+
 ## v1.2.4 — Editable public files in the admin panel
 **Date:** 2026-10-19
 **Scope:** A file-explorer-style browser for everybody's public fiches and links.

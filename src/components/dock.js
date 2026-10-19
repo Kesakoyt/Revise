@@ -57,10 +57,12 @@ export function render(container) {
   bound.onLogin = updateAdminVisibility;
   bound.onLogout = () => { activeAppId = null; updateActive(); updateAdminVisibility(); };
   bound.onAppOpen = ({ appId }) => { activeAppId = appId; updateActive(); };
+  bound.onAppFocus = ({ appId }) => { activeAppId = appId; updateActive(); };
 
   EventBus.on('auth:login', bound.onLogin);
   EventBus.on('auth:logout', bound.onLogout);
   EventBus.on('app:open', bound.onAppOpen);
+  EventBus.on('app:focus', bound.onAppFocus);
 }
 
 /** Show/hide the admin section. */
@@ -86,5 +88,6 @@ export function destroy() {
   EventBus.off('auth:login', bound.onLogin);
   EventBus.off('auth:logout', bound.onLogout);
   EventBus.off('app:open', bound.onAppOpen);
+  EventBus.off('app:focus', bound.onAppFocus);
   if (host) { host.innerHTML = ''; host = null; }
 }
