@@ -2,6 +2,36 @@
 
 ---
 
+## v1.2.4 — Editable public files in the admin panel
+**Date:** 2026-10-19
+**Scope:** A file-explorer-style browser for everybody's public fiches and links.
+
+### Added
+- **Fichiers publics** tab in the admin *Base de données* panel. It looks and
+  behaves like the file explorer — folders with breadcrumb navigation,
+  icon+name list **and** grid views, the Windows-style **Propriétés** dialog,
+  a right-click menu and hover actions — but it lists **every user's public
+  fiches and links** instead of your own.
+- **Full admin editing** of that content: open a fiche in the Markdown editor,
+  rename, move to any folder, edit a link (URL, title, subject, description,
+  visibility), unpublish it (*Rendre privée / privé*) and delete it — including
+  recursive folder deletion. Quota is recalculated for the file's **owner**, not
+  for the admin pressing the button.
+- The tab badge shows the number of public fiches + public links, and the
+  pagination bar is hidden there (it is a browser, not a table).
+
+### Notes
+- Only folders that hold public content — or lead to some — are listed, so every
+  branch opens onto something. Moving a file still offers *all* folders as a
+  destination.
+- Deleting a folder cascades over its private fiches/links too, so nothing is
+  left orphaned behind a folder that no longer exists.
+- Nothing new is exposed to non-admins: the tab lives behind the existing
+  `isAdmin` dock gate, and every read/write is independently enforced by
+  `firestore.rules`.
+
+---
+
 ## v1.2.3 — Public links in the files view
 **Date:** 2026-10-19
 **Scope:** Public links merged into the file manager; popup background fixes.

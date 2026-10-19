@@ -636,6 +636,7 @@ body.is-resizing * { cursor: col-resize !important; user-select: none !important
 }
 .pagination__info { font-size: 12.5px; color: var(--text-secondary); }
 .pagination__controls { display: flex; gap: 8px; }
+.pagination[hidden] { display: none; }
 
 /* ==========================================================================
    9. Toasts
@@ -1740,6 +1741,18 @@ body.is-resizing * { cursor: col-resize !important; user-select: none !important
 .admin-app__footnote { font-size: 11.5px; color: var(--text-tertiary); text-align: center; }
 .admin-app__selector { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .admin-app__selector .select { max-width: 320px; }
+
+/* Public-files browser — file-explorer chrome embedded in the admin panel */
+.public-files { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.public-files__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.public-files__breadcrumb { flex: 1 1 auto; min-width: 0; }
+.public-files__count { font-size: 11.5px; color: var(--text-tertiary); white-space: nowrap; }
+.public-files__body { min-width: 0; }
 
 /* Stat cards */
 .stats-grid {

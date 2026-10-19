@@ -3,17 +3,22 @@
  *
  * Read/inspect/delete browser across the `notes`, `links`, `folders`,
  * `shortcuts` and `users` collections, with search, pagination and a JSON
- * inspector.
+ * inspector — plus a file-explorer-style **Fichiers publics** view of every
+ * user's public fiches and links, fully editable by the admin.
  */
 
 import { FirestoreService } from '../services/firestore-service.js';
 import { EventBus, AppState, showToast, iconImg } from '../app.js';
+import * as publicFiles from './admin-public-files.js';
 
 const PAGE_SIZE = 10;
 
+/** Tabs that render a table; everything else falls back to a custom view. */
+const TABLE_TABS = ['notes', 'links', 'folders', 'shortcuts', 'users'];
+
 const state = {
   container: null,
-  tab: 'notes',       // notes | links | folders | shortcuts | users
+  tab: 'notes',       // notes | links | folders | shortcuts | users | public
   query: '',
   page: 1,
   expandedId: null,
@@ -46,6 +51,7 @@ export async function render(container) {
         <div class="tabs-row">
           ${tab('notes', 'Fiches')}
           ${tab('links', 'Liens')}
+          ${tab('public', 'Fichiers publics')}
           ${tab('folders', 'Dossiers')}
           ${tab('shortcuts', 'Raccourcis')}
           ${tab('users', 'Utilisateurs')}
@@ -124,9 +130,10 @@ async function loadAll() {
     state.userMap = {};
     users.forEach(u => { state.userMap[u.id || u.uid] = u.displayName || u.email || `Utilisateur ${(u.id || u.uid).slice(0, 5)}`; });
 
-    ['notes', 'links', 'folders', 'shortcuts', 'users'].forEach(id => {
+    [...TABLE_TABS, 'public'].forEach(id => {
       const el = state.container.querySelector(`[data-count="${id}"]`);
-      if (el) el.textContent = state.data[id].length;
+      if (!el) return;
+      el.textContent = id === 'public' ? publicCount() : (state.data[id]?.length ?? 0);
     });
 
     renderTable();
@@ -134,6 +141,25 @@ async function loadAll() {
     console.error('[DB] load failed:', err);
     body.innerHTML = `<div class="empty-state"><p class="empty-state__title">Chargement impossible</p><p class="empty-state__description">${escapeHtml(err.message)}</p></div>`;
   }
+}
+
+/** Public fiches + public links, across every user. */
+function publicCount() {
+  const notes = state.data.notes.filter(n => n.isPublic === true).length;
+  const links = state.data.links.filter(l => l.isPublic === true).length;
+  return notes + links;
+}
+
+/** Everything the public-files browser needs; it filters to `isPublic` itself. */
+function publicFilesData() {
+  return {
+    folders: state.data.folders,
+    notes: state.data.notes,
+    links: state.data.links,
+    userMap: state.userMap,
+    query: state.query,
+    onChanged: loadAll
+  };
 }
 
 /** Filtered rows for the active tab. */
@@ -157,6 +183,19 @@ function renderTable() {
   const prev = c?.querySelector('#ad-prev');
   const next = c?.querySelector('#ad-next');
   if (!body) return;
+
+  const pagination = c.querySelector('#ad-pagination');
+
+  // "Fichiers publics" is a file-explorer-style browser, not a paginated table.
+  if (state.tab === 'public') {
+    if (pagination) pagination.hidden = true;
+    if (info) info.textContent = '';
+    body.innerHTML = '';
+    publicFiles.render(body, publicFilesData());
+    return;
+  }
+
+  if (pagination) pagination.hidden = false;
 
   const all = items();
   const total = all.length;
@@ -388,6 +427,7 @@ function escapeAttr(str) { return escapeHtml(str); }
 
 /** Tear down. */
 export function destroy() {
+  publicFiles.destroy();
   state.container = null;
   state.data = { notes: [], links: [], folders: [], shortcuts: [], users: [] };
   state.userMap = {};

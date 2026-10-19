@@ -57,7 +57,13 @@ the browser* before it is ever uploaded.
 
 ### Admin (role `admin`)
 - **Database** — inspect and delete documents across `notes`, `links`, `folders`,
-  `shortcuts` and `users`, with search, pagination and a JSON inspector.
+  `shortcuts` and `users`, with search, pagination and a JSON inspector. It also
+  ships a **Fichiers publics** tab: a file-explorer-style browser (folders,
+  breadcrumb, icon+name list/grid, Properties dialog, right-click menu) of
+  **everybody's public fiches and links**, fully editable by the admin — open in
+  the Markdown editor, rename, move, unpublish, delete. Only branches holding
+  public content are shown; the panel is gated on `isAdmin` *and* on the
+  Firestore rules.
 - **Users** — account list, role management, per-user document browsing and the
   document **access log**.
 - **Statistics** — totals for notes, links, shortcuts, stored characters,
@@ -123,6 +129,7 @@ the browser* before it is ever uploaded.
     │   ├── markdown-editor.js  # Split editor + KaTeX preview
     │   ├── user-profile.js     # Account profile: identity, storage, password
     │   ├── admin-database.js   # Collections inspector
+    │   ├── admin-public-files.js # Public files browser (file-explorer style)
     │   ├── admin-users.js      # Accounts, roles, audit log
     │   └── admin-statistics.js # Metrics dashboard
     ├── services/
