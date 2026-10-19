@@ -1491,7 +1491,17 @@ body.is-resizing * { cursor: col-resize !important; user-select: none !important
   opacity: 0.8;
 }
 
-.dialog { min-width: 340px; display: flex; flex-direction: column; gap: 16px; padding: 22px; }
+.dialog {
+  background: var(--bg-card-solid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  min-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+}
 .dialog__title { font-size: 17px; font-weight: 600; }
 .dialog__form { display: flex; flex-direction: column; gap: 16px; }
 

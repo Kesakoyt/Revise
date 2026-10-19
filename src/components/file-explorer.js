@@ -260,14 +260,22 @@ async function loadData() {
 
   try {
     const uid = AppState.user?.uid;
+    // Public tabs must not hard-fail (e.g. rule not deployed yet) — degrade to
+    // an empty list with a toast instead of the full "Chargement impossible".
+    const safePublic = (label, fn) => fn().catch(err => {
+      console.warn(`[Explorer] ${label} load failed:`, err.message);
+      showToast(`Impossible de charger les ${label}. Vérifiez les règles Firestore.`, 'error');
+      return [];
+    });
+
     if (state.tab === 'public') {
       state.folders = [];
       state.links = [];
-      state.notes = await FirestoreService.getPublicNotes({});
+      state.notes = await safePublic('fiches publiques', () => FirestoreService.getPublicNotes({}));
     } else if (state.tab === 'public-links') {
       state.folders = [];
       state.notes = [];
-      state.links = await FirestoreService.getPublicLinks({});
+      state.links = await safePublic('liens publics', () => FirestoreService.getPublicLinks({}));
     } else if (uid) {
       // Each collection loads independently: a denial or index error on one
       // (e.g. a missing `folders` rule) must not blank out the whole explorer.
@@ -967,7 +975,7 @@ async function moveEntry(kind, id, destinationId) {
 /** Generic single-field text dialog (folder create/rename, note rename). */
 function openTextDialog({ title, label, value = '', onSave }) {
   const wrap = document.createElement('div');
-  wrap.className = 'dialog card';
+  wrap.className = 'dialog';
   wrap.innerHTML = `
     <h3 class="dialog__title">${escapeHtml(title)}</h3>
     <form class="dialog__form" novalidate>
@@ -1038,7 +1046,7 @@ function openLinkDialog(link = null, parentId = undefined) {
   const targetParent = editing ? (link.parentId || null) : (parentId === undefined ? state.currentFolderId : parentId);
 
   const wrap = document.createElement('div');
-  wrap.className = 'dialog card';
+  wrap.className = 'dialog';
   wrap.innerHTML = `
     <h3 class="dialog__title">${editing ? 'Modifier le lien' : 'Nouveau lien'}</h3>
     <form class="dialog__form" novalidate>
@@ -1121,7 +1129,7 @@ function openMoveDialog(kind, item) {
   const currentParent = item.parentId || null;
 
   const wrap = document.createElement('div');
-  wrap.className = 'dialog card';
+  wrap.className = 'dialog';
   wrap.innerHTML = `
     <h3 class="dialog__title">Déplacer « ${escapeHtml(displayName(kind, item))} »</h3>
     <form class="dialog__form" novalidate>
