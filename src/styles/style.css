@@ -486,6 +486,7 @@ body.is-resizing * { cursor: col-resize !important; user-select: none !important
   cursor: pointer;
   user-select: none;
 }
+.toggle[hidden] { display: none; }
 .toggle__input { position: absolute; opacity: 0; width: 0; height: 0; }
 .toggle__slider {
   position: relative;

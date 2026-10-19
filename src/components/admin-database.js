@@ -210,6 +210,7 @@ function notesTable(rows) {
         <td class="table__cell">${n.isPublic ? '<span class="badge badge--public">Oui</span>' : '—'}</td>
         <td class="table__cell table__cell--muted">${formatDate(n.createdAt)}</td>
         <td class="table__cell table__cell--actions">
+          <button class="btn btn--sm btn-pub" data-id="${n.id}" data-kind="note">${n.isPublic ? 'Rendre privé' : 'Rendre public'}</button>
           <button class="btn btn--sm btn-json" data-id="${n.id}">JSON</button>
           <button class="btn btn--sm btn--danger btn-del" data-id="${n.id}" data-kind="note">Suppr.</button>
         </td>
@@ -221,7 +222,7 @@ function notesTable(rows) {
 function linksTable(rows) {
   return `
     <thead><tr class="table__head">
-      <th>Titre</th><th>URL</th><th>Propriétaire</th><th>Matière</th><th>Créé</th><th class="table__cell--actions">Actions</th>
+      <th>Titre</th><th>URL</th><th>Propriétaire</th><th>Matière</th><th>Publique</th><th>Créé</th><th class="table__cell--actions">Actions</th>
     </tr></thead>
     <tbody>${rows.map(l => `
       <tr class="table__row" data-id="${l.id}">
@@ -229,33 +230,37 @@ function linksTable(rows) {
         <td class="table__cell"><a href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(truncate(l.url, 28))}</a></td>
         <td class="table__cell">${escapeHtml(state.userMap[l.uid] || l.uid || '—')}</td>
         <td class="table__cell"><span class="badge badge--subject">${escapeHtml(l.subject || 'Général')}</span></td>
+        <td class="table__cell">${l.isPublic ? '<span class="badge badge--public">Oui</span>' : '—'}</td>
         <td class="table__cell table__cell--muted">${formatDate(l.createdAt)}</td>
         <td class="table__cell table__cell--actions">
+          <button class="btn btn--sm btn-pub" data-id="${l.id}" data-kind="link">${l.isPublic ? 'Rendre privé' : 'Rendre public'}</button>
           <button class="btn btn--sm btn-json" data-id="${l.id}">JSON</button>
           <button class="btn btn--sm btn--danger btn-del" data-id="${l.id}" data-kind="link">Suppr.</button>
         </td>
       </tr>
-      ${state.expandedId === l.id ? jsonRow(l, 6) : ''}`).join('')}
+      ${state.expandedId === l.id ? jsonRow(l, 7) : ''}`).join('')}
     </tbody>`;
 }
 
 function foldersTable(rows) {
   return `
     <thead><tr class="table__head">
-      <th>Nom</th><th>Propriétaire</th><th>Dossier parent</th><th>Créé</th><th class="table__cell--actions">Actions</th>
+      <th>Nom</th><th>Propriétaire</th><th>Dossier parent</th><th>Publique</th><th>Créé</th><th class="table__cell--actions">Actions</th>
     </tr></thead>
     <tbody>${rows.map(f => `
       <tr class="table__row" data-id="${f.id}">
         <td class="table__cell table__cell--strong">${escapeHtml(f.name || 'Sans nom')}</td>
         <td class="table__cell">${escapeHtml(state.userMap[f.uid] || f.uid || '—')}</td>
         <td class="table__cell table__cell--muted">${f.parentId ? escapeHtml(truncate(f.parentId, 16)) : '— (racine)'}</td>
+        <td class="table__cell">${f.isPublic ? '<span class="badge badge--public">Oui</span>' : f.hasPublic ? '<span class="badge badge--folder">Partiel</span>' : '—'}</td>
         <td class="table__cell table__cell--muted">${formatDate(f.createdAt)}</td>
         <td class="table__cell table__cell--actions">
+          <button class="btn btn--sm btn-pub" data-id="${f.id}" data-kind="folder" title="Publier ou dépublier le dossier et tout son contenu">${f.isPublic ? 'Dépublier' : 'Publier'}</button>
           <button class="btn btn--sm btn-json" data-id="${f.id}">JSON</button>
           <button class="btn btn--sm btn--danger btn-del" data-id="${f.id}" data-kind="folder">Suppr.</button>
         </td>
       </tr>
-      ${state.expandedId === f.id ? jsonRow(f, 5) : ''}`).join('')}
+      ${state.expandedId === f.id ? jsonRow(f, 6) : ''}`).join('')}
     </tbody>`;
 }
 
@@ -341,6 +346,38 @@ function bindRows() {
       navigator.clipboard.writeText(btn.dataset.json)
         .then(() => showToast('JSON copié.', 'success'))
         .catch(() => showToast('Copie impossible.', 'error'));
+    });
+  });
+
+  c.querySelectorAll('.btn-pub').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const { id, kind } = btn.dataset;
+
+      try {
+        showToast('Mise à jour de la visibilité…', 'info');
+        if (kind === 'folder') {
+          const folder = state.data.folders.find(f => f.id === id);
+          const next = !(folder?.isPublic === true);
+          await FirestoreService.setFolderPublic(id, next, {
+            ownerUid: folder?.uid,
+            ownerName: state.userMap[folder?.uid] || ''
+          });
+          showToast(next ? 'Dossier et son contenu rendus publics.' : 'Dossier et son contenu rendus privés.', 'success');
+        } else {
+          const doc = (kind === 'note' ? state.data.notes : state.data.links).find(d => d.id === id);
+          const next = !doc?.isPublic;
+          if (kind === 'note') await FirestoreService.updateNote(id, { isPublic: next });
+          else await FirestoreService.updateLink(id, { isPublic: next });
+          await FirestoreService.syncTreeFlags(doc?.uid, state.userMap[doc?.uid] || '');
+          showToast(next ? 'Document rendu public.' : 'Document rendu privé.', 'success');
+        }
+
+        await loadAll();
+      } catch (err) {
+        console.error('[DB] visibility toggle failed:', err);
+        showToast(`Modification échouée : ${err.message}`, 'error');
+      }
     });
   });
 

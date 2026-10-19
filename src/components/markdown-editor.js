@@ -23,6 +23,7 @@ const state = {
   initialTitle: '',
   initialChars: 0,
   initialPublic: false,
+  noteOwner: null,
   saving: false,
   dirty: false,
   readOnly: false,
@@ -42,6 +43,7 @@ export async function render(container, params = {}) {
   state.dirty = false;
   state.readOnly = false;
   state.initialPublic = false;
+  state.noteOwner = null;
 
   container.classList.add('editor-panel-container');
 
@@ -52,7 +54,7 @@ export async function render(container, params = {}) {
           <input type="text" class="input editor__title" id="ed-title" placeholder="Titre de la fiche (requis)…" autocomplete="off">
           <input type="text" class="input editor__subject" id="ed-subject" placeholder="Matière (ex : Physique)" autocomplete="off">
           <input type="text" class="input editor__topic" id="ed-topic" placeholder="Chapitre (ex : Thermodynamique)" autocomplete="off">
-          <label class="toggle" title="Rendre la fiche visible par tous">
+          <label class="toggle" id="ed-public-toggle" title="Rendre la fiche visible par tous (administrateurs uniquement)" ${AppState.isAdmin === true ? '' : 'hidden'}>
             <input type="checkbox" class="toggle__input" id="ed-public">
             <span class="toggle__slider"></span>
             <span class="toggle__label">Publique</span>
@@ -125,6 +127,7 @@ async function loadNote(noteId) {
     state.initialTitle = note.title || '';
     state.initialChars = note.charCount ?? (note.content || '').length;
     state.initialPublic = Boolean(note.isPublic);
+    state.noteOwner = note.uid || null;
     state.dirty = false;
 
     // Shared or public fiches are readable but not writable by anyone except
@@ -275,7 +278,7 @@ async function save() {
   const title = c.querySelector('#ed-title').value.trim();
   const subject = c.querySelector('#ed-subject').value.trim() || 'Général';
   const topic = c.querySelector('#ed-topic').value.trim();
-  const isPublic = c.querySelector('#ed-public').checked;
+  const isPublic = Boolean(c.querySelector('#ed-public')?.checked);
   const content = c.querySelector('#ed-content').value;
 
   if (!title) {
@@ -325,9 +328,10 @@ async function save() {
     state.initialTitle = title;
     state.initialChars = newChars;
 
-    // Publishing/unpublishing reshuffles the public folder branches.
+    // Publishing/unpublishing reshuffles the public folder branches. An empty
+    // owner name is fine — `syncShares` keeps the stored one.
     if (state.initialPublic !== isPublic) {
-      await FirestoreService.syncTreeFlags(uid, AppState.user?.displayName || '');
+      await FirestoreService.syncTreeFlags(state.noteOwner || uid, '');
       state.initialPublic = isPublic;
     }
     state.dirty = false;

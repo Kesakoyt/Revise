@@ -454,7 +454,8 @@ export const FirestoreService = {
    *   • `sharedWith` / `ownerName` — grants. A folder carries an explicit
    *     recipient list and every descendant inherits the union of its
    *     ancestors' lists.
-   *   • `hasPublic` (folders only) — true when the folder or one of its
+   *   • `hasPublic` (folders only) — true when the folder is explicitly public
+   *     (`isPublic`, set by an admin) or when the folder or one of its
    *     descendants holds a public fiche or link, so the public browser can list
    *     exactly the branches that lead to public content.
    *
@@ -492,7 +493,10 @@ export const FirestoreService = {
     };
     allFolders.forEach(f => resolve(f));
 
-    // Mark every folder on the path from a public item up to the root.
+    // Mark every folder on the path from a public item up to the root. A folder
+    // explicitly published by an admin (`isPublic`, cascade-published with all
+    // its content) marks itself and its ancestors, so an empty published folder
+    // still shows in the public browser.
     const publicFolders = new Set();
     const markPublic = id => {
       let guard = 0;
@@ -503,6 +507,7 @@ export const FirestoreService = {
     };
     allNotes.forEach(n => { if (n.isPublic === true) markPublic(n.parentId); });
     allLinks.forEach(l => { if (l.isPublic === true) markPublic(l.parentId); });
+    allFolders.forEach(f => { if (f.isPublic === true) markPublic(f.id); });
 
     const changes = [];
     const sameSet = (a, b) => a.length === b.length && b.every(x => a.includes(x));
@@ -510,7 +515,9 @@ export const FirestoreService = {
     /** `nextPublic` is only defined for folders. */
     const consider = (collection, doc, nextShared, nextPublic) => {
       const current = Array.isArray(doc.sharedWith) ? doc.sharedWith : [];
-      const nextName = nextShared.length ? ownerName : (doc.ownerName || '');
+      // Never blank an existing owner name: a caller that doesn't know it (an
+      // admin acting on someone else's tree) passes an empty string.
+      const nextName = nextShared.length ? (ownerName || doc.ownerName || '') : (doc.ownerName || '');
 
       const data = { sharedWith: nextShared, ownerName: nextName };
       if (nextPublic !== undefined) data.hasPublic = nextPublic;
@@ -537,6 +544,67 @@ export const FirestoreService = {
       await batch.commit();
     }
 
+    return { updated: changes.length };
+  },
+
+  /**
+   * Publish or unpublish a folder **and everything it contains** — the folder,
+   * every descendant folder and every fiche and link inside it get the same
+   * `isPublic` value. The owner's tree flags are then recomputed so the public
+   * browser lists (or drops) the whole branch.
+   *
+   * Admin-only in practice: only `isAdmin()` may write another user's folders,
+   * fiches and links.
+   *
+   * @param {string} folderId
+   * @param {boolean} isPublic
+   * @param {{ownerUid?:string, ownerName?:string}} [p]
+   * @returns {Promise<{updated:number}>}
+   */
+  async setFolderPublic(folderId, isPublic, { ownerUid, ownerName = '' } = {}) {
+    if (!db || !folderId) return { updated: 0 };
+
+    const folder = await this.getFolder(folderId);
+    if (!folder) throw new Error('Dossier introuvable.');
+    const owner = ownerUid || folder.uid;
+
+    const [folders, notes, links] = await Promise.all([
+      this.getUserFolders(owner),
+      this.getUserNotes(owner),
+      this.getUserLinks(owner)
+    ]);
+
+    // The subtree: the folder plus everything reachable through `parentId`.
+    const ids = new Set([folderId]);
+    let grew = true;
+    while (grew) {
+      grew = false;
+      folders.forEach(f => {
+        if (f.parentId && ids.has(f.parentId) && !ids.has(f.id)) { ids.add(f.id); grew = true; }
+      });
+    }
+
+    const changes = [];
+    folders.filter(f => ids.has(f.id) && (f.isPublic === true) !== isPublic)
+      .forEach(f => changes.push({ collection: COLLECTIONS.FOLDERS, id: f.id }));
+    notes.filter(n => ids.has(n.parentId) && n.isPublic !== isPublic)
+      .forEach(n => changes.push({ collection: COLLECTIONS.NOTES, id: n.id }));
+    links.filter(l => ids.has(l.parentId) && l.isPublic !== isPublic)
+      .forEach(l => changes.push({ collection: COLLECTIONS.LINKS, id: l.id }));
+
+    // 400 writes per batch — well under Firestore's 500-op batch limit.
+    for (let i = 0; i < changes.length; i += 400) {
+      const batch = db.batch();
+      changes.slice(i, i + 400).forEach(change => {
+        batch.update(db.collection(change.collection).doc(change.id), {
+          isPublic,
+          updatedAt: serverTimestamp()
+        });
+      });
+      await batch.commit();
+    }
+
+    await this.syncShares({ ownerUid: owner, ownerName });
     return { updated: changes.length };
   },
 

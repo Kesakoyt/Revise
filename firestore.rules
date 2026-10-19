@@ -22,11 +22,14 @@ rules_version = '2';
 //
 //  PUBLIC BRANCHES
 //  ---------------
-//  Folders also carry `hasPublic`, true when the folder or one of its
-//  descendants holds a public fiche/link. It lets any signed-in user list the
-//  branches of other users' trees that lead to public content, without exposing
-//  private folders. It is recomputed client-side on every publish, unpublish,
-//  move and delete.
+//  Folders also carry `hasPublic`, true when the folder is explicitly public or
+//  when it or one of its descendants holds a public fiche/link. It lets any
+//  signed-in user list the branches of other users' trees that lead to public
+//  content, without exposing private folders. It is recomputed client-side on
+//  every publish, unpublish, move and delete.
+//
+//  Publishing is an ADMIN action: `isPublic` on a fiche/link, or on a folder —
+//  in which case the whole subtree is published along with it.
 //
 
 service cloud.firestore {
@@ -108,7 +111,8 @@ service cloud.firestore {
     match /folders/{folderId} {
       allow read:   if isAdmin()
                     || (isSignedIn() && resource.data.uid == request.auth.uid)
-                    || (isSignedIn() && resource.data.hasPublic == true)
+                    || (resource.data.isPublic == true)
+                    || (resource.data.hasPublic == true)
                     || (isSignedIn() && request.auth.uid in resource.data.sharedWith);
       allow create, update: if isAdmin()
                     || (isSignedIn() && request.resource.data.uid == request.auth.uid);

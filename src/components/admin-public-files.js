@@ -128,6 +128,8 @@ function visibleFolders(allFolders, notes, links) {
 
   notes.forEach(n => n.parentId && markBranch(n.parentId));
   links.forEach(l => l.parentId && markBranch(l.parentId));
+  // Folders explicitly published by an admin stay visible even when empty.
+  allFolders.forEach(f => { if (f.isPublic === true) markBranch(f.id); });
 
   return allFolders.filter(f => keep.has(f.id));
 }
@@ -523,6 +525,8 @@ function folderMenuItems(folder) {
     { label: 'Renommer', icon: 'edit', onSelect: () => renameFolder(folder) },
     { label: 'Déplacer vers…', icon: 'move', onSelect: () => openMoveDialog('folder', folder) },
     { separator: true },
+    { label: folder.isPublic ? 'Rendre privé (tout le contenu)' : 'Rendre public (tout le contenu)', icon: folder.isPublic ? 'lock' : 'unlock', onSelect: () => setFolderPublic(folder, !(folder.isPublic === true)) },
+    { separator: true },
     { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteFolder(folder) },
     { separator: true },
     { label: 'Propriétés', icon: 'info', onSelect: () => openPropertiesDialog('folder', folder) }
@@ -618,6 +622,29 @@ async function setNotePublic(note, isPublic) {
     notify();
   } catch (err) {
     console.error('[PublicFiles] toggle note visibility failed:', err);
+    showToast(`Modification échouée : ${err.message}`, 'error');
+  }
+}
+
+/**
+ * Publish or unpublish a folder **and everything inside it** (admin action).
+ * The public browser only lists public folders, so in practice this is used to
+ * take a whole branch private again.
+ */
+async function setFolderPublic(folder, isPublic) {
+  try {
+    await FirestoreService.setFolderPublic(folder.id, isPublic, {
+      ownerUid: folder.uid,
+      ownerName: state.userMap[folder.uid] || ''
+    });
+    EventBus.emit('note:saved', { folderId: folder.id });
+    showToast(
+      isPublic ? 'Dossier et son contenu rendus publics.' : 'Dossier et son contenu rendus privés.',
+      'success'
+    );
+    notify();
+  } catch (err) {
+    console.error('[PublicFiles] folder visibility failed:', err);
     showToast(`Modification échouée : ${err.message}`, 'error');
   }
 }
@@ -991,6 +1018,7 @@ function openPropertiesDialog(kind, item) {
       `${links} lien${links === 1 ? '' : 's'}`
     ];
     rows.push(propRow('Contient', escapeHtml(bits.join(', '))));
+    rows.push(propRow('Visibilité', escapeHtml(item.isPublic === true ? 'Publique (tout le contenu)' : 'Contient du contenu public')));
     rows.push(propRow('Créé le', escapeHtml(formatFullDate(item.createdAt))));
     rows.push(propRow('Modifié le', escapeHtml(formatFullDate(item.updatedAt || item.createdAt))));
   } else if (kind === 'note') {

@@ -924,21 +924,34 @@ function itemMenu(sel) {
 function folderMenuItems(folder) {
   if (!folder) return [];
   const owner = AppState.user && folder.uid === AppState.user.uid;
+  const admin = AppState.isAdmin === true;
 
   const open = { label: 'Ouvrir', icon: ICON_FOLDER, onSelect: () => enterFolder(folder.id) };
   const properties = { label: 'Propriétés', icon: 'info', onSelect: () => openPropertiesDialog('folder', folder) };
   const copy = { label: 'Copier le nom', icon: 'copy', onSelect: () => copyText(folder.name || 'Sans nom', 'Nom copié.') };
+  // Publishing a folder cascades to everything inside it — admins only.
+  const publish = {
+    label: folder.isPublic ? 'Rendre privé (tout le contenu)' : 'Rendre public (tout le contenu)',
+    icon: folder.isPublic ? 'lock' : 'unlock',
+    onSelect: () => toggleFolderPublic(folder)
+  };
 
   if (!owner) {
-    return [open, { separator: true }, copy, { separator: true }, properties];
+    const items = [open, { separator: true }, copy];
+    if (admin) items.push({ separator: true }, publish);
+    items.push({ separator: true }, properties);
+    return items;
   }
 
-  return [
+  const items = [
     open,
     { label: 'Renommer', icon: 'edit', onSelect: () => openFolderDialog({ folder }) },
     { label: 'Déplacer vers…', icon: 'move', onSelect: () => openMoveDialog('folder', folder) },
     { separator: true },
-    { label: 'Partager…', icon: 'share', onSelect: () => openShareDialog(folder) },
+    { label: 'Partager…', icon: 'share', onSelect: () => openShareDialog(folder) }
+  ];
+  if (admin) items.push({ separator: true }, publish);
+  items.push(
     { separator: true },
     { label: 'Nouvelle fiche', icon: 'document', onSelect: () => openNewNote(folder.id) },
     { label: 'Nouveau lien', icon: 'link', onSelect: () => openLinkDialog(null, folder.id) },
@@ -946,55 +959,73 @@ function folderMenuItems(folder) {
     { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteFolder(folder) },
     { separator: true },
     properties
-  ];
+  );
+  return items;
 }
 
 function noteMenuItems(note) {
   if (!note) return [];
   const owner = AppState.user && note.uid === AppState.user.uid;
+  const admin = AppState.isAdmin === true;
   const items = [{ label: 'Ouvrir', icon: 'document', onSelect: () => openNote(note.id) }];
+
   if (owner) {
     items.push(
       { label: 'Renommer', icon: 'edit', onSelect: () => renameNote(note) },
       { label: 'Dupliquer', icon: 'copy', onSelect: () => duplicateNote(note) },
-      { label: 'Déplacer vers…', icon: 'move', onSelect: () => openMoveDialog('note', note) },
-      { label: note.isPublic ? 'Rendre privée' : 'Rendre publique', icon: note.isPublic ? 'lock' : 'unlock', onSelect: () => togglePublic(note) },
-      { separator: true },
-      { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteEntry('note', note.id) },
-      { separator: true },
-      { label: 'Propriétés', icon: 'info', onSelect: () => openPropertiesDialog('note', note) }
+      { label: 'Déplacer vers…', icon: 'move', onSelect: () => openMoveDialog('note', note) }
     );
   } else {
+    items.push({ label: 'Copier le titre', icon: 'copy', onSelect: () => copyText(note.title || 'Sans titre', 'Titre copié.') });
+  }
+
+  // Visibility is an admin decision.
+  if (admin) {
     items.push(
       { separator: true },
-      { label: 'Copier le titre', icon: 'copy', onSelect: () => copyText(note.title || 'Sans titre', 'Titre copié.') },
-      { separator: true },
-      { label: 'Propriétés', icon: 'info', onSelect: () => openPropertiesDialog('note', note) }
+      { label: note.isPublic ? 'Rendre privée' : 'Rendre publique', icon: note.isPublic ? 'lock' : 'unlock', onSelect: () => togglePublic(note) }
     );
   }
+
+  if (owner) {
+    items.push(
+      { separator: true },
+      { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteEntry('note', note.id) }
+    );
+  }
+
+  items.push({ separator: true }, { label: 'Propriétés', icon: 'info', onSelect: () => openPropertiesDialog('note', note) });
   return items;
 }
 
 function linkMenuItems(link) {
   if (!link) return [];
   const owner = AppState.user && link.uid === AppState.user.uid;
+  const admin = AppState.isAdmin === true;
   const items = [
     { label: 'Ouvrir dans un onglet', icon: 'external-link', onSelect: () => window.open(link.url, '_blank', 'noopener,noreferrer') },
     { label: 'Copier l’URL', icon: 'copy', onSelect: () => copyText(link.url, 'URL copiée.') }
   ];
+
   if (owner) {
     items.push(
       { label: 'Modifier', icon: 'edit', onSelect: () => openLinkDialog(link) },
-      { label: 'Déplacer vers…', icon: 'move', onSelect: () => openMoveDialog('link', link) },
-      { label: link.isPublic ? 'Rendre privé' : 'Rendre public', icon: link.isPublic ? 'lock' : 'unlock', onSelect: () => toggleLinkPublic(link) },
+      { label: 'Déplacer vers…', icon: 'move', onSelect: () => openMoveDialog('link', link) }
+    );
+  }
+
+  if (admin) {
+    items.push({ separator: true }, { label: link.isPublic ? 'Rendre privé' : 'Rendre public', icon: link.isPublic ? 'lock' : 'unlock', onSelect: () => toggleLinkPublic(link) });
+  }
+
+  if (owner) {
+    items.push(
       { separator: true },
       { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteEntry('link', link.id) }
     );
   }
-  items.push(
-    { separator: true },
-    { label: 'Propriétés', icon: 'info', onSelect: () => openPropertiesDialog('link', link) }
-  );
+
+  items.push({ separator: true }, { label: 'Propriétés', icon: 'info', onSelect: () => openPropertiesDialog('link', link) });
   return items;
 }
 
@@ -1160,14 +1191,20 @@ async function duplicateNote(note) {
   }
 }
 
+/** Display name of an item's owner, resolved from the loaded directory. */
+function ownerNameFor(uid) {
+  if (!uid) return '';
+  const entry = state.directory.find(d => (d.id || d.uid) === uid);
+  return entry?.displayName || entry?.email || '';
+}
+
 async function togglePublic(note) {
-  const uid = AppState.user?.uid;
   try {
     const next = !note.isPublic;
     await FirestoreService.updateNote(note.id, { isPublic: next });
-    if (uid) FirestoreService.logAccess({ uid, documentId: note.id, documentType: 'note', action: 'edit' });
+    if (AppState.user?.uid) FirestoreService.logAccess({ uid: AppState.user.uid, documentId: note.id, documentType: 'note', action: 'edit' });
     // Publishing changes the folder branches that lead to public content.
-    if (uid) await FirestoreService.syncTreeFlags(uid, AppState.user?.displayName || '');
+    if (note.uid) await FirestoreService.syncTreeFlags(note.uid, ownerNameFor(note.uid));
     EventBus.emit('note:saved', { noteId: note.id });
     showToast(next ? 'Fiche rendue publique.' : 'Fiche rendue privée.', 'success');
   } catch (err) {
@@ -1177,16 +1214,37 @@ async function togglePublic(note) {
 }
 
 async function toggleLinkPublic(link) {
-  const uid = AppState.user?.uid;
   try {
     const next = !link.isPublic;
     await FirestoreService.updateLink(link.id, { isPublic: next });
-    if (uid) FirestoreService.logAccess({ uid, documentId: link.id, documentType: 'link', action: 'edit' });
-    if (uid) await FirestoreService.syncTreeFlags(uid, AppState.user?.displayName || '');
+    if (AppState.user?.uid) FirestoreService.logAccess({ uid: AppState.user.uid, documentId: link.id, documentType: 'link', action: 'edit' });
+    if (link.uid) await FirestoreService.syncTreeFlags(link.uid, ownerNameFor(link.uid));
     EventBus.emit('link:saved', { linkId: link.id });
     showToast(next ? 'Lien rendu public.' : 'Lien rendu privé.', 'success');
   } catch (err) {
     console.error('[Explorer] toggle link public failed:', err);
+    showToast(`Modification échouée : ${err.message}`, 'error');
+  }
+}
+
+/** Publish/unpublish a whole folder subtree (admin only). */
+async function toggleFolderPublic(folder) {
+  if (AppState.isAdmin !== true) return;
+  const next = !(folder.isPublic === true);
+  try {
+    showToast(next ? 'Publication du dossier…' : 'Dépublication du dossier…', 'info');
+    await FirestoreService.setFolderPublic(folder.id, next, {
+      ownerUid: folder.uid,
+      ownerName: ownerNameFor(folder.uid)
+    });
+    EventBus.emit('note:saved', { folderId: folder.id });
+    showToast(
+      next ? 'Dossier et tout son contenu rendus publics.' : 'Dossier et tout son contenu rendus privés.',
+      'success'
+    );
+    scheduleReload();
+  } catch (err) {
+    console.error('[Explorer] toggle folder public failed:', err);
     showToast(`Modification échouée : ${err.message}`, 'error');
   }
 }
@@ -1604,6 +1662,10 @@ function openPropertiesDialog(kind, item) {
       `${links} lien${links === 1 ? '' : 's'}`
     ];
     rows.push(propRow('Contient', escapeHtml(bits.join(', '))));
+    const visibility = item.isPublic === true
+      ? 'Publique (tout le contenu)'
+      : item.hasPublic === true ? 'Contient du contenu public' : 'Privée';
+    rows.push(propRow('Visibilité', escapeHtml(visibility)));
     rows.push(propRow('Créé le', escapeHtml(formatFullDate(item.createdAt))));
     rows.push(propRow('Modifié le', escapeHtml(formatFullDate(item.updatedAt || item.createdAt))));
   } else if (kind === 'note') {
