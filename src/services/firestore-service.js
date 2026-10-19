@@ -5,6 +5,8 @@
  *   • Notes      — Markdown study cards      (collection `notes`)
  *   • Links      — external bookmarks         (collection `links`)
  *   • Folders    — explorer hierarchy          (collection `folders`)
+ *   • Shares     — folder grants inherited by descendants
+ *   • Directory  — lightweight user list for the sharing picker
  *   • Shortcuts  — nav-bar quick actions      (collection `shortcuts`)
  *   • Logs       — audit trail                (collection `accessLogs`)
  *   • Admin      — cross-user reads, roles, statistics
@@ -21,6 +23,7 @@ export const COLLECTIONS = Object.freeze({
   FOLDERS: 'folders',
   SHORTCUTS: 'shortcuts',
   USERS: 'users',
+  DIRECTORY: 'directory',
   LOGS: 'accessLogs'
 });
 
@@ -36,6 +39,27 @@ function serverTimestamp() {
 /** Current authenticated uid, if any. */
 function currentUid() {
   return (typeof window !== 'undefined' && window.firebase?.auth?.()?.currentUser?.uid) || null;
+}
+
+/**
+ * Grant list + owner name inherited from a parent folder, so content created
+ * inside a shared folder stays visible to the same recipients.
+ * @param {string|null} parentId
+ * @returns {Promise<{sharedWith:string[], ownerName:string}>}
+ */
+async function inheritedShares(parentId) {
+  if (!db || !parentId) return { sharedWith: [], ownerName: '' };
+  try {
+    const doc = await db.collection(COLLECTIONS.FOLDERS).doc(parentId).get();
+    const data = doc.exists ? (doc.data() || {}) : {};
+    return {
+      sharedWith: Array.isArray(data.sharedWith) ? data.sharedWith : [],
+      ownerName: data.ownerName || ''
+    };
+  } catch (err) {
+    console.warn('[Firestore] inherit shares failed:', err.message);
+    return { sharedWith: [], ownerName: '' };
+  }
 }
 
 /**
@@ -78,6 +102,7 @@ export const FirestoreService = {
   async createNote({ uid, title, content = '', subject = 'Général', topic = '', isPublic = false, parentId = null }) {
     if (!db) throw new Error("Firestore n'est pas initialisé.");
     const timestamp = serverTimestamp();
+    const { sharedWith, ownerName } = await inheritedShares(parentId);
 
     const ref = await db.collection(COLLECTIONS.NOTES).add({
       uid,
@@ -87,6 +112,8 @@ export const FirestoreService = {
       topic: topic?.trim() || '',
       isPublic: Boolean(isPublic),
       parentId: parentId || null,
+      sharedWith,
+      ownerName,
       charCount: (content || '').length,
       createdAt: timestamp,
       updatedAt: timestamp
@@ -181,6 +208,7 @@ export const FirestoreService = {
   async createLink({ uid, title, url, description = '', subject = 'Général', parentId = null, isPublic = false }) {
     if (!db) throw new Error("Firestore n'est pas initialisé.");
     const timestamp = serverTimestamp();
+    const { sharedWith, ownerName } = await inheritedShares(parentId);
 
     const ref = await db.collection(COLLECTIONS.LINKS).add({
       uid,
@@ -190,6 +218,8 @@ export const FirestoreService = {
       subject: subject?.trim() || 'Général',
       parentId: parentId || null,
       isPublic: Boolean(isPublic),
+      sharedWith,
+      ownerName,
       createdAt: timestamp,
       updatedAt: timestamp
     });
@@ -274,11 +304,14 @@ export const FirestoreService = {
   async createFolder({ uid, name, parentId = null }) {
     if (!db) throw new Error("Firestore n'est pas initialisé.");
     const timestamp = serverTimestamp();
+    const { sharedWith, ownerName } = await inheritedShares(parentId);
 
     const ref = await db.collection(COLLECTIONS.FOLDERS).add({
       uid,
       name: name?.trim() || 'Nouveau dossier',
       parentId: parentId || null,
+      sharedWith,
+      ownerName,
       createdAt: timestamp,
       updatedAt: timestamp
     });
@@ -323,6 +356,200 @@ export const FirestoreService = {
   async deleteFolder(folderId) {
     if (!db || !folderId) return;
     await db.collection(COLLECTIONS.FOLDERS).doc(folderId).delete();
+  },
+
+  // ==========================================================================
+  // Sharing — folder-scoped grants, inherited by the whole subtree
+  // ==========================================================================
+
+  /**
+   * Folders shared *with* a user (owned by someone else), including every
+   * descendant folder of a shared subtree.
+   * @param {string} uid
+   * @returns {Promise<Array<Object>>}
+   */
+  async getSharedFolders(uid) {
+    if (!db || !uid) return [];
+    const snap = await db.collection(COLLECTIONS.FOLDERS).where('sharedWith', 'array-contains', uid).get();
+    return sortBy(snap.docs.map(d => ({ id: d.id, ...d.data() })), 'name', 'asc');
+  },
+
+  /** Fiches shared *with* a user. @param {string} uid @returns {Promise<Array<Object>>} */
+  async getSharedNotes(uid) {
+    if (!db || !uid) return [];
+    const snap = await db.collection(COLLECTIONS.NOTES).where('sharedWith', 'array-contains', uid).get();
+    return sortBy(snap.docs.map(d => ({ id: d.id, ...d.data() })), 'updatedAt', 'desc');
+  },
+
+  /** Links shared *with* a user. @param {string} uid @returns {Promise<Array<Object>>} */
+  async getSharedLinks(uid) {
+    if (!db || !uid) return [];
+    const snap = await db.collection(COLLECTIONS.LINKS).where('sharedWith', 'array-contains', uid).get();
+    return sortBy(snap.docs.map(d => ({ id: d.id, ...d.data() })), 'updatedAt', 'desc');
+  },
+
+  /**
+   * Replace the explicit recipient list of a folder, then re-propagate the
+   * inherited grants across the owner's whole tree.
+   *
+   * @param {{folderId:string, sharedWith:string[], ownerUid?:string, ownerName?:string}} p
+   * @returns {Promise<{updated:number}>} documents rewritten by the re-sync
+   */
+  async setFolderShares({ folderId, sharedWith = [], ownerUid = '', ownerName = '' }) {
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    if (!folderId) throw new Error('Identifiant de dossier requis.');
+
+    const folder = await this.getFolder(folderId);
+    if (!folder) throw new Error('Dossier introuvable.');
+
+    const owner = ownerUid || folder.uid;
+    if (!owner) throw new Error('Propriétaire du dossier introuvable.');
+
+    const list = [...new Set(sharedWith.filter(u => u && u !== owner))];
+    const name = ownerName || folder.ownerName || '';
+
+    await db.collection(COLLECTIONS.FOLDERS).doc(folderId).update({
+      sharedWith: list,
+      ownerName: name,
+      updatedAt: serverTimestamp()
+    });
+
+    return this.syncShares({ ownerUid: owner, ownerName: name });
+  },
+
+  /**
+   * Recompute the inherited `sharedWith` / `ownerName` fields for every folder,
+   * fiche and link owned by `ownerUid` and persist only the documents that
+   * actually change.
+   *
+   * Sharing lives on folders: a folder carries an explicit recipient list and
+   * every descendant (folders, fiches, links) inherits the union of its
+   * ancestors' lists. The function is idempotent, so it is also the right thing
+   * to run after a move — no stale grants follow an item out of a shared tree.
+   *
+   * @param {{ownerUid:string, ownerName?:string, folders?:Array, notes?:Array, links?:Array}} [p]
+   * @returns {Promise<{updated:number}>}
+   */
+  async syncShares({ ownerUid, ownerName = '', folders, notes, links } = {}) {
+    if (!db || !ownerUid) return { updated: 0 };
+
+    const [allFolders, allNotes, allLinks] = await Promise.all([
+      folders || this.getUserFolders(ownerUid),
+      notes || this.getUserNotes(ownerUid),
+      links || this.getUserLinks(ownerUid)
+    ]);
+
+    // Resolve each folder's effective grant set by walking up its parent chain
+    // (memoised). A folder whose parent is missing is treated as a root, so an
+    // explicit grant is never wiped just because its parent vanished.
+    const byId = new Map(allFolders.map(f => [f.id, f]));
+    const effective = new Map(); // folderId -> string[]
+    const resolve = (folder, guard = new Set()) => {
+      if (effective.has(folder.id)) return effective.get(folder.id);
+      if (guard.has(folder.id)) return []; // defensive: broken parent cycle
+      guard.add(folder.id);
+
+      const own = Array.isArray(folder.sharedWith) ? folder.sharedWith : [];
+      const parent = folder.parentId ? byId.get(folder.parentId) : null;
+      const inherited = parent ? resolve(parent, guard) : [];
+      const next = [...new Set([...inherited, ...own])];
+      effective.set(folder.id, next);
+      return next;
+    };
+    allFolders.forEach(f => resolve(f));
+
+    const changes = [];
+    const sameSet = (a, b) => a.length === b.length && b.every(x => a.includes(x));
+
+    const consider = (collection, doc, nextShared) => {
+      const current = Array.isArray(doc.sharedWith) ? doc.sharedWith : [];
+      const nextName = nextShared.length ? ownerName : (doc.ownerName || '');
+      if (sameSet(current, nextShared) && (doc.ownerName || '') === nextName) return;
+      changes.push({ collection, id: doc.id, data: { sharedWith: nextShared, ownerName: nextName } });
+    };
+
+    allFolders.forEach(f => consider(COLLECTIONS.FOLDERS, f, effective.get(f.id) || []));
+    allNotes.forEach(n => consider(COLLECTIONS.NOTES, n, effective.get(n.parentId) || []));
+    allLinks.forEach(l => consider(COLLECTIONS.LINKS, l, effective.get(l.parentId) || []));
+
+    if (!changes.length) return { updated: 0 };
+
+    // 400 writes per batch — well under Firestore's 500-op batch limit.
+    for (let i = 0; i < changes.length; i += 400) {
+      const batch = db.batch();
+      changes.slice(i, i + 400).forEach(change => {
+        batch.update(db.collection(change.collection).doc(change.id), change.data);
+      });
+      await batch.commit();
+    }
+
+    return { updated: changes.length };
+  },
+
+  // ==========================================================================
+  // Directory — minimal, readable list of accounts (for the share picker)
+  // ==========================================================================
+
+  /**
+   * Create or refresh this account's directory entry.
+   * @param {{uid:string, displayName?:string, email?:string}} p
+   * @returns {Promise<void>}
+   */
+  async upsertDirectoryEntry({ uid, displayName = '', email = '' }) {
+    if (!db || !uid) return;
+    try {
+      await db.collection(COLLECTIONS.DIRECTORY).doc(uid).set(
+        {
+          uid,
+          displayName: displayName || '',
+          email: email || '',
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('[Firestore] directory entry skipped:', err.message);
+    }
+  },
+
+  /** Every directory entry, readable by any signed-in user. @returns {Promise<Array<Object>>} */
+  async getDirectory() {
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    const snap = await db.collection(COLLECTIONS.DIRECTORY).get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  /**
+   * Backfill `directory` from the full user profiles (admin only) — needed for
+   * accounts that predate the sharing feature.
+   * @param {Array<Object>} [users]
+   * @returns {Promise<{count:number}>}
+   */
+  async syncDirectory(users) {
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+    const list = users || await this.getAllUsers();
+
+    let count = 0;
+    for (let i = 0; i < list.length; i += 400) {
+      const batch = db.batch();
+      list.slice(i, i + 400).forEach(u => {
+        const uid = u.id || u.uid;
+        if (!uid) return;
+        batch.set(
+          db.collection(COLLECTIONS.DIRECTORY).doc(uid),
+          {
+            uid,
+            displayName: u.displayName || u.email?.split('@')[0] || '',
+            email: u.email || '',
+            updatedAt: serverTimestamp()
+          },
+          { merge: true }
+        );
+        count += 1;
+      });
+      await batch.commit();
+    }
+    return { count };
   },
 
   // ==========================================================================

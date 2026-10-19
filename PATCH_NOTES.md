@@ -2,6 +2,55 @@
 
 ---
 
+## v1.2.6 — Windows-style navigation pane + folder sharing
+**Date:** 2026-10-19
+**Scope:** File explorer layout, folder sharing between users, admin shares app.
+
+### Changed
+- **The explorer now looks like Windows Explorer.** The two tab buttons are gone;
+  the left side is a **navigation pane** listing the places the user can reach —
+  **Mes fichiers** (own tree), **Fichiers partagés** (folders shared with them)
+  and **Fiches publiques** — followed by an expandable folder tree (caret to
+  expand, click to navigate). The content area keeps its breadcrumb, search /
+  filter / sort controls and list · grid views. The **Nouveau** button and the
+  PDF/DOCX drop zone only appear in *Mes fichiers*.
+- The right-click menu is now ownership-aware: on someone else's folder it only
+  offers *Ouvrir*, *Copier le nom* and *Propriétés* — no rename/move/delete.
+
+### Added
+- **Folder sharing (Drive-style).** Right-click a folder you own → **Partager…**
+  → tick recipients in a searchable list. Recipients inherit the **whole
+  subtree** and find it in *Fichiers partagés*; shared folders carry a small
+  badge in the tree, and **Propriétés** shows a *Partagé avec* row plus the real
+  owner name.
+- **`syncShares()`** — grants are denormalised onto every folder, fiche and link
+  (`sharedWith[]`, `ownerName`) and recomputed after each share, unshare **and
+  move**, so a grant never leaks outside its subtree and never goes stale.
+- **Directory collection (`directory/{uid}`)** — just `displayName` + `email`,
+  readable by every signed-in account, so non-admins can pick recipients without
+  exposing quotas or roles. Published on sign-in/sign-up.
+- **Admin app « Partages »** in the dock: every folder carrying a grant, its
+  owner, its recipients as chips, and a **Gérer** dialog to add or revoke
+  recipients on the owner's behalf — plus **Synchroniser l'annuaire** to backfill
+  the directory for accounts created before this release.
+- **Read-only editor.** A fiche that belongs to someone else (public or shared)
+  opens with the save / delete buttons removed and a *Lecture seule* badge,
+  instead of failing on save.
+- New `share:updated` bus event keeps every open explorer and the admin app in
+  step.
+
+### Firestore
+- `folder` sharing is enforced in `firestore.rules`: reads of `notes`, `links`
+  and `folders` also allow `request.auth.uid in resource.data.sharedWith`, and a
+  new `directory` block is readable by any signed-in user.
+- Admins may now write `notes`, `links` and `folders` (needed to manage shares),
+  as they already could for fiches.
+- **You must re-publish the rules** (console or `firebase deploy --only
+  firestore:rules`), otherwise sharing reads are denied and the explorer shows a
+  "règles Firestore" warning.
+
+---
+
 ## v1.2.5 — Full-screen windows + split-screen button
 **Date:** 2026-10-19
 **Scope:** Workspace window manager (full screen first, split screen on demand).

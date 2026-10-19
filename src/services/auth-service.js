@@ -26,6 +26,27 @@ export const DEFAULT_SHORTCUTS = [
   { icon: 'guest-male',    label: 'Profil',   action: 'user-profile' }
 ];
 
+/**
+ * Publish the fields of `users/{uid}` that every signed-in account may read
+ * (display name + email) into the `directory` collection used by the folder
+ * sharing picker. Best-effort: a missing `directory` rule must never block
+ * sign-in or sign-up.
+ * @param {{uid:string, email?:string|null}} user
+ * @param {{displayName:string, email:string, timestamp:*}} p
+ * @returns {Promise<void>}
+ */
+async function writeDirectoryEntry(user, { displayName = '', email = '', timestamp }) {
+  if (!db || !user?.uid) return;
+  try {
+    await db.collection('directory').doc(user.uid).set(
+      { uid: user.uid, displayName, email, updatedAt: timestamp },
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn('[AuthService] directory entry skipped:', err);
+  }
+}
+
 export const AuthService = {
   /**
    * Sign an existing user in and refresh `lastLogin` on their profile.
@@ -46,9 +67,17 @@ export const AuthService = {
         const timestamp = serverTimestamp();
 
         if (snap.exists) {
+          const profile = snap.data() || {};
           await ref.update({ lastLogin: timestamp });
+          // Keep the shareable directory in step with the profile, so other
+          // users can pick this account when sharing a folder.
+          await writeDirectoryEntry(user, {
+            displayName: profile.displayName || user.displayName || user.email?.split('@')[0] || '',
+            email: user.email || profile.email || '',
+            timestamp
+          });
         } else {
-          await ref.set({
+          const created = {
             email: user.email,
             displayName: user.displayName || user.email.split('@')[0],
             bio: '',
@@ -59,6 +88,12 @@ export const AuthService = {
             quotaUsed: 0,
             quotaLimit: DEFAULT_QUOTA,
             shortcuts: DEFAULT_SHORTCUTS
+          };
+          await ref.set(created);
+          await writeDirectoryEntry(user, {
+            displayName: created.displayName,
+            email: created.email,
+            timestamp
           });
         }
       } catch (err) {
@@ -107,6 +142,7 @@ export const AuthService = {
         quotaLimit: DEFAULT_QUOTA,
         shortcuts: DEFAULT_SHORTCUTS
       });
+      await writeDirectoryEntry(user, { displayName: finalName, email: trimmedEmail, timestamp });
     }
 
     return credential;

@@ -3,6 +3,10 @@
  *
  * Split pane: Markdown source (left) and live HTML + KaTeX preview (right).
  * Handles quota validation, save / delete and unsaved-change guards.
+ *
+ * Fiches belonging to someone else (public, or shared through a folder) open in
+ * **read-only** mode: the Firestore rules only let the owner — or an admin —
+ * write, so the editor says so up front instead of failing on save.
  */
 
 import { FirestoreService } from '../services/firestore-service.js';
@@ -20,6 +24,7 @@ const state = {
   initialChars: 0,
   saving: false,
   dirty: false,
+  readOnly: false,
   previewTimer: null,
   cleanup: []
 };
@@ -34,6 +39,7 @@ export async function render(container, params = {}) {
   state.noteId = params.noteId || null;
   state.parentId = params.parentId || null;
   state.dirty = false;
+  state.readOnly = false;
 
   container.classList.add('editor-panel-container');
 
@@ -52,6 +58,9 @@ export async function render(container, params = {}) {
         </div>
 
         <div class="editor__actions">
+          <span class="editor__badge" id="ed-badge" hidden>
+            ${iconImg('collaboration', { size: 16, alt: '' })}<span>Lecture seule</span>
+          </span>
           <span class="editor__counter" id="ed-counter">0 car.</span>
           <button type="button" class="btn btn--secondary" id="ed-cancel">Annuler</button>
           ${state.noteId ? `<button type="button" class="btn btn--danger" id="ed-delete">${iconImg('delete', { size: 16, alt: '' })}<span>Supprimer</span></button>` : ''}
@@ -115,6 +124,13 @@ async function loadNote(noteId) {
     state.initialChars = note.charCount ?? (note.content || '').length;
     state.dirty = false;
 
+    // Shared or public fiches are readable but not writable by anyone except
+    // their owner (and admins) — switch the whole toolbar to read-only.
+    const canEdit = !AppState.user
+      || note.uid === AppState.user.uid
+      || AppState.isAdmin === true;
+    if (!canEdit) applyReadOnly();
+
     updatePreview();
     updateCounter();
 
@@ -127,11 +143,35 @@ async function loadNote(noteId) {
   }
 }
 
+/** Lock the toolbar: this fiche belongs to someone else. */
+function applyReadOnly() {
+  const c = state.container;
+  if (!c || state.readOnly) return;
+  state.readOnly = true;
+  c.classList.add('editor--readonly');
+
+  ['#ed-title', '#ed-subject', '#ed-topic', '#ed-content'].forEach(sel => {
+    const el = c.querySelector(sel);
+    if (el) el.readOnly = true;
+  });
+  const pub = c.querySelector('#ed-public');
+  if (pub) pub.disabled = true;
+
+  c.querySelector('#ed-save')?.remove();
+  c.querySelector('#ed-delete')?.remove();
+  const cancel = c.querySelector('#ed-cancel');
+  if (cancel) cancel.textContent = 'Fermer';
+
+  const badge = c.querySelector('#ed-badge');
+  if (badge) badge.hidden = false;
+}
+
 function bindListeners() {
   const c = state.container;
   const content = c.querySelector('#ed-content');
 
   content.addEventListener('input', () => {
+    if (state.readOnly) return;
     state.dirty = true;
     updateCounter();
     schedulePreview();
@@ -139,6 +179,7 @@ function bindListeners() {
 
   // Tab inserts two spaces instead of moving focus.
   content.addEventListener('keydown', e => {
+    if (state.readOnly) return;
     if (e.key !== 'Tab') return;
     e.preventDefault();
     const { selectionStart: s, selectionEnd: en, value } = content;
@@ -148,7 +189,7 @@ function bindListeners() {
     schedulePreview();
   });
 
-  c.querySelector('#ed-title').addEventListener('input', () => { state.dirty = true; });
+  c.querySelector('#ed-title').addEventListener('input', () => { if (!state.readOnly) state.dirty = true; });
   c.querySelector('#ed-save').addEventListener('click', save);
   c.querySelector('#ed-cancel').addEventListener('click', close);
   c.querySelector('#ed-delete')?.addEventListener('click', remove);
@@ -225,7 +266,7 @@ function updateCounter() {
 }
 
 async function save() {
-  if (state.saving) return;
+  if (state.readOnly || state.saving) return;
 
   const c = state.container;
   const title = c.querySelector('#ed-title').value.trim();
@@ -297,7 +338,7 @@ async function save() {
 
 function ensureDeleteButton() {
   const c = state.container;
-  if (c.querySelector('#ed-delete')) return;
+  if (state.readOnly || c.querySelector('#ed-delete')) return;
   const actions = c.querySelector('.editor__actions');
   const saveBtn = c.querySelector('#ed-save');
   const btn = document.createElement('button');
@@ -346,4 +387,5 @@ export function destroy() {
   state.noteId = null;
   state.parentId = null;
   state.dirty = false;
+  state.readOnly = false;
 }

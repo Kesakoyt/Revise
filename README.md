@@ -32,10 +32,19 @@ the browser* before it is ever uploaded.
 - **KaTeX math** — `$inline$`, `$$display$$`, `\(…\)` and `\[…\]`.
 - **PDF & DOCX import** — drag-and-drop, converted to clean Markdown client-side
   (PDF.js + Mammoth.js).
-- **File explorer** — a hierarchical workspace of **folders** containing
-  sub-folders, Markdown **fiches** and **links**, with breadcrumb navigation,
-  create / rename / move / delete and a public-notes view. **Public links from
-  everyone appear at the root**, mixed in with your own files.
+- **File explorer** — a Windows-style file manager: a **navigation pane** on the
+  left listing the places you can reach (**Mes fichiers**, **Fichiers partagés**,
+  **Fiches publiques**) as an expandable folder tree, plus a breadcrumb, a
+  command bar (new / search / filter / sort / view) and an icon+name list or
+  grid. Folders contain sub-folders, Markdown **fiches** and **links**; create,
+  rename, move, delete and — for anything you own — **share**. **Public links
+  from everyone appear at the root**, mixed in with your own files.
+- **Folder sharing** — right-click a folder you own → **Partager…** and tick the
+  accounts that may read it (Drive-style). Recipients inherit the whole subtree
+  and find it under **Fichiers partagés** (read-only); they can open fiches in
+  the editor, which switches itself to **Lecture seule**. Grants are
+  re-propagated after a share, an unshare or a move, so nothing stale follows an
+  item around.
 - **Links** — bookmark external resources (title, URL, description, subject);
   managed directly from the file explorer. Each link can be made **public**, and
   public links surface in the file manager for all users.
@@ -69,6 +78,11 @@ the browser* before it is ever uploaded.
   Firestore rules.
 - **Users** — account list, role management, per-user document browsing and the
   document **access log**.
+- **Partages** — oversight of folder sharing: every folder that carries a grant,
+  its owner, its recipients as chips, and a **Gérer** dialog to add or revoke
+  recipients on the owner's behalf. A **Synchroniser l'annuaire** button
+  backfills the `directory` collection (accounts created before sharing existed)
+  so non-admins can pick recipients.
 - **Statistics** — totals for notes, links, shortcuts, stored characters,
   active users and a per-subject breakdown.
 
@@ -82,9 +96,10 @@ the browser* before it is ever uploaded.
   loaded as `<script>` tags *before* the modules run, and consumed through
   `window.*`.
 - **Event bus.** Components are decoupled through a tiny
-  `EventBus.on / off / emit` in `src/app.js` (`app:open`, `panel:close`,
-  `auth:login`, `auth:logout`, `profile:updated`, `note:saved`, `note:deleted`,
-  `link:saved`, `link:deleted`, `quota:updated`, `theme:changed`).
+  `EventBus.on / off / emit` in `src/app.js` (`app:open`, `app:focus`,
+  `panel:close`, `auth:login`, `auth:logout`, `profile:updated`, `note:saved`,
+  `note:deleted`, `link:saved`, `link:deleted`, `share:updated`,
+  `quota:updated`, `theme:changed`).
 - **Global state.** `AppState` (`src/app.js`) holds the current `user`, their
   `profile`, the `theme` and `isAdmin`.
 - **Component contract.** Every component default-exports `render(container, params)`
@@ -128,12 +143,13 @@ the browser* before it is ever uploaded.
     │   ├── dock.js             # App launcher (+ admin section)
     │   ├── workspace.js        # Panel orchestration / APP_REGISTRY
     │   ├── split-screen.js     # 1–3 panel layout
-    │   ├── file-explorer.js    # Folders + fiches + links, import, quota
-    │   ├── markdown-editor.js  # Split editor + KaTeX preview
+    │   ├── file-explorer.js    # Folders + fiches + links, nav pane, sharing, import, quota
+    │   ├── markdown-editor.js  # Split editor + KaTeX preview (read-only on shared fiches)
     │   ├── user-profile.js     # Account profile: identity, storage, password
     │   ├── admin-database.js   # Collections inspector
     │   ├── admin-public-files.js # Public files browser (file-explorer style)
     │   ├── admin-users.js      # Accounts, roles, audit log
+    │   ├── admin-shares.js     # Folder shares oversight + directory sync
     │   └── admin-statistics.js # Metrics dashboard
     ├── services/
     │   ├── firebase-config.js
@@ -275,9 +291,10 @@ keys from placeholders so the UI can warn you.
 | Collection | Document |
 | --- | --- |
 | `users/{uid}` | `email`, `displayName`, `bio`, `avatarColor`, `role` (`user`\|`admin`), `createdAt`, `lastLogin`, `updatedAt`, `quotaUsed`, `quotaLimit`, `shortcuts[]` |
-| `folders/{id}` | `uid`, `name`, `parentId` (`null` = root), `createdAt`, `updatedAt` |
-| `notes/{id}` | `uid`, `title`, `content`, `subject`, `topic`, `isPublic`, `parentId` (`null` = root), `charCount`, `createdAt`, `updatedAt` |
-| `links/{id}` | `uid`, `title`, `url`, `description`, `subject`, `isPublic`, `parentId` (`null` = root), `createdAt`, `updatedAt` |
+| `directory/{uid}` | `uid`, `displayName`, `email`, `updatedAt` — the *only* user data any signed-in account may read, used to pick share recipients |
+| `folders/{id}` | `uid`, `name`, `parentId` (`null` = root), `sharedWith[]`, `ownerName`, `createdAt`, `updatedAt` |
+| `notes/{id}` | `uid`, `title`, `content`, `subject`, `topic`, `isPublic`, `parentId` (`null` = root), `sharedWith[]`, `ownerName`, `charCount`, `createdAt`, `updatedAt` |
+| `links/{id}` | `uid`, `title`, `url`, `description`, `subject`, `isPublic`, `parentId` (`null` = root), `sharedWith[]`, `ownerName`, `createdAt`, `updatedAt` |
 | `shortcuts/{id}` | `uid`, `label`, `icon`, `action`, `order`, `createdAt` |
 | `accessLogs/{id}` | `uid`, `documentId`, `documentType`, `action`, `timestamp` |
 
@@ -287,6 +304,19 @@ allowance is `500 000` characters (`quotaLimit` on the user document).
 **File hierarchy** — `folders` model the tree; each folder, note and link carries
 a `parentId` (`null` = top level). Deleting a folder recursively removes its
 sub-folders, notes and links (after a confirmation).
+
+**Sharing** — grants live on a *folder* (`sharedWith` = array of recipient UIDs).
+Every descendant folder, fiche and link carries the **inherited union** of its
+ancestors' lists in its own `sharedWith`, so a recipient can find and browse the
+whole subtree with a single `where('sharedWith', 'array-contains', uid)` query.
+`ownerName` is denormalised at the same time for display. The list is recomputed
+by `FirestoreService.syncShares()` — which runs after every share, unshare and
+move — so moving an item out of a shared folder revokes the inherited access.
+
+**Directory** — `directory/{uid}` duplicates just `displayName` + `email` from
+the profile so that any signed-in user can list candidate recipients without
+exposing quotas, roles or the rest of the profile. New accounts publish it on
+sign-in/sign-up; the admin **Partages** app backfills existing accounts.
 
 **Profiles** — owners may edit `displayName`, `bio` and `avatarColor` on their own
 `users/{uid}` document; `role` and `quotaLimit` stay admin-only, enforced by the
@@ -335,29 +365,43 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Notes: owners write; everyone reads public notes.
+    // Directory: display name + email only — readable by every signed-in
+    // account so the share picker can list candidates.
+    match /directory/{userId} {
+      allow read:   if isSignedIn();
+      allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Notes: owners write; everyone reads public or shared fiches.
     match /notes/{noteId} {
       allow read:   if isAdmin()
                     || (resource.data.isPublic == true)
-                    || (isSignedIn() && resource.data.uid == request.auth.uid);
+                    || (isSignedIn() && resource.data.uid == request.auth.uid)
+                    || (isSignedIn() && request.auth.uid in resource.data.sharedWith);
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if isAdmin()
                     || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
-    // Links: private to their owner, unless marked `isPublic` (admins may read).
+    // Links: private to their owner, unless public or shared.
     match /links/{linkId} {
       allow read:   if isAdmin()
                     || (resource.data.isPublic == true)
-                    || (isSignedIn() && resource.data.uid == request.auth.uid);
-      allow write:  if isSignedIn() && request.resource.data.uid == request.auth.uid;
+                    || (isSignedIn() && resource.data.uid == request.auth.uid)
+                    || (isSignedIn() && request.auth.uid in resource.data.sharedWith);
+      allow create, update: if isAdmin()
+                    || (isSignedIn() && request.resource.data.uid == request.auth.uid);
       allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
-    // Folders and shortcuts: strictly private to their owner (admins may read).
+    // Folders: private to their owner, unless shared with the requester.
     match /folders/{folderId} {
-      allow read:   if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
-      allow write:  if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read:   if isAdmin()
+                    || (isSignedIn() && resource.data.uid == request.auth.uid)
+                    || (isSignedIn() && request.auth.uid in resource.data.sharedWith);
+      allow create, update: if isAdmin()
+                    || (isSignedIn() && request.resource.data.uid == request.auth.uid);
       allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
@@ -397,6 +441,9 @@ best performance create:
 | `shortcuts` | `uid` ASC, `order` ASC |
 | `accessLogs` | `uid` ASC, `timestamp` DESC |
 | `accessLogs` | `timestamp` DESC |
+
+> Sharing needs **no extra index**: `where('sharedWith', 'array-contains', uid)`
+> is served by Firestore's automatic single-field index.
 
 ---
 

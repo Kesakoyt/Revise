@@ -33,6 +33,7 @@ export const APP_REGISTRY = {
   'user-profile':     { title: 'Mon profil',            icon: 'guest-male',  modulePath: './user-profile.js' },
   'admin-database':   { title: 'Base de données',       icon: 'database',    modulePath: './admin-database.js' },
   'admin-users':      { title: 'Utilisateurs',          icon: 'group',       modulePath: './admin-users.js' },
+  'admin-shares':     { title: 'Partages',              icon: 'share',       modulePath: './admin-shares.js' },
   'admin-statistics': { title: 'Statistiques',          icon: 'combo-chart', modulePath: './admin-statistics.js' }
 };
 

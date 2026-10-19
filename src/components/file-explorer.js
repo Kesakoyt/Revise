@@ -2,11 +2,18 @@
  * Fiches & Cloud — File Explorer.
  *
  * A hierarchical file manager for the signed-in user: folders that contain
- * sub-folders, Markdown **fiches** and **links**. Supports navigation (breadcrumb),
- * creation / rename / move / delete, drag-and-drop PDF/DOCX import, a public-notes
- * view, search / filter / sort and a live storage-quota indicator.
+ * sub-folders, Markdown **fiches** and **links**. Supports navigation (a
+ * Windows-style navigation pane on the left, a breadcrumb and a list/grid
+ * content area), creation / rename / move / delete / **share**, drag-and-drop
+ * PDF/DOCX import, public and shared views, search / filter / sort and a live
+ * storage-quota indicator.
  *
  * Links are managed here — the former standalone link app has been folded in.
+ *
+ * The left pane lists the places the current user has access to:
+ *   • Mes fichiers      — the user's own tree
+ *   • Fichiers partagés — folders other users shared with them (read-only)
+ *   • Fiches publiques  — every user's public fiches
  */
 
 import { FirestoreService } from '../services/firestore-service.js';
@@ -21,16 +28,22 @@ const ICON_GRID = 'thumbnails';
 
 const state = {
   container: null,
-  tab: 'mine',            // 'mine' | 'public'
+  tab: 'mine',            // 'mine' | 'shared' | 'public'
   view: 'list',           // 'list' | 'grid'
   subject: 'all',
   sort: 'date-desc',
   query: '',
-  currentFolderId: null,  // null = root
-  folders: [],
-  notes: [],
-  links: [],
+  currentFolderId: null,  // null = root of the current place
+  folders: [],            // owned folders
+  notes: [],              // owned fiches
+  links: [],              // owned links
   publicLinks: [],        // other users' public links (root of "Mes fichiers")
+  publicNotes: [],        // every user's public fiches
+  sharedFolders: [],      // folders owned by others but shared with me
+  sharedNotes: [],
+  sharedLinks: [],
+  directory: [],          // shareable accounts (for the share dialog + names)
+  expanded: new Set(),    // nav-tree nodes left open
   subjects: [],
   selection: null,        // { kind, id }
   handlers: [],
@@ -44,23 +57,11 @@ export async function render(container) {
 
   container.innerHTML = `
     <div class="file-explorer">
-      <div class="file-explorer__header">
-        <div class="file-explorer__tabs">
-          <button class="tab-btn ${state.tab === 'mine' ? 'tab-btn--active' : ''}" data-tab="mine">
-            ${iconImg(ICON_FOLDER, { size: 18, alt: '', className: 'tab-btn__icon' })}Mes fichiers
-          </button>
-          <button class="tab-btn ${state.tab === 'public' ? 'tab-btn--active' : ''}" data-tab="public">
-            ${iconImg('bookmark', { size: 18, alt: '', className: 'tab-btn__icon' })}Fiches publiques
-          </button>
-        </div>
+      <div class="file-explorer__bar">
         <button class="btn btn--primary" id="fe-new" type="button" aria-haspopup="menu">
           ${iconImg('add', { size: 18, alt: '' })}<span>Nouveau</span><span class="btn__caret" aria-hidden="true"></span>
         </button>
-      </div>
 
-      <nav class="file-explorer__breadcrumb" id="fe-breadcrumb" aria-label="Chemin"></nav>
-
-      <div class="file-explorer__toolbar">
         <div class="search-field">
           ${iconImg('search', { size: 18, alt: '', className: 'search-field__icon' })}
           <input type="text" class="input input--search" id="fe-search"
@@ -90,8 +91,16 @@ export async function render(container) {
         </div>
       </div>
 
-      <div class="file-explorer__body" id="fe-body">
-        <div class="loading-block"><span class="spinner"></span><p>Chargement…</p></div>
+      <div class="file-explorer__main">
+        <nav class="explorer-nav" id="fe-nav" aria-label="Emplacements"></nav>
+
+        <div class="file-explorer__content">
+          <nav class="file-explorer__breadcrumb" id="fe-breadcrumb" aria-label="Chemin"></nav>
+
+          <div class="file-explorer__body" id="fe-body">
+            <div class="loading-block"><span class="spinner"></span><p>Chargement…</p></div>
+          </div>
+        </div>
       </div>
 
       <div class="drop-zone" id="fe-drop">
@@ -123,6 +132,8 @@ export async function render(container) {
   bindBody();
   bindBus();
   updateChrome();
+  renderNav();
+  renderBreadcrumb();
   await Promise.all([loadData(), refreshQuota()]);
 }
 
@@ -132,19 +143,6 @@ export async function render(container) {
 
 function bindToolbar() {
   const c = state.container;
-
-  c.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const tab = btn.dataset.tab;
-      if (tab === state.tab) return;
-      state.tab = tab;
-      state.currentFolderId = null;
-      state.selection = null;
-      c.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('tab-btn--active', b === btn));
-      updateChrome();
-      await loadData();
-    });
-  });
 
   c.querySelector('#fe-new')?.addEventListener('click', e => openNewMenu(e.currentTarget));
 
@@ -179,14 +177,12 @@ function setView(view) {
   renderList();
 }
 
-/** Show/hide chrome that only applies to the personal "Mes fichiers" tab. */
+/** Show/hide chrome that only applies to the personal "Mes fichiers" place. */
 function updateChrome() {
   const c = state.container;
   const mine = state.tab === 'mine';
   c.querySelector('#fe-new')?.toggleAttribute('hidden', !mine);
   c.querySelector('#fe-drop')?.toggleAttribute('hidden', !mine);
-  const bc = c.querySelector('#fe-breadcrumb');
-  if (bc) bc.hidden = !mine;
 }
 
 // ---------------------------------------------------------------------------
@@ -256,68 +252,71 @@ async function loadData() {
 
   body.innerHTML = `<div class="loading-block"><span class="spinner"></span><p>Chargement…</p></div>`;
 
-  try {
-    const uid = AppState.user?.uid;
-    // Public content must not hard-fail (e.g. rule not deployed yet) — degrade to
-    // an empty list with a toast instead of the full "Chargement impossible".
-    const safePublic = (label, fn) => fn().catch(err => {
+  const uid = AppState.user?.uid;
+  const failures = [];
+
+  // Every collection loads independently: a denial or a missing `folders` /
+  // `directory` rule must not blank out the whole explorer.
+  const safe = (label, fn) => Promise.resolve()
+    .then(fn)
+    .catch(err => {
       console.warn(`[Explorer] ${label} load failed:`, err.message);
-      showToast(`Impossible de charger les ${label}. Vérifiez les règles Firestore.`, 'error');
+      failures.push(label);
       return [];
     });
 
-    if (state.tab === 'public') {
-      state.folders = [];
-      state.links = [];
-      state.publicLinks = [];
-      state.notes = await safePublic('fiches publiques', () => FirestoreService.getPublicNotes({}));
-    } else if (uid) {
-      // Each collection loads independently: a denial or index error on one
-      // (e.g. a missing `folders` rule) must not blank out the whole explorer.
-      const failures = [];
-      const safe = (label, p) => p.catch(err => {
-        console.warn(`[Explorer] ${label} load failed:`, err.message);
-        failures.push(label);
-        return [];
-      });
-      const [folders, notes, links, publicLinks] = await Promise.all([
-        safe('dossiers', FirestoreService.getUserFolders(uid)),
-        safe('fiches', FirestoreService.getUserNotes(uid)),
-        safe('liens', FirestoreService.getUserLinks(uid)),
-        safePublic('liens publics', () => FirestoreService.getPublicLinks({}))
-      ]);
-      state.folders = folders;
-      state.notes = notes;
-      state.links = links;
-      // Public links from everyone; the user's own are already in `links` (so
-      // they appear inside their folders, not only at the root).
-      const ownIds = new Set(links.map(l => l.id));
-      state.publicLinks = publicLinks.filter(l => !ownIds.has(l.id));
+  try {
+    const [
+      folders, notes, links,
+      publicNotes, publicLinks,
+      sharedFolders, sharedNotes, sharedLinks,
+      directory
+    ] = await Promise.all([
+      uid ? safe('dossiers', () => FirestoreService.getUserFolders(uid)) : [],
+      uid ? safe('fiches', () => FirestoreService.getUserNotes(uid)) : [],
+      uid ? safe('liens', () => FirestoreService.getUserLinks(uid)) : [],
+      safe('fiches publiques', () => FirestoreService.getPublicNotes({})),
+      safe('liens publics', () => FirestoreService.getPublicLinks({})),
+      uid ? safe('dossiers partagés', () => FirestoreService.getSharedFolders(uid)) : [],
+      uid ? safe('fiches partagées', () => FirestoreService.getSharedNotes(uid)) : [],
+      uid ? safe('liens partagés', () => FirestoreService.getSharedLinks(uid)) : [],
+      safe('annuaire', () => FirestoreService.getDirectory())
+    ]);
 
-      if (failures.length) {
-        showToast(
-          `Certaines données sont indisponibles (${failures.join(', ')}). ` +
-          'Vérifiez les règles de sécurité Firestore.',
-          'error'
-        );
-      }
-    } else {
-      state.folders = []; state.notes = []; state.links = []; state.publicLinks = [];
-    }
+    state.folders = folders;
+    state.notes = notes;
+    state.links = links;
+    state.publicNotes = publicNotes;
+    // Public links from everyone; the user's own are already in `links` (so
+    // they appear inside their folders, not only at the root).
+    const ownIds = new Set(links.map(l => l.id));
+    state.publicLinks = publicLinks.filter(l => !ownIds.has(l.id));
+    state.sharedFolders = sharedFolders;
+    state.sharedNotes = sharedNotes;
+    state.sharedLinks = sharedLinks;
+    state.directory = directory;
 
-    if (state.currentFolderId && !state.folders.some(f => f.id === state.currentFolderId)) {
+    if (state.currentFolderId && !activeFolders().some(f => f.id === state.currentFolderId)) {
       state.currentFolderId = null;
     }
 
     const subjects = new Set();
-    state.notes.forEach(n => { if (n.subject?.trim()) subjects.add(n.subject.trim()); });
-    state.links.forEach(l => { if (l.subject?.trim()) subjects.add(l.subject.trim()); });
-    state.publicLinks.forEach(l => { if (l.subject?.trim()) subjects.add(l.subject.trim()); });
+    [...notes, ...links, ...publicNotes, ...publicLinks, ...sharedNotes, ...sharedLinks]
+      .forEach(item => { if (item.subject?.trim()) subjects.add(item.subject.trim()); });
     state.subjects = [...subjects].sort();
 
     populateSubjectFilter();
+    renderNav();
     renderBreadcrumb();
     renderList();
+
+    if (failures.length) {
+      showToast(
+        `Certaines données sont indisponibles (${[...new Set(failures)].join(', ')}). ` +
+        'Vérifiez les règles de sécurité Firestore.',
+        'error'
+      );
+    }
   } catch (err) {
     console.error('[Explorer] load failed:', err);
     body.innerHTML = `
@@ -344,14 +343,162 @@ function populateSubjectFilter() {
 }
 
 // ---------------------------------------------------------------------------
+// Places (the three roots listed in the navigation pane)
+// ---------------------------------------------------------------------------
+
+const PLACE = {
+  mine:   { label: 'Mes fichiers',      icon: ICON_FOLDER },
+  shared: { label: 'Fichiers partagés', icon: 'shared-folder' },
+  public: { label: 'Fiches publiques',  icon: 'bookmark' }
+};
+
+/** Folders backing the current place. */
+function activeFolders() {
+  if (state.tab === 'shared') return state.sharedFolders;
+  if (state.tab === 'mine') return state.folders;
+  return [];
+}
+
+/** Fiches visible in the content area (public fiches have no hierarchy). */
+function activeNotes() {
+  if (state.tab === 'shared') return state.sharedNotes;
+  if (state.tab === 'mine') return state.notes;
+  return state.publicNotes;
+}
+
+/** Links visible in the content area. */
+function activeLinks() {
+  if (state.tab === 'shared') return state.sharedLinks;
+  if (state.tab === 'mine') return state.links;
+  return [];
+}
+
+/** Display name for a uid, using the `directory` when it is loaded. */
+function userLabel(uid) {
+  if (!uid) return '—';
+  const entry = state.directory.find(d => (d.id || d.uid) === uid);
+  if (!entry) return uid;
+  return entry.displayName || entry.email || uid;
+}
+
+// ---------------------------------------------------------------------------
+// Navigation pane (Windows-style places tree)
+// ---------------------------------------------------------------------------
+
+function renderNav() {
+  const nav = state.container?.querySelector('#fe-nav');
+  if (!nav) return;
+
+  const ownRoots = state.folders.filter(f => !f.parentId);
+  const sharedIds = new Set(state.sharedFolders.map(f => f.id));
+  // A shared folder whose parent is not shared with me is the root of a grant.
+  const sharedRoots = state.sharedFolders.filter(f => !f.parentId || !sharedIds.has(f.parentId));
+
+  const mineCount = state.folders.length + state.notes.length + state.links.length;
+
+  nav.innerHTML = `
+    ${navItem('mine', PLACE.mine.icon, PLACE.mine.label, mineCount)}
+    <div class="explorer-nav__tree">${ownRoots.map(f => treeNode(f, 'mine', 0, state.folders)).join('')}</div>
+    ${navItem('shared', PLACE.shared.icon, PLACE.shared.label, state.sharedFolders.length)}
+    <div class="explorer-nav__tree">${sharedRoots.map(f => treeNode(f, 'shared', 0, state.sharedFolders)).join('')}</div>
+    ${navItem('public', PLACE.public.icon, PLACE.public.label, state.publicNotes.length)}
+  `;
+
+  nav.querySelectorAll('[data-nav]').forEach(btn => {
+    btn.addEventListener('click', () => goTo(btn.dataset.nav, null));
+  });
+  nav.querySelectorAll('[data-nav-folder]').forEach(row => {
+    row.addEventListener('click', () => goTo(row.dataset.navTab, row.dataset.navFolder));
+  });
+  nav.querySelectorAll('[data-nav-toggle]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = btn.dataset.navToggle;
+      if (state.expanded.has(id)) state.expanded.delete(id);
+      else state.expanded.add(id);
+      renderNav();
+    });
+  });
+}
+
+function navItem(tab, icon, label, count) {
+  const active = state.tab === tab;
+  return `
+    <button type="button" class="explorer-nav__item ${active ? 'explorer-nav__item--active' : ''}" data-nav="${tab}">
+      ${iconImg(icon, { size: 18, alt: '', className: 'explorer-nav__icon' })}
+      <span class="explorer-nav__label">${escapeHtml(label)}</span>
+      ${count ? `<span class="explorer-nav__count">${count}</span>` : ''}
+    </button>`;
+}
+
+/** One recursive node of the places tree. */
+function treeNode(folder, tab, depth, pool) {
+  if (depth > 24) return '';
+  const children = pool.filter(f => f.parentId === folder.id);
+  const open = state.expanded.has(folder.id);
+  const active = state.tab === tab && state.currentFolderId === folder.id;
+  const shared = Array.isArray(folder.sharedWith) && folder.sharedWith.length > 0;
+  const icon = tab === 'shared' ? 'shared-folder' : 'user-folder';
+
+  return `
+    <div class="explorer-tree__node">
+      <div class="explorer-tree__row ${active ? 'explorer-tree__row--active' : ''}"
+           style="padding-left:${8 + depth * 14}px"
+           data-nav-folder="${escapeAttr(folder.id)}" data-nav-tab="${tab}" role="button" tabindex="0">
+        ${children.length
+          ? `<button type="button" class="explorer-tree__caret ${open ? 'explorer-tree__caret--open' : ''}"
+                     data-nav-toggle="${escapeAttr(folder.id)}" tabindex="-1"
+                     aria-label="${open ? 'Réduire' : 'Développer'}">${open ? '▾' : '▸'}</button>`
+          : '<span class="explorer-tree__caret explorer-tree__caret--leaf"></span>'}
+        ${iconImg(icon, { size: 15, alt: '', className: 'explorer-tree__icon' })}
+        <span class="explorer-tree__label">${escapeHtml(folder.name || 'Sans nom')}</span>
+        ${shared ? `<span class="explorer-tree__badge" title="Partagé avec ${folder.sharedWith.length} personne(s)">${iconImg('collaboration', { size: 13, alt: '' })}</span>` : ''}
+      </div>
+      ${open && children.length
+        ? `<div class="explorer-tree__children">${children.map(c => treeNode(c, tab, depth + 1, pool)).join('')}</div>`
+        : ''}
+    </div>`;
+}
+
+/** Expand every ancestor of `folderId` so it is visible in the tree. */
+function expandAncestors(tab, folderId) {
+  const pool = tab === 'shared' ? state.sharedFolders : state.folders;
+  const byId = new Map(pool.map(f => [f.id, f]));
+  const guard = new Set();
+  let cur = byId.get(folderId)?.parentId || null;
+  while (cur && byId.has(cur) && !guard.has(cur)) {
+    guard.add(cur);
+    state.expanded.add(cur);
+    cur = byId.get(cur).parentId || null;
+  }
+}
+
+/** Switch place and/or folder, then refresh the explorer chrome. */
+function goTo(tab, folderId = null) {
+  state.tab = tab;
+  state.currentFolderId = folderId || null;
+  state.selection = null;
+  if (folderId) expandAncestors(tab, folderId);
+  updateChrome();
+  renderNav();
+  renderBreadcrumb();
+  renderList();
+  state.container?.querySelector('#fe-body')?.scrollTo?.({ top: 0 });
+}
+
+// ---------------------------------------------------------------------------
 // Breadcrumb
 // ---------------------------------------------------------------------------
 
 function parentOf(item) { return item.parentId || null; }
 
-/** Ancestor folders from root down to `folderId`. */
-function folderPath(folderId) {
-  const byId = new Map(state.folders.map(f => [f.id, f]));
+/**
+ * Ancestor folders from root down to `folderId`.
+ * @param {string|null} folderId
+ * @param {Array<Object>} [pool] folder pool to walk (defaults to the current place)
+ */
+function folderPath(folderId, pool = activeFolders()) {
+  const byId = new Map(pool.map(f => [f.id, f]));
   const path = [];
   const guard = new Set();
   let cur = folderId;
@@ -367,13 +514,15 @@ function folderPath(folderId) {
 function renderBreadcrumb() {
   const nav = state.container?.querySelector('#fe-breadcrumb');
   if (!nav) return;
-  if (state.tab !== 'mine') { nav.hidden = true; nav.innerHTML = ''; return; }
+  // The public place is a flat list — there is no path to show.
+  if (state.tab === 'public') { nav.hidden = true; nav.innerHTML = ''; return; }
 
   nav.hidden = false;
+  const place = PLACE[state.tab];
   const path = folderPath(state.currentFolderId);
   const parts = [
     `<button type="button" class="breadcrumb__crumb" data-folder="">
-      ${iconImg(ICON_FOLDER, { size: 15, alt: '' })}<span>Mes fichiers</span>
+      ${iconImg(place.icon, { size: 15, alt: '' })}<span>${escapeHtml(place.label)}</span>
     </button>`
   ];
 
@@ -392,11 +541,18 @@ function renderBreadcrumb() {
 // Listing
 // ---------------------------------------------------------------------------
 
+/**
+ * Direct children of a folder in the current place.
+ * @param {string|null} folderId
+ */
 function childrenOf(folderId) {
+  const folders = activeFolders();
+  const notes = state.tab === 'mine' ? state.notes : state.sharedNotes;
+  const links = state.tab === 'mine' ? state.links : state.sharedLinks;
   return {
-    folders: state.folders.filter(f => parentOf(f) === folderId),
-    notes: state.notes.filter(n => parentOf(n) === folderId),
-    links: state.links.filter(l => parentOf(l) === folderId)
+    folders: folders.filter(f => parentOf(f) === folderId),
+    notes: state.tab === 'public' ? [] : notes.filter(n => parentOf(n) === folderId),
+    links: state.tab === 'public' ? [] : links.filter(l => parentOf(l) === folderId)
   };
 }
 
@@ -431,10 +587,11 @@ function renderList() {
   const body = state.container?.querySelector('#fe-body');
   if (!body) return;
 
-  // The public tabs list everything flat (no folder hierarchy).
-  const { folders, notes, links } = state.tab === 'mine'
-    ? childrenOf(state.currentFolderId)
-    : { folders: [], notes: state.notes, links: state.links };
+  // The public place lists everything flat (no folder hierarchy); the other two
+  // places are real folders and list their direct children.
+  const { folders, notes, links } = state.tab === 'public'
+    ? { folders: [], notes: state.publicNotes, links: [] }
+    : childrenOf(state.currentFolderId);
 
   const shownFolders = folders
     .filter(f => matchesQuery(f, ['name']))
@@ -497,6 +654,15 @@ function emptyStateHtml() {
         ${iconImg('document', { size: 48, alt: '', className: 'empty-state__icon' })}
         <h3 class="empty-state__title">Aucune fiche publique</h3>
         <p class="empty-state__description">Revenez plus tard ou rendez une de vos fiches publique.</p>
+      </div>`;
+  }
+
+  if (state.tab === 'shared') {
+    return `
+      <div class="empty-state">
+        ${iconImg('shared-folder', { size: 48, alt: '', className: 'empty-state__icon' })}
+        <h3 class="empty-state__title">Aucun élément partagé</h3>
+        <p class="empty-state__description">Personne n'a encore partagé de dossier avec vous.</p>
       </div>`;
   }
 
@@ -605,8 +771,8 @@ function bindBody() {
       const kind = propsBtnEl.dataset.propsKind;
       const id = propsBtnEl.dataset.propsId;
       if (kind && id) {
-        const data = kind === 'folder' ? state.folders.find(f => f.id === id)
-          : kind === 'note' ? state.notes.find(n => n.id === id)
+        const data = kind === 'folder' ? activeFolders().find(f => f.id === id)
+          : kind === 'note' ? activeNotes().find(n => n.id === id)
           : findLink(id);
         openPropertiesDialog(kind, data);
       }
@@ -650,9 +816,16 @@ function setSelection(sel) {
   });
 }
 
-/** Look a link up by id, in the user's own links and in the public root links. */
+/**
+ * Look a link up by id: in the current place first, then everywhere else the
+ * user can see (own, shared, public).
+ */
 function findLink(id) {
-  return state.links.find(l => l.id === id) || state.publicLinks.find(l => l.id === id);
+  return activeLinks().find(l => l.id === id)
+    || state.links.find(l => l.id === id)
+    || state.sharedLinks.find(l => l.id === id)
+    || state.publicLinks.find(l => l.id === id)
+    || null;
 }
 
 function activate(kind, id) {
@@ -665,11 +838,7 @@ function activate(kind, id) {
 }
 
 function enterFolder(folderId) {
-  state.currentFolderId = folderId || null;
-  state.selection = null;
-  renderBreadcrumb();
-  renderList();
-  state.container?.querySelector('#fe-body')?.scrollTo?.({ top: 0 });
+  goTo(state.tab, folderId);
 }
 
 // ---------------------------------------------------------------------------
@@ -704,38 +873,60 @@ function backgroundMenuItems() {
     { label: 'Liste', icon: 'list', checked: state.view === 'list', onSelect: () => setView('list') },
     { label: 'Grille', icon: ICON_GRID, checked: state.view === 'grid', onSelect: () => setView('grid') }
   ];
+  const refresh = { label: 'Rafraîchir', icon: 'refresh', onSelect: () => { scheduleReload(); showToast('Explorateur rafraîchi.', 'info'); } };
+  const display = [
+    { label: 'Affichage', icon: ICON_GRID, submenu: viewSubmenu },
+    { label: 'Trier par', icon: 'sorting-arrows', submenu: sortSubmenu }
+  ];
+
+  // Creation is only possible in the user's own tree.
+  if (state.tab !== 'mine') {
+    return [refresh, { separator: true }, ...display];
+  }
+
   return [
     { label: 'Nouveau dossier', icon: 'add-folder', onSelect: () => openFolderDialog({ parentId: state.currentFolderId }) },
     { label: 'Nouvelle fiche', icon: 'document', shortcut: 'Ctrl+N', onSelect: () => openNewNote() },
     { label: 'Nouveau lien', icon: 'link', onSelect: () => openLinkDialog() },
     { label: 'Importer un fichier (PDF/DOCX)…', icon: 'import', onSelect: () => browseForFile() },
     { separator: true },
-    { label: 'Rafraîchir', icon: 'refresh', onSelect: () => { scheduleReload(); showToast('Explorateur rafraîchi.', 'info'); } },
+    refresh,
     { separator: true },
-    { label: 'Affichage', icon: ICON_GRID, submenu: viewSubmenu },
-    { label: 'Trier par', icon: 'sorting-arrows', submenu: sortSubmenu }
+    ...display
   ];
 }
 
 function itemMenu(sel) {
-  if (sel.kind === 'folder') return folderMenuItems(state.folders.find(f => f.id === sel.id));
-  if (sel.kind === 'note') return noteMenuItems(state.notes.find(n => n.id === sel.id));
+  if (sel.kind === 'folder') return folderMenuItems(activeFolders().find(f => f.id === sel.id));
+  if (sel.kind === 'note') return noteMenuItems(activeNotes().find(n => n.id === sel.id));
   return linkMenuItems(findLink(sel.id));
 }
 
 function folderMenuItems(folder) {
   if (!folder) return [];
+  const owner = AppState.user && folder.uid === AppState.user.uid;
+
+  const open = { label: 'Ouvrir', icon: ICON_FOLDER, onSelect: () => enterFolder(folder.id) };
+  const properties = { label: 'Propriétés', icon: 'info', onSelect: () => openPropertiesDialog('folder', folder) };
+  const copy = { label: 'Copier le nom', icon: 'copy', onSelect: () => copyText(folder.name || 'Sans nom', 'Nom copié.') };
+
+  if (!owner) {
+    return [open, { separator: true }, copy, { separator: true }, properties];
+  }
+
   return [
-    { label: 'Ouvrir', icon: ICON_FOLDER, onSelect: () => enterFolder(folder.id) },
+    open,
     { label: 'Renommer', icon: 'edit', onSelect: () => openFolderDialog({ folder }) },
     { label: 'Déplacer vers…', icon: 'move', onSelect: () => openMoveDialog('folder', folder) },
+    { separator: true },
+    { label: 'Partager…', icon: 'share', onSelect: () => openShareDialog(folder) },
     { separator: true },
     { label: 'Nouvelle fiche', icon: 'document', onSelect: () => openNewNote(folder.id) },
     { label: 'Nouveau lien', icon: 'link', onSelect: () => openLinkDialog(null, folder.id) },
     { separator: true },
     { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteFolder(folder) },
     { separator: true },
-    { label: 'Propriétés', icon: 'info', onSelect: () => openPropertiesDialog('folder', folder) }
+    properties
   ];
 }
 
@@ -858,11 +1049,15 @@ async function deleteLink(linkId) {
   }
 }
 
-/** Ids of every folder nested (directly or not) inside `folderId`. */
-function descendantIds(folderId) {
+/**
+ * Ids of every folder nested (directly or not) inside `folderId`.
+ * @param {string|null} folderId
+ * @param {Array<Object>} [pool] folder pool to walk (defaults to the current place)
+ */
+function descendantIds(folderId, pool = activeFolders()) {
   const ids = new Set();
   const walk = id => {
-    state.folders.forEach(f => {
+    pool.forEach(f => {
       if (parentOf(f) === id && !ids.has(f.id)) { ids.add(f.id); walk(f.id); }
     });
   };
@@ -871,7 +1066,7 @@ function descendantIds(folderId) {
 }
 
 async function deleteFolder(folder) {
-  const ids = new Set([folder.id, ...descendantIds(folder.id)]);
+  const ids = new Set([folder.id, ...descendantIds(folder.id, state.folders)]);
   const folders = state.folders.filter(f => ids.has(f.id));
   const notes = state.notes.filter(n => ids.has(n.parentId));
   const links = state.links.filter(l => ids.has(l.parentId));
@@ -973,6 +1168,16 @@ async function moveEntry(kind, id, destinationId) {
   if (kind === 'folder') await FirestoreService.updateFolder(id, { parentId: destinationId });
   else if (kind === 'note') await FirestoreService.updateNote(id, { parentId: destinationId });
   else await FirestoreService.updateLink(id, { parentId: destinationId });
+
+  // A move can carry an item into — or out of — a shared subtree, so the
+  // inherited grant lists have to be recomputed for the whole owner tree.
+  const uid = AppState.user?.uid;
+  if (uid) {
+    await FirestoreService.syncShares({
+      ownerUid: uid,
+      ownerName: AppState.user?.displayName || ''
+    }).catch(err => console.warn('[Explorer] share re-sync skipped:', err.message));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1191,6 +1396,114 @@ function displayName(kind, item) {
 }
 
 // ---------------------------------------------------------------------------
+// Sharing (folder grants — recipients inherit the whole subtree)
+// ---------------------------------------------------------------------------
+
+/** Directory entries the current user may share with, sorted by name. */
+function shareableUsers() {
+  const self = AppState.user?.uid;
+  return state.directory
+    .filter(d => (d.id || d.uid) !== self)
+    .map(d => ({
+      uid: d.id || d.uid,
+      name: d.displayName || d.email || d.id || d.uid,
+      email: d.email || ''
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+}
+
+/** Read-only list of recipient names (used by Properties). */
+function shareRecipientsHtml(uids) {
+  if (!uids?.length) return '';
+  return uids.map(uid => `<span class="share-chip">${escapeHtml(userLabel(uid))}</span>`).join(' ');
+}
+
+/**
+ * "Share" dialog (Drive-style): tick the accounts that may see this folder and
+ * everything nested inside it. Only the owner (or an admin) can open it.
+ */
+function openShareDialog(folder) {
+  if (!folder) return;
+  const current = new Set(Array.isArray(folder.sharedWith) ? folder.sharedWith : []);
+  const users = shareableUsers();
+
+  const row = u => `
+    <label class="share-dialog__user" data-name="${escapeAttr(`${u.name} ${u.email}`.toLowerCase())}">
+      <input type="checkbox" value="${escapeAttr(u.uid)}" ${current.has(u.uid) ? 'checked' : ''}>
+      <span class="share-dialog__name">${escapeHtml(u.name)}</span>
+      ${u.email ? `<span class="share-dialog__email">${escapeHtml(u.email)}</span>` : ''}
+    </label>`;
+
+  // Recipients that are no longer (or never) in the directory stay editable.
+  const orphans = [...current].filter(uid => !users.some(u => u.uid === uid));
+
+  const wrap = document.createElement('div');
+  wrap.className = 'dialog share-dialog';
+  wrap.innerHTML = `
+    <h3 class="dialog__title">Partager « ${escapeHtml(folder.name || 'Sans nom')} »</h3>
+
+    ${users.length ? `
+      <div class="share-dialog__search">
+        ${iconImg('search', { size: 16, alt: '' })}
+        <input type="text" class="input input--search" id="dlg-share-search" placeholder="Rechercher une personne…">
+      </div>` : ''}
+
+    <div class="share-dialog__list" id="dlg-share-list">
+      ${[...orphans.map(uid => row({ uid, name: uid, email: '' })), ...users.map(row)].join('') ||
+        '<p class="share-dialog__hint">Aucun compte disponible.</p>'}
+    </div>
+
+    <p class="share-dialog__hint">
+      Les personnes sélectionnées pourront consulter ce dossier et tout son contenu.
+      Vous restez le seul à pouvoir le modifier.
+    </p>
+
+    ${users.length ? '' : `
+      <p class="share-dialog__hint">
+        L'annuaire est vide : demandez à un administrateur de le synchroniser pour
+        pouvoir choisir des destinataires.
+      </p>`}
+
+    <div class="form-actions">
+      <button type="button" class="btn btn--secondary" data-action="cancel">Annuler</button>
+      <button type="button" class="btn btn--primary" data-action="save">Enregistrer</button>
+    </div>
+  `;
+
+  const { hide } = showModal(wrap);
+
+  const search = wrap.querySelector('#dlg-share-search');
+  search?.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    wrap.querySelectorAll('.share-dialog__user').forEach(el => {
+      el.hidden = Boolean(q) && !el.dataset.name.includes(q);
+    });
+  });
+
+  wrap.querySelector('[data-action="cancel"]').addEventListener('click', hide);
+
+  wrap.querySelector('[data-action="save"]').addEventListener('click', async () => {
+    const picked = [...wrap.querySelectorAll('#dlg-share-list input[type="checkbox"]:checked')].map(c => c.value);
+    try {
+      showToast('Mise à jour du partage…', 'info');
+      await FirestoreService.setFolderShares({
+        folderId: folder.id,
+        sharedWith: picked,
+        ownerUid: folder.uid,
+        ownerName: AppState.user?.displayName || AppState.user?.email || ''
+      });
+      hide();
+      EventBus.emit('share:updated', { folderId: folder.id, sharedWith: picked });
+      scheduleReload();
+      showToast(picked.length ? `Partagé avec ${picked.length} personne(s).` : 'Partage retiré.', 'success');
+    } catch (err) {
+      console.error('[Explorer] share failed:', err);
+      showToast(`Partage échoué : ${err.message}`, 'error');
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Properties (Windows-style info panel)
 // ---------------------------------------------------------------------------
 
@@ -1200,17 +1513,19 @@ function kindLabel(kind) {
 
 /** Human-readable location, e.g. "Mes fichiers / Cours / Maths". */
 function locationOf(item) {
+  const place = PLACE[state.tab] || PLACE.mine;
   const parts = folderPath(item?.parentId || null).map(f => f.name || 'Sans nom');
-  return ['Mes fichiers', ...parts].join(' / ');
+  return [place.label, ...parts].join(' / ');
 }
 
-/** Recursive totals for a folder and everything nested inside it. */
+/** Recursive totals for a folder and everything nested inside it (current place). */
 function folderStats(folderId) {
-  const ids = new Set([folderId, ...descendantIds(folderId)]);
+  const folders = activeFolders();
+  const ids = new Set([folderId, ...descendantIds(folderId, folders)]);
   return {
     folders: ids.size - 1,
-    notes: state.notes.filter(n => ids.has(n.parentId)).length,
-    links: state.links.filter(l => ids.has(l.parentId)).length
+    notes: activeNotes().filter(n => ids.has(n.parentId)).length,
+    links: activeLinks().filter(l => ids.has(l.parentId)).length
   };
 }
 
@@ -1238,7 +1553,10 @@ function openPropertiesDialog(kind, item) {
   const canManage = AppState.user && item.uid === AppState.user.uid;
   const ownerName = canManage
     ? (AppState.user.displayName || AppState.user.email || 'Vous')
-    : 'Autre utilisateur';
+    : (item.ownerName || userLabel(item.uid) || 'Autre utilisateur');
+
+  const sharedWith = Array.isArray(item.sharedWith) ? item.sharedWith : [];
+  const isShared = sharedWith.length > 0;
 
   const name = kind === 'folder'
     ? (item.name || 'Sans nom')
@@ -1285,6 +1603,9 @@ function openPropertiesDialog(kind, item) {
   }
 
   rows.push(propRow('Propriétaire', escapeHtml(ownerName)));
+  if (isShared) {
+    rows.push(propRow('Partagé avec', shareRecipientsHtml(sharedWith)));
+  }
 
   const iconHtml = kind === 'link'
     ? iconImg('link', { size: 40, alt: '' })
@@ -1303,7 +1624,8 @@ function openPropertiesDialog(kind, item) {
     <dl class="props__rows">${rows.join('')}</dl>
     <div class="form-actions">
       ${kind === 'link' && item.url ? `<button type="button" class="btn btn--secondary" data-action="copy">${iconImg('copy', { size: 16, alt: '' })}<span>Copier l’URL</span></button>` : ''}
-      ${kind !== 'folder' && canManage ? `<button type="button" class="btn btn--secondary" data-action="open">${iconImg('edit', { size: 16, alt: '' })}<span>Ouvrir</span></button>` : ''}
+      ${kind === 'folder' && canManage ? `<button type="button" class="btn btn--secondary" data-action="share">${iconImg('share', { size: 16, alt: '' })}<span>Partager</span></button>` : ''}
+      ${kind !== 'folder' ? `<button type="button" class="btn btn--secondary" data-action="open">${iconImg('edit', { size: 16, alt: '' })}<span>Ouvrir</span></button>` : ''}
       <button type="button" class="btn btn--primary" data-action="close">Fermer</button>
     </div>
   `;
@@ -1311,6 +1633,7 @@ function openPropertiesDialog(kind, item) {
   const { hide } = showModal(wrap);
   wrap.querySelector('[data-action="close"]')?.addEventListener('click', hide);
   wrap.querySelector('[data-action="copy"]')?.addEventListener('click', () => copyText(item.url, 'URL copiée.'));
+  wrap.querySelector('[data-action="share"]')?.addEventListener('click', () => { hide(); openShareDialog(item); });
   wrap.querySelector('[data-action="open"]')?.addEventListener('click', () => {
     hide();
     if (kind === 'note') openNote(item.id);
@@ -1359,18 +1682,21 @@ function bindBus() {
   const onNotesSaved = () => scheduleReload();
   const onDeleted = () => scheduleReload();
   const onLinks = () => scheduleReload();
+  const onShares = () => scheduleReload();
   const onQuota = () => refreshQuota();
 
   EventBus.on('note:saved', onNotesSaved);
   EventBus.on('note:deleted', onDeleted);
   EventBus.on('link:saved', onLinks);
   EventBus.on('link:deleted', onLinks);
+  EventBus.on('share:updated', onShares);
   EventBus.on('quota:updated', onQuota);
   state.handlers.push(
     ['note:saved', onNotesSaved],
     ['note:deleted', onDeleted],
     ['link:saved', onLinks],
     ['link:deleted', onLinks],
+    ['share:updated', onShares],
     ['quota:updated', onQuota]
   );
 }
@@ -1407,6 +1733,14 @@ export function destroy() {
   state.notes = [];
   state.links = [];
   state.publicLinks = [];
+  state.publicNotes = [];
+  state.sharedFolders = [];
+  state.sharedNotes = [];
+  state.sharedLinks = [];
+  state.directory = [];
+  state.expanded = new Set();
+  state.subjects = [];
+  state.subject = 'all';
   state.selection = null;
   state.currentFolderId = null;
 }

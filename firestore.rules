@@ -13,6 +13,13 @@ rules_version = '2';
 //  A `match` with no matching `allow` is DENIED by default, so any new
 //  collection the app uses MUST have a block below (e.g. `folders`).
 //
+//  SHARING MODEL
+//  -------------
+//  A folder carries an explicit `sharedWith` list of recipient UIDs; every
+//  descendant folder, fiche and link inherits that list, so the client always
+//  queries shared content with `where(field, 'array-contains', myUid)` — the
+//  query constraint that provably matches the `in` check below.
+//
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -49,34 +56,52 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
-    // Notes (fiches) — owners write; everyone reads public notes.
+    // Directory — display name + email only, so anyone signed in can pick a
+    // recipient in the share dialog. Deliberately separate from `users`, whose
+    // full profile (quota, role, …) stays private.
+    // ---------------------------------------------------------------------
+    match /directory/{userId} {
+      allow read:   if isSignedIn();
+      allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // Notes (fiches) — owners write; everyone reads public or shared fiches.
     // ---------------------------------------------------------------------
     match /notes/{noteId} {
       allow read:   if isAdmin()
                     || (resource.data.isPublic == true)
-                    || (isSignedIn() && resource.data.uid == request.auth.uid);
+                    || (isSignedIn() && resource.data.uid == request.auth.uid)
+                    || (isSignedIn() && request.auth.uid in resource.data.sharedWith);
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if isAdmin()
                     || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
     // ---------------------------------------------------------------------
-    // Links — private to their owner, unless marked public. Admins may read.
+    // Links — private to their owner, unless shared or made public.
     // ---------------------------------------------------------------------
     match /links/{linkId} {
       allow read:   if isAdmin()
                     || (resource.data.isPublic == true)
-                    || (isSignedIn() && resource.data.uid == request.auth.uid);
-      allow write:  if isSignedIn() && request.resource.data.uid == request.auth.uid;
+                    || (isSignedIn() && resource.data.uid == request.auth.uid)
+                    || (isSignedIn() && request.auth.uid in resource.data.sharedWith);
+      allow create, update: if isAdmin()
+                    || (isSignedIn() && request.resource.data.uid == request.auth.uid);
       allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
     // ---------------------------------------------------------------------
-    // Folders — file-manager hierarchy. Strictly private to their owner.
+    // Folders — file-manager hierarchy. Private to their owner, unless the
+    // folder (or an ancestor) was shared with the requester.
     // ---------------------------------------------------------------------
     match /folders/{folderId} {
-      allow read:   if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
-      allow write:  if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read:   if isAdmin()
+                    || (isSignedIn() && resource.data.uid == request.auth.uid)
+                    || (isSignedIn() && request.auth.uid in resource.data.sharedWith);
+      allow create, update: if isAdmin()
+                    || (isSignedIn() && request.resource.data.uid == request.auth.uid);
       allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
