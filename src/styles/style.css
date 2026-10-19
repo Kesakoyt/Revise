@@ -1429,6 +1429,12 @@ body.is-resizing * { cursor: col-resize !important; user-select: none !important
 .file-card:focus-within .file-card__actions,
 .file-card--selected .file-card__actions { opacity: 1; }
 
+/* Touch devices have no hover — keep row/tile actions reachable. */
+@media (hover: none) {
+  .file-item__actions,
+  .file-card__actions { opacity: 1; }
+}
+
 /* Drag & drop zone */
 .drop-zone {
   position: relative;
