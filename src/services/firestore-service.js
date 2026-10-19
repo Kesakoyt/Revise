@@ -175,10 +175,10 @@ export const FirestoreService = {
 
   /**
    * Create a bookmark.
-   * @param {{uid:string,title:string,url:string,description?:string,subject?:string,parentId?:string|null}} p
+   * @param {{uid:string,title:string,url:string,description?:string,subject?:string,parentId?:string|null,isPublic?:boolean}} p
    * @returns {Promise<string>} new document id
    */
-  async createLink({ uid, title, url, description = '', subject = 'Général', parentId = null }) {
+  async createLink({ uid, title, url, description = '', subject = 'Général', parentId = null, isPublic = false }) {
     if (!db) throw new Error("Firestore n'est pas initialisé.");
     const timestamp = serverTimestamp();
 
@@ -189,6 +189,7 @@ export const FirestoreService = {
       description: description?.trim() || '',
       subject: subject?.trim() || 'Général',
       parentId: parentId || null,
+      isPublic: Boolean(isPublic),
       createdAt: timestamp,
       updatedAt: timestamp
     });
@@ -237,6 +238,28 @@ export const FirestoreService = {
     }
 
     return sortBy(snapshot.docs.map(d => ({ id: d.id, ...d.data() })), 'updatedAt', 'desc');
+  },
+
+  /**
+   * Every public link across all users.
+   * @param {{subject?:string,sortBy?:string,sortDir?:'asc'|'desc'}} [filters]
+   * @returns {Promise<Array<Object>>}
+   */
+  async getPublicLinks({ subject, sortBy: key = 'updatedAt', sortDir = 'desc' } = {}) {
+    if (!db) throw new Error("Firestore n'est pas initialisé.");
+
+    let query = db.collection(COLLECTIONS.LINKS).where('isPublic', '==', true);
+    if (subject && subject !== 'all') query = query.where('subject', '==', subject);
+
+    let snapshot;
+    try {
+      snapshot = await query.orderBy(key, sortDir).get();
+    } catch (err) {
+      console.warn('[Firestore] getPublicLinks fallback (no index):', err.message);
+      snapshot = await query.get();
+    }
+
+    return sortBy(snapshot.docs.map(d => ({ id: d.id, ...d.data() })), key, sortDir);
   },
 
   // ==========================================================================

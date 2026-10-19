@@ -61,10 +61,12 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
-    // Links — strictly private to their owner (admins may read).
+    // Links — private to their owner, unless marked public. Admins may read.
     // ---------------------------------------------------------------------
     match /links/{linkId} {
-      allow read:   if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow read:   if isAdmin()
+                    || (resource.data.isPublic == true)
+                    || (isSignedIn() && resource.data.uid == request.auth.uid);
       allow write:  if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }

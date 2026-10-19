@@ -1360,14 +1360,6 @@ body.is-resizing * { cursor: col-resize !important; user-select: none !important
 .file-item:hover .file-item__actions,
 .file-item:focus-within .file-item__actions,
 .file-item--selected .file-item__actions { opacity: 1; }
-.file-item__favicon {
-  width: 20px;
-  height: 20px;
-  flex: none;
-  border-radius: var(--radius-sm);
-  background: var(--bg-subtle);
-  object-fit: contain;
-}
 
 /* Grid view — Windows-style icon tiles */
 .file-grid {
@@ -1398,13 +1390,6 @@ body.is-resizing * { cursor: col-resize !important; user-select: none !important
   place-items: center;
 }
 .file-card__icon img { width: 48px; height: 48px; object-fit: contain; }
-.file-card__favicon {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-subtle);
-  object-fit: contain;
-}
 .file-card__title {
   width: 100%;
   font-size: 12.5px;
@@ -1520,7 +1505,6 @@ body.is-resizing * { cursor: col-resize !important; user-select: none !important
   border-bottom: 1px solid var(--border-card);
 }
 .props__icon { flex: 0 0 40px; width: 40px; height: 40px; display: grid; place-items: center; }
-.props__favicon { border-radius: 6px; object-fit: contain; }
 .props__heading { min-width: 0; }
 .props__name {
   font-size: 16px; font-weight: 600; color: var(--text-primary);

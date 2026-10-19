@@ -34,9 +34,10 @@ the browser* before it is ever uploaded.
   (PDF.js + Mammoth.js).
 - **File explorer** — a hierarchical workspace of **folders** containing
   sub-folders, Markdown **fiches** and **links**, with breadcrumb navigation,
-  create / rename / move / delete and a public-notes view.
+  create / rename / move / delete and public-notes / public-links views.
 - **Links** — bookmark external resources (title, URL, description, subject);
-  managed directly from the file explorer.
+  managed directly from the file explorer. Each link can be made **public** so
+  anyone can discover it in the **Liens publics** tab.
 - **Subjects & topics** — classify, filter and sort every note.
 - **Public notes** — publish a note and browse what others have shared.
 - **Character quota** — a strict, account-wide character allowance is enforced
@@ -265,7 +266,7 @@ keys from placeholders so the UI can warn you.
 | `users/{uid}` | `email`, `displayName`, `bio`, `avatarColor`, `role` (`user`\|`admin`), `createdAt`, `lastLogin`, `updatedAt`, `quotaUsed`, `quotaLimit`, `shortcuts[]` |
 | `folders/{id}` | `uid`, `name`, `parentId` (`null` = root), `createdAt`, `updatedAt` |
 | `notes/{id}` | `uid`, `title`, `content`, `subject`, `topic`, `isPublic`, `parentId` (`null` = root), `charCount`, `createdAt`, `updatedAt` |
-| `links/{id}` | `uid`, `title`, `url`, `description`, `subject`, `parentId` (`null` = root), `createdAt`, `updatedAt` |
+| `links/{id}` | `uid`, `title`, `url`, `description`, `subject`, `isPublic`, `parentId` (`null` = root), `createdAt`, `updatedAt` |
 | `shortcuts/{id}` | `uid`, `label`, `icon`, `action`, `order`, `createdAt` |
 | `accessLogs/{id}` | `uid`, `documentId`, `documentType`, `action`, `timestamp` |
 
@@ -333,13 +334,16 @@ service cloud.firestore {
                     || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
-    // Links, folders and shortcuts: strictly private to their owner (admins may read).
+    // Links: private to their owner, unless marked `isPublic` (admins may read).
     match /links/{linkId} {
-      allow read:   if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow read:   if isAdmin()
+                    || (resource.data.isPublic == true)
+                    || (isSignedIn() && resource.data.uid == request.auth.uid);
       allow write:  if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
+    // Folders and shortcuts: strictly private to their owner (admins may read).
     match /folders/{folderId} {
       allow read:   if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
       allow write:  if isSignedIn() && request.resource.data.uid == request.auth.uid;

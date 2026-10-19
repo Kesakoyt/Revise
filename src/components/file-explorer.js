@@ -12,7 +12,7 @@
 import { FirestoreService } from '../services/firestore-service.js';
 import { QuotaManager } from '../services/quota-manager.js';
 import { ConverterService } from '../services/converter-service.js';
-import { EventBus, AppState, showToast, showModal, iconUrl, iconImg } from '../app.js';
+import { EventBus, AppState, showToast, showModal, iconImg } from '../app.js';
 import { showContextMenu, closeContextMenu } from './context-menu.js';
 
 /** Icons (Icons8 Fluency slugs verified to exist). */
@@ -50,6 +50,9 @@ export async function render(container) {
           </button>
           <button class="tab-btn ${state.tab === 'public' ? 'tab-btn--active' : ''}" data-tab="public">
             ${iconImg('bookmark', { size: 18, alt: '', className: 'tab-btn__icon' })}Fiches publiques
+          </button>
+          <button class="tab-btn ${state.tab === 'public-links' ? 'tab-btn--active' : ''}" data-tab="public-links">
+            ${iconImg('link', { size: 18, alt: '', className: 'tab-btn__icon' })}Liens publics
           </button>
         </div>
         <button class="btn btn--primary" id="fe-new" type="button" aria-haspopup="menu">
@@ -261,6 +264,10 @@ async function loadData() {
       state.folders = [];
       state.links = [];
       state.notes = await FirestoreService.getPublicNotes({});
+    } else if (state.tab === 'public-links') {
+      state.folders = [];
+      state.notes = [];
+      state.links = await FirestoreService.getPublicLinks({});
     } else if (uid) {
       // Each collection loads independently: a denial or index error on one
       // (e.g. a missing `folders` rule) must not blank out the whole explorer.
@@ -415,7 +422,10 @@ function renderList() {
   const body = state.container?.querySelector('#fe-body');
   if (!body) return;
 
-  const { folders, notes, links } = childrenOf(state.currentFolderId);
+  // The public tabs list everything flat (no folder hierarchy).
+  const { folders, notes, links } = state.tab === 'mine'
+    ? childrenOf(state.currentFolderId)
+    : { folders: [], notes: state.notes, links: state.links };
 
   const shownFolders = folders
     .filter(f => matchesQuery(f, ['name']))
@@ -473,6 +483,15 @@ function emptyStateHtml() {
       </div>`;
   }
 
+  if (state.tab === 'public-links') {
+    return `
+      <div class="empty-state">
+        ${iconImg('link', { size: 48, alt: '', className: 'empty-state__icon' })}
+        <h3 class="empty-state__title">Aucun lien public</h3>
+        <p class="empty-state__description">Revenez plus tard ou rendez un de vos liens public.</p>
+      </div>`;
+  }
+
   const title = inFolder ? 'Dossier vide' : 'Aucun contenu pour le moment';
   const desc = inFolder
     ? 'Créez un sous-dossier, une fiche ou un lien dans ce dossier.'
@@ -503,16 +522,16 @@ function folderRow(folder) {
     <div class="file-item file-item--folder" ${itemAttrs('folder', folder.id)}>
       ${iconImg(ICON_FOLDER, { size: 22, alt: '', className: 'file-item__icon' })}
       <span class="file-item__title">${escapeHtml(folder.name || 'Sans nom')}</span>
+      <div class="file-item__actions">${propsBtn('folder', folder.id)}</div>
     </div>`;
 }
 
 function noteRow(note) {
-  const owner = AppState.user && note.uid === AppState.user.uid;
   return `
     <div class="file-item" ${itemAttrs('note', note.id)}>
       ${iconImg('document', { size: 20, alt: '', className: 'file-item__icon' })}
       <span class="file-item__title">${escapeHtml(note.title || 'Sans titre')}</span>
-      <div class="file-item__actions">${owner ? deleteBtn() : ''}</div>
+      <div class="file-item__actions">${propsBtn('note', note.id)}</div>
     </div>`;
 }
 
@@ -520,10 +539,9 @@ function linkRow(link) {
   const domain = domainOf(link.url);
   return `
     <div class="file-item" ${itemAttrs('link', link.id)}>
-      <img class="file-item__icon file-item__favicon" src="${faviconUrl(domain)}" alt="" width="20" height="20"
-           onerror="this.onerror=null;this.src='${iconUrl('link')}'">
+      ${iconImg('link', { size: 20, alt: '', className: 'file-item__icon' })}
       <span class="file-item__title">${escapeHtml(link.title || domain || 'Sans titre')}</span>
-      <div class="file-item__actions">${deleteBtn()}</div>
+      <div class="file-item__actions">${propsBtn('link', link.id)}</div>
     </div>`;
 }
 
@@ -532,16 +550,16 @@ function folderCard(folder) {
     <article class="file-card file-card--folder" ${itemAttrs('folder', folder.id)}>
       <div class="file-card__icon">${iconImg(ICON_FOLDER, { size: 48, alt: '' })}</div>
       <div class="file-card__title">${escapeHtml(folder.name || 'Sans nom')}</div>
+      <div class="file-card__actions">${propsBtn('folder', folder.id)}</div>
     </article>`;
 }
 
 function noteCard(note) {
-  const owner = AppState.user && note.uid === AppState.user.uid;
   return `
     <article class="file-card" ${itemAttrs('note', note.id)}>
       <div class="file-card__icon">${iconImg('document', { size: 48, alt: '' })}</div>
       <div class="file-card__title">${escapeHtml(note.title || 'Sans titre')}</div>
-      ${owner ? `<div class="file-card__actions">${deleteBtn()}</div>` : ''}
+      <div class="file-card__actions">${propsBtn('note', note.id)}</div>
     </article>`;
 }
 
@@ -549,21 +567,18 @@ function linkCard(link) {
   const domain = domainOf(link.url);
   return `
     <article class="file-card" ${itemAttrs('link', link.id)}>
-      <div class="file-card__icon">
-        <img class="file-card__favicon" src="${faviconUrl(domain)}" alt="" width="48" height="48"
-             onerror="this.onerror=null;this.src='${iconUrl('link')}'">
-      </div>
+      <div class="file-card__icon">${iconImg('link', { size: 48, alt: '' })}</div>
       <div class="file-card__title">${escapeHtml(link.title || domain || 'Sans titre')}</div>
-      <div class="file-card__actions">${deleteBtn()}</div>
+      <div class="file-card__actions">${propsBtn('link', link.id)}</div>
     </article>`;
 }
 
 function entryRow(entry) { return entry.kind === 'note' ? noteRow(entry.data) : linkRow(entry.data); }
 function entryCard(entry) { return entry.kind === 'note' ? noteCard(entry.data) : linkCard(entry.data); }
 
-function deleteBtn() {
-  return `<button type="button" class="btn btn--icon btn--danger btn-delete" title="Supprimer" aria-label="Supprimer">
-    ${iconImg('delete', { size: 16, alt: '' })}
+function propsBtn(kind, id) {
+  return `<button type="button" class="btn btn--icon btn-props" title="Propriétés" aria-label="Propriétés" data-props-kind="${escapeAttr(kind)}" data-props-id="${escapeAttr(id)}">
+    ${iconImg('info', { size: 16, alt: '' })}
   </button>`;
 }
 
@@ -576,9 +591,15 @@ function bindBody() {
   if (!body) return;
 
   body.addEventListener('click', e => {
-    if (e.target.closest('.btn-delete')) {
-      const row = e.target.closest('[data-kind][data-id]');
-      if (row) deleteEntry(row.dataset.kind, row.dataset.id);
+    const propsBtnEl = e.target.closest('.btn-props');
+    if (propsBtnEl) {
+      e.stopPropagation();
+      const kind = propsBtnEl.dataset.propsKind;
+      const id = propsBtnEl.dataset.propsId;
+      if (kind && id) {
+        const data = kind === 'folder' ? state.folders.find(f => f.id === id) : kind === 'note' ? state.notes.find(n => n.id === id) : state.links.find(l => l.id === id);
+        openPropertiesDialog(kind, data);
+      }
       return;
     }
     const item = e.target.closest('[data-kind][data-id]');
@@ -588,6 +609,7 @@ function bindBody() {
 
   body.addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.target.closest('button')) return; // row action buttons handle their own activation
     const item = e.target.closest('[data-kind][data-id]');
     if (!item) return;
     e.preventDefault();
@@ -730,16 +752,25 @@ function noteMenuItems(note) {
 
 function linkMenuItems(link) {
   if (!link) return [];
-  return [
+  const owner = AppState.user && link.uid === AppState.user.uid;
+  const items = [
     { label: 'Ouvrir dans un onglet', icon: 'external-link', onSelect: () => window.open(link.url, '_blank', 'noopener,noreferrer') },
-    { label: 'Modifier', icon: 'edit', onSelect: () => openLinkDialog(link) },
-    { label: 'Déplacer vers…', icon: 'move', onSelect: () => openMoveDialog('link', link) },
-    { label: 'Copier l’URL', icon: 'copy', onSelect: () => copyText(link.url, 'URL copiée.') },
-    { separator: true },
-    { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteEntry('link', link.id) },
+    { label: 'Copier l’URL', icon: 'copy', onSelect: () => copyText(link.url, 'URL copiée.') }
+  ];
+  if (owner) {
+    items.push(
+      { label: 'Modifier', icon: 'edit', onSelect: () => openLinkDialog(link) },
+      { label: 'Déplacer vers…', icon: 'move', onSelect: () => openMoveDialog('link', link) },
+      { label: link.isPublic ? 'Rendre privé' : 'Rendre public', icon: link.isPublic ? 'lock' : 'unlock', onSelect: () => toggleLinkPublic(link) },
+      { separator: true },
+      { label: 'Supprimer', icon: 'delete', danger: true, onSelect: () => deleteEntry('link', link.id) }
+    );
+  }
+  items.push(
     { separator: true },
     { label: 'Propriétés', icon: 'info', onSelect: () => openPropertiesDialog('link', link) }
-  ];
+  );
+  return items;
 }
 
 // ---------------------------------------------------------------------------
@@ -909,6 +940,20 @@ async function togglePublic(note) {
   }
 }
 
+async function toggleLinkPublic(link) {
+  const uid = AppState.user?.uid;
+  try {
+    const next = !link.isPublic;
+    await FirestoreService.updateLink(link.id, { isPublic: next });
+    if (uid) FirestoreService.logAccess({ uid, documentId: link.id, documentType: 'link', action: 'edit' });
+    EventBus.emit('link:saved', { linkId: link.id });
+    showToast(next ? 'Lien rendu public.' : 'Lien rendu privé.', 'success');
+  } catch (err) {
+    console.error('[Explorer] toggle link public failed:', err);
+    showToast(`Modification échouée : ${err.message}`, 'error');
+  }
+}
+
 async function moveEntry(kind, id, destinationId) {
   if (kind === 'folder') await FirestoreService.updateFolder(id, { parentId: destinationId });
   else if (kind === 'note') await FirestoreService.updateNote(id, { parentId: destinationId });
@@ -1014,6 +1059,11 @@ function openLinkDialog(link = null, parentId = undefined) {
         <label class="form-label" for="dlg-desc">Description (facultatif)</label>
         <textarea class="textarea" id="dlg-desc" rows="2" placeholder="Résumé ou note personnelle…"></textarea>
       </div>
+      <label class="toggle" title="Rendre ce lien visible dans « Liens publics »">
+        <input type="checkbox" class="toggle__input" id="dlg-public">
+        <span class="toggle__slider"></span>
+        <span class="toggle__label">Public</span>
+      </label>
       <div class="form-actions">
         <button type="button" class="btn btn--secondary" data-action="cancel">Annuler</button>
         <button type="submit" class="btn btn--primary">${iconImg('save', { size: 16, alt: '' })}<span>${editing ? 'Mettre à jour' : 'Enregistrer'}</span></button>
@@ -1025,6 +1075,7 @@ function openLinkDialog(link = null, parentId = undefined) {
   wrap.querySelector('#dlg-title').value = link?.title || '';
   wrap.querySelector('#dlg-subject').value = link?.subject || '';
   wrap.querySelector('#dlg-desc').value = link?.description || '';
+  wrap.querySelector('#dlg-public').checked = Boolean(link?.isPublic);
 
   const { hide } = showModal(wrap);
   setTimeout(() => wrap.querySelector('#dlg-url').focus(), 30);
@@ -1036,6 +1087,7 @@ function openLinkDialog(link = null, parentId = undefined) {
     const title = wrap.querySelector('#dlg-title').value.trim();
     const subject = wrap.querySelector('#dlg-subject').value.trim() || 'Général';
     const description = wrap.querySelector('#dlg-desc').value.trim();
+    const isPublic = wrap.querySelector('#dlg-public').checked;
 
     if (!url) { showToast('Veuillez saisir une URL.', 'error'); return; }
     if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
@@ -1045,12 +1097,12 @@ function openLinkDialog(link = null, parentId = undefined) {
 
     try {
       if (editing) {
-        await FirestoreService.updateLink(link.id, { title, url, description, subject });
+        await FirestoreService.updateLink(link.id, { title, url, description, subject, isPublic });
         FirestoreService.logAccess({ uid, documentId: link.id, documentType: 'link', action: 'edit' });
         EventBus.emit('link:saved', { linkId: link.id });
         showToast('Lien mis à jour.', 'success');
       } else {
-        const id = await FirestoreService.createLink({ uid, title, url, description, subject, parentId: targetParent });
+        const id = await FirestoreService.createLink({ uid, title, url, description, subject, parentId: targetParent, isPublic });
         FirestoreService.logAccess({ uid, documentId: id, documentType: 'link', action: 'create' });
         EventBus.emit('link:saved', { linkId: id });
         showToast('Lien ajouté.', 'success');
@@ -1212,6 +1264,7 @@ function openPropertiesDialog(kind, item) {
     rows.push(propRow('Domaine', escapeHtml(domain)));
     rows.push(propRow('Matière', escapeHtml(item.subject || 'Général')));
     if (item.description) rows.push(propRow('Description', escapeHtml(item.description)));
+    rows.push(propRow('Visibilité', escapeHtml(item.isPublic ? 'Publique' : 'Privée')));
     rows.push(propRow('Créé le', escapeHtml(formatFullDate(item.createdAt))));
     rows.push(propRow('Modifié le', escapeHtml(formatFullDate(item.updatedAt || item.createdAt))));
   }
@@ -1219,8 +1272,7 @@ function openPropertiesDialog(kind, item) {
   rows.push(propRow('Propriétaire', escapeHtml(ownerName)));
 
   const iconHtml = kind === 'link'
-    ? `<img class="props__favicon" src="${faviconUrl(domainOf(item.url))}" alt="" width="40" height="40"
-         onerror="this.onerror=null;this.src='${iconUrl('link')}'">`
+    ? iconImg('link', { size: 40, alt: '' })
     : iconImg(kind === 'folder' ? ICON_FOLDER : 'document', { size: 40, alt: '' });
 
   const wrap = document.createElement('div');
@@ -1311,9 +1363,6 @@ function bindBus() {
 function domainOf(url) {
   try { return new URL(url).hostname.replace(/^www\./, ''); }
   catch { return 'externe'; }
-}
-function faviconUrl(domain) {
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`;
 }
 
 function millis(ts) {

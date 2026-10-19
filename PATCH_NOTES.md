@@ -2,6 +2,25 @@
 
 ---
 
+## v1.2.2 — Properties button & generic link icons
+**Date:** 2026-10-19
+**Scope:** One-click properties access for every explorer item; unified link icons.
+
+### Added
+- **Propriétés (ℹ) button** on **every** item — folders, fiches and links, in both
+  list and grid views — next to the delete button. It opens the Windows-style
+  properties dialog directly, no right-click needed (buttons appear on hover /
+  selection, as before).
+
+### Changed
+- **Links now show a generic link icon** instead of the website's favicon
+  (Google s2 favicon service) in list view, grid view and the properties dialog,
+  so all links look uniform like Windows file types.
+- Removed the now-unused favicon helpers and styles (`faviconUrl`,
+  `file-item__favicon`, `file-card__favicon`, `props__favicon`).
+
+---
+
 ## v1.2.1 — Properties panel
 **Date:** 2026-10-19
 **Scope:** Windows-style "Properties" info dialog for explorer items.
