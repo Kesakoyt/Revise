@@ -18,6 +18,15 @@
   - *Lien* — clickable address, domain, subject, description, created and modified
     dates, owner; plus **Copier l'URL** and **Ouvrir** shortcuts.
 
+### Changed
+- Explorer items now render **Windows-style**: each fiche, link and folder shows
+  only its **icon and name** — badges (subject / public / Dossier), metadata
+  lines (char count, dates, topic) and the boxed card chrome were removed.
+  - Grid view is now a compact tile wall (icon above a centred name).
+  - List view is a single-line icon + name row.
+  - The delete button is revealed on hover / selection only, keeping the resting
+    view clean.
+
 ---
 
 ## v1.2.0 — File manager with folders

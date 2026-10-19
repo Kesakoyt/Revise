@@ -384,11 +384,6 @@ function childrenOf(folderId) {
   };
 }
 
-function countChildren(folderId) {
-  const { folders, notes, links } = childrenOf(folderId);
-  return folders.length + notes.length + links.length;
-}
-
 function matchesQuery(obj, keys) {
   if (!state.query) return true;
   return keys.some(k => (obj[k] || '').toLowerCase().includes(state.query));
@@ -504,18 +499,10 @@ function itemAttrs(kind, id) {
 }
 
 function folderRow(folder) {
-  const count = countChildren(folder.id);
   return `
     <div class="file-item file-item--folder" ${itemAttrs('folder', folder.id)}>
-      ${iconImg(ICON_FOLDER, { size: 24, alt: '', className: 'file-item__icon' })}
-      <div class="file-item__info">
-        <div class="file-item__row">
-          <span class="file-item__title">${escapeHtml(folder.name || 'Sans nom')}</span>
-          <span class="badge badge--folder">Dossier</span>
-        </div>
-        <div class="file-item__meta">${count} élément${count === 1 ? '' : 's'}</div>
-      </div>
-      <div class="file-item__actions"></div>
+      ${iconImg(ICON_FOLDER, { size: 22, alt: '', className: 'file-item__icon' })}
+      <span class="file-item__title">${escapeHtml(folder.name || 'Sans nom')}</span>
     </div>`;
 }
 
@@ -523,15 +510,8 @@ function noteRow(note) {
   const owner = AppState.user && note.uid === AppState.user.uid;
   return `
     <div class="file-item" ${itemAttrs('note', note.id)}>
-      ${iconImg('document', { size: 24, alt: '', className: 'file-item__icon' })}
-      <div class="file-item__info">
-        <div class="file-item__row">
-          <span class="file-item__title">${escapeHtml(note.title || 'Sans titre')}</span>
-          <span class="badge badge--subject">${escapeHtml(note.subject || 'Général')}</span>
-          ${note.isPublic ? '<span class="badge badge--public">Public</span>' : ''}
-        </div>
-        <div class="file-item__meta">${charLabel(note)} &middot; Modifiée ${formatDate(note.updatedAt || note.createdAt)}</div>
-      </div>
+      ${iconImg('document', { size: 20, alt: '', className: 'file-item__icon' })}
+      <span class="file-item__title">${escapeHtml(note.title || 'Sans titre')}</span>
       <div class="file-item__actions">${owner ? deleteBtn() : ''}</div>
     </div>`;
 }
@@ -540,31 +520,18 @@ function linkRow(link) {
   const domain = domainOf(link.url);
   return `
     <div class="file-item" ${itemAttrs('link', link.id)}>
-      <img class="file-item__favicon" src="${faviconUrl(domain)}" alt="" width="22" height="22"
+      <img class="file-item__icon file-item__favicon" src="${faviconUrl(domain)}" alt="" width="20" height="20"
            onerror="this.onerror=null;this.src='${iconUrl('link')}'">
-      <div class="file-item__info">
-        <div class="file-item__row">
-          <span class="file-item__title">${escapeHtml(link.title || domain || 'Sans titre')}</span>
-          <span class="badge badge--subject">${escapeHtml(link.subject || 'Général')}</span>
-        </div>
-        <div class="file-item__meta">${escapeHtml(domain)} &middot; Modifié ${formatDate(link.updatedAt || link.createdAt)}</div>
-      </div>
+      <span class="file-item__title">${escapeHtml(link.title || domain || 'Sans titre')}</span>
       <div class="file-item__actions">${deleteBtn()}</div>
     </div>`;
 }
 
 function folderCard(folder) {
-  const count = countChildren(folder.id);
   return `
-    <article class="file-card" ${itemAttrs('folder', folder.id)}>
-      <div class="file-card__header">
-        ${iconImg(ICON_FOLDER, { size: 32, alt: '', className: 'file-card__icon' })}
-        <div class="file-card__badges"><span class="badge badge--folder">Dossier</span></div>
-      </div>
-      <h4 class="file-card__title">${escapeHtml(folder.name || 'Sans nom')}</h4>
-      <div class="file-card__footer">
-        <div class="file-card__meta"><span>${count} élément${count === 1 ? '' : 's'}</span></div>
-      </div>
+    <article class="file-card file-card--folder" ${itemAttrs('folder', folder.id)}>
+      <div class="file-card__icon">${iconImg(ICON_FOLDER, { size: 48, alt: '' })}</div>
+      <div class="file-card__title">${escapeHtml(folder.name || 'Sans nom')}</div>
     </article>`;
 }
 
@@ -572,22 +539,9 @@ function noteCard(note) {
   const owner = AppState.user && note.uid === AppState.user.uid;
   return `
     <article class="file-card" ${itemAttrs('note', note.id)}>
-      <div class="file-card__header">
-        ${iconImg('document', { size: 32, alt: '', className: 'file-card__icon' })}
-        <div class="file-card__badges">
-          <span class="badge badge--subject">${escapeHtml(note.subject || 'Général')}</span>
-          ${note.isPublic ? '<span class="badge badge--public">Public</span>' : ''}
-        </div>
-      </div>
-      <h4 class="file-card__title">${escapeHtml(note.title || 'Sans titre')}</h4>
-      ${note.topic ? `<p class="file-card__topic">${escapeHtml(note.topic)}</p>` : ''}
-      <div class="file-card__footer">
-        <div class="file-card__meta">
-          <span>${charLabel(note)}</span>
-          <span>${formatDate(note.updatedAt || note.createdAt)}</span>
-        </div>
-        ${owner ? deleteBtn() : ''}
-      </div>
+      <div class="file-card__icon">${iconImg('document', { size: 48, alt: '' })}</div>
+      <div class="file-card__title">${escapeHtml(note.title || 'Sans titre')}</div>
+      ${owner ? `<div class="file-card__actions">${deleteBtn()}</div>` : ''}
     </article>`;
 }
 
@@ -595,20 +549,12 @@ function linkCard(link) {
   const domain = domainOf(link.url);
   return `
     <article class="file-card" ${itemAttrs('link', link.id)}>
-      <div class="file-card__header">
-        <img class="file-card__favicon" src="${faviconUrl(domain)}" alt="" width="32" height="32"
+      <div class="file-card__icon">
+        <img class="file-card__favicon" src="${faviconUrl(domain)}" alt="" width="48" height="48"
              onerror="this.onerror=null;this.src='${iconUrl('link')}'">
-        <div class="file-card__badges"><span class="badge badge--subject">${escapeHtml(link.subject || 'Général')}</span></div>
       </div>
-      <h4 class="file-card__title">${escapeHtml(link.title || domain || 'Sans titre')}</h4>
-      <p class="file-card__topic">${escapeHtml(truncate(link.description || link.url, 90))}</p>
-      <div class="file-card__footer">
-        <div class="file-card__meta">
-          <span>${escapeHtml(domain)}</span>
-          <span>${formatDate(link.updatedAt || link.createdAt)}</span>
-        </div>
-        ${deleteBtn()}
-      </div>
+      <div class="file-card__title">${escapeHtml(link.title || domain || 'Sans titre')}</div>
+      <div class="file-card__actions">${deleteBtn()}</div>
     </article>`;
 }
 
@@ -1362,11 +1308,6 @@ function bindBus() {
   );
 }
 
-function charLabel(note) {
-  const count = note.charCount ?? (note.content || '').length;
-  return `${count.toLocaleString('fr-FR')} car.`;
-}
-
 function domainOf(url) {
   try { return new URL(url).hostname.replace(/^www\./, ''); }
   catch { return 'externe'; }
@@ -1384,23 +1325,6 @@ function millis(ts) {
   return Number(ts) || 0;
 }
 
-function formatDate(ts) {
-  const ms = millis(ts);
-  if (!ms) return '—';
-  const date = new Date(ms);
-  const now = new Date();
-  const sameDay = date.toDateString() === now.toDateString();
-  if (sameDay) return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  return date.toLocaleDateString('fr-FR', {
-    day: 'numeric', month: 'short',
-    year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-  });
-}
-
-function truncate(str, max) {
-  const s = String(str ?? '');
-  return s.length > max ? s.slice(0, max) + '…' : s;
-}
 function escapeHtml(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
