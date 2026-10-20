@@ -109,7 +109,7 @@ export async function render(container) {
         <div class="drop-zone__content">
           ${iconImg('import', { size: 32, alt: '', className: 'drop-zone__icon' })}
           <div class="drop-zone__text">
-            <strong>Déposez un fichier PDF ou DOCX</strong> pour le convertir en Markdown
+            <strong>Déposez un fichier PDF ou DOCX</strong> pour le convertir en fiche
             <span class="drop-zone__hint">ou <button type="button" class="btn-link" id="fe-browse">parcourir</button></span>
           </div>
         </div>
@@ -688,7 +688,7 @@ function emptyStateHtml() {
   const title = inFolder ? 'Dossier vide' : 'Aucun contenu pour le moment';
   const desc = inFolder
     ? 'Créez un sous-dossier, une fiche ou un lien dans ce dossier.'
-    : 'Créez votre premier dossier, une fiche Markdown ou un lien, ou déposez un PDF/DOCX.';
+    : 'Créez votre premier dossier, une fiche ou un lien, ou déposez un PDF/DOCX.';
 
   return `
     <div class="empty-state">
@@ -1364,7 +1364,7 @@ function openLinkDialog(link = null, parentId = undefined) {
         <label class="form-label" for="dlg-desc">Description (facultatif)</label>
         <textarea class="textarea" id="dlg-desc" rows="2" placeholder="Résumé ou note personnelle…"></textarea>
       </div>
-      <label class="toggle" title="Rendre ce lien visible dans « Liens publics »">
+      <label class="toggle" id="dlg-public-toggle" title="Rendre ce lien public (administrateurs uniquement)" ${AppState.isAdmin === true ? '' : 'hidden'}>
         <input type="checkbox" class="toggle__input" id="dlg-public">
         <span class="toggle__slider"></span>
         <span class="toggle__label">Public</span>
@@ -1593,7 +1593,7 @@ function openShareDialog(folder) {
 // ---------------------------------------------------------------------------
 
 function kindLabel(kind) {
-  return { folder: 'Dossier de fichiers', note: 'Fiche Markdown', link: 'Lien web' }[kind] || 'Élément';
+  return { folder: 'Dossier de fichiers', note: 'Fiche', link: 'Lien web' }[kind] || 'Élément';
 }
 
 /** Human-readable location, e.g. "Mes fichiers / Cours / Maths". */

@@ -962,7 +962,7 @@ function displayName(kind, item) {
 }
 
 function kindLabel(kind) {
-  return { folder: 'Dossier de fichiers', note: 'Fiche Markdown', link: 'Lien web' }[kind] || 'Élément';
+  return { folder: 'Dossier de fichiers', note: 'Fiche', link: 'Lien web' }[kind] || 'Élément';
 }
 
 function locationOf(item) {

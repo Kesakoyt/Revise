@@ -85,8 +85,14 @@ service cloud.firestore {
                     || (resource.data.isPublic == true)
                     || (isSignedIn() && resource.data.uid == request.auth.uid)
                     || (isSignedIn() && request.auth.uid in resource.data.sharedWith);
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isAdmin()
+      // Publishing is an admin action: owners may edit a fiche but may not flip
+      // `isPublic` (legacy documents without the field default to false).
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid
+                    && (isAdmin() || request.resource.data.get('isPublic', false) == false);
+      allow update: if isAdmin()
+                    || (isSignedIn() && resource.data.uid == request.auth.uid
+                        && request.resource.data.get('isPublic', false) == resource.data.get('isPublic', false));
+      allow delete: if isAdmin()
                     || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
@@ -98,8 +104,11 @@ service cloud.firestore {
                     || (resource.data.isPublic == true)
                     || (isSignedIn() && resource.data.uid == request.auth.uid)
                     || (isSignedIn() && request.auth.uid in resource.data.sharedWith);
-      allow create, update: if isAdmin()
-                    || (isSignedIn() && request.resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid
+                    && (isAdmin() || request.resource.data.get('isPublic', false) == false);
+      allow update: if isAdmin()
+                    || (isSignedIn() && resource.data.uid == request.auth.uid
+                        && request.resource.data.get('isPublic', false) == resource.data.get('isPublic', false));
       allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
@@ -114,8 +123,11 @@ service cloud.firestore {
                     || (resource.data.isPublic == true)
                     || (resource.data.hasPublic == true)
                     || (isSignedIn() && request.auth.uid in resource.data.sharedWith);
-      allow create, update: if isAdmin()
-                    || (isSignedIn() && request.resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid
+                    && (isAdmin() || request.resource.data.get('isPublic', false) == false);
+      allow update: if isAdmin()
+                    || (isSignedIn() && resource.data.uid == request.auth.uid
+                        && request.resource.data.get('isPublic', false) == resource.data.get('isPublic', false));
       allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 

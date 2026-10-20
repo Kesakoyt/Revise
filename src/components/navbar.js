@@ -23,7 +23,7 @@ const ICON_CHOICES = [
 /** In-app destinations offered when creating a shortcut. */
 const ACTION_CHOICES = [
   { value: 'file-explorer', label: 'Fichiers & dossiers' },
-  { value: 'markdown-editor', label: 'Éditeur Markdown' },
+  { value: 'markdown-editor', label: 'Éditeur de fiches' },
   { value: 'user-profile', label: 'Mon profil' },
   { value: '__url__', label: 'Adresse web (URL)…' }
 ];

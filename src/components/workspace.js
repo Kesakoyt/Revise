@@ -29,7 +29,7 @@ const bound = {};
 /** Registry of launchable applications. */
 export const APP_REGISTRY = {
   'file-explorer':    { title: 'Fichiers & dossiers',   icon: 'opened-folder', modulePath: './file-explorer.js' },
-  'markdown-editor':  { title: 'Éditeur Markdown',      icon: 'document',    modulePath: './markdown-editor.js' },
+  'markdown-editor':  { title: 'Éditeur de fiches',     icon: 'document',    modulePath: './markdown-editor.js' },
   'user-profile':     { title: 'Mon profil',            icon: 'guest-male',  modulePath: './user-profile.js' },
   'admin':            { title: 'Administration',        icon: 'database',    modulePath: './admin.js' }
 };
@@ -348,11 +348,11 @@ function renderEmptyState() {
       <h2 class="empty-state__title">Bienvenue dans Fiches &amp; Cloud</h2>
       <p class="empty-state__description">
         Votre espace de révision connecté. Consultez vos cours, rédigez de nouvelles fiches
-        en Markdown avec KaTeX, ou organisez vos ressources web.
+        avec une mise en forme riche et des formules mathématiques, ou organisez vos ressources web.
       </p>
       <div class="empty-state__grid">
         ${card('quick-explorer', 'opened-folder', 'Fichiers', 'Dossiers, fiches et liens')}
-        ${card('quick-editor', 'document', 'Nouvelle fiche', 'Rédiger en Markdown + Math')}
+        ${card('quick-editor', 'document', 'Nouvelle fiche', 'Rédiger avec mise en forme + Math')}
         ${card('quick-profile', 'guest-male', 'Mon profil', 'Compte, bio et sécurité')}
         ${admin ? card('quick-stats', 'combo-chart', 'Statistiques', "Métriques d'administration") : ''}
       </div>

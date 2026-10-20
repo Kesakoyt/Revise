@@ -90,6 +90,119 @@ function htmlToMarkdown(html = '') {
   return md.replace(/\n{3,}/g, '\n\n').trim();
 }
 
+let turndownInstance = null;
+
+/**
+ * Lazily build the shared Turndown converter used by the WYSIWYG editor.
+ * Returns `null` when the CDN script has not loaded (offline).
+ * @returns {Object|null}
+ */
+function getTurndown() {
+  if (turndownInstance) return turndownInstance;
+  if (typeof window === 'undefined' || typeof window.TurndownService !== 'function') return null;
+
+  const td = new window.TurndownService({
+    headingStyle: 'atx',
+    hr: '---',
+    bulletListMarker: '-',
+    codeBlockStyle: 'fenced',
+    emDelimiter: '*',
+    strongDelimiter: '**',
+    linkStyle: 'inlined'
+  });
+
+  const gfm = window.turndownPluginGfm;
+  if (gfm?.gfm) td.use(gfm.gfm);
+  else if (gfm) {
+    if (gfm.tables) td.use(gfm.tables);
+    if (gfm.strikethrough) td.use(gfm.strikethrough);
+    if (gfm.taskListItems) td.use(gfm.taskListItems);
+  }
+
+  // Constructs Markdown has no syntax for — keep the HTML (Marked passes it).
+  td.keep(['u', 'mark', 'sup', 'sub']);
+
+  // The GFM plugin emits single tildes; GFM/Marked need double tildes.
+  td.addRule('strikethroughDouble', {
+    filter: ['del', 's', 'strike'],
+    replacement: content => `~~${content}~~`
+  });
+
+  // The ribbon's "Code" block creates a bare <pre> (no <code> child), which the
+  // built-in code rules ignore; store it as a fenced block anyway.
+  td.addRule('barePre', {
+    filter: node => node.nodeName === 'PRE' &&
+      !(node.firstChild && node.firstChild.nodeName === 'CODE'),
+    replacement: (content, node) => {
+      const code = node.textContent.replace(/\n$/, '');
+      const fence = code.includes('```') ? '````' : '```';
+      return `\n\n${fence}\n${code}\n${fence}\n\n`;
+    }
+  });
+
+  // Soft line breaks; Marked runs with `breaks: true` and turns them back into
+  // <br>, so the round-trip is stable and does not accumulate trailing spaces.
+  // Inside a table cell a newline would break the pipe table, so it becomes a
+  // space instead.
+  td.addRule('softBreak', {
+    filter: 'br',
+    replacement: (content, node) => {
+      let parent = node.parentNode;
+      while (parent) {
+        if (parent.nodeName === 'TD' || parent.nodeName === 'TH') return ' ';
+        parent = parent.parentNode;
+      }
+      return '\n';
+    }
+  });
+
+  // Tables: collapse multi-line cells so the GFM pipe table stays valid.
+  td.addRule('tableCellSafe', {
+    filter: ['th', 'td'],
+    replacement: (content, node) => {
+      const index = Array.prototype.indexOf.call(node.parentNode.childNodes, node);
+      const prefix = index === 0 ? '| ' : ' ';
+      return `${prefix}${content.replace(/\s*\n\s*/g, ' ').trim()} |`;
+    }
+  });
+
+  // Some browsers and pasted Word/Docs content express emphasis as styled
+  // spans rather than <strong>/<em>/<u>. Combine every style carried by the
+  // span so bold+italic survives as ***…***.
+  const styleOf = node => (node.getAttribute && node.getAttribute('style')) || '';
+  td.addRule('styledSpan', {
+    filter: node => node.nodeName === 'SPAN' &&
+      /(font-weight|font-style|text-decoration)/i.test(styleOf(node)),
+    replacement: (content, node) => {
+      const style = styleOf(node);
+      let out = content;
+      if (/text-decoration[^;]*underline/i.test(style)) out = `<u>${out}</u>`;
+      if (/text-decoration[^;]*line-through/i.test(style)) out = `~~${out}~~`;
+      if (/font-style\s*:\s*italic/i.test(style)) out = `*${out}*`;
+      if (/font-weight\s*:\s*(bold|[6-9]00)/i.test(style)) out = `**${out}**`;
+      return out;
+    }
+  });
+
+  // Word-style paragraph alignment survives as a raw block.
+  td.addRule('alignedBlock', {
+    filter: node => /^(P|H[1-6]|DIV)$/.test(node.nodeName) &&
+      /text-align\s*:/i.test(node.getAttribute('style') || ''),
+    replacement: (content, node) => {
+      const body = content.replace(/^\n+|\n+$/g, '');
+      // Keep the heading level when there is one.
+      if (/^H[1-6]$/.test(node.nodeName)) {
+        const tag = node.nodeName.toLowerCase();
+        return `\n\n<${tag} style="${node.getAttribute('style')}">\n\n${body}\n\n</${tag}>\n\n`;
+      }
+      return `\n\n<div style="${node.getAttribute('style')}">\n\n${body}\n\n</div>\n\n`;
+    }
+  });
+
+  turndownInstance = td;
+  return td;
+}
+
 export const ConverterService = {
   /**
    * Extract a PDF's text into Markdown. Uses the global PDF.js from the CDN.
@@ -187,18 +300,88 @@ export const ConverterService = {
    * @returns {string}
    */
   renderMarkdown(markdown = '') {
+    const source = String(markdown ?? '');
+
+    // Protect math from Marked's inline parsing: `\,`, `*` or `<` inside a
+    // formula must reach KaTeX untouched. Placeholders survive Marked and are
+    // swapped for HTML-escaped formulas afterwards.
+    const maths = [];
+    const token = `FCNMATH${Math.random().toString(36).slice(2)}`;
+    const guarded = source.replace(/\$\$[\s\S]*?\$\$|\$[^$\n]+?\$/g, match => {
+      maths.push(match);
+      return `${token}${maths.length - 1}END`;
+    });
+    const restoreMath = html => html.replace(
+      new RegExp(`${token}(\\d+)END`, 'g'),
+      (_, i) => escapeHtml(maths[Number(i)] ?? '')
+    );
+
     if (typeof window !== 'undefined' && window.marked) {
       if (typeof window.marked.setOptions === 'function') {
         window.marked.setOptions({ gfm: true, breaks: true, headerIds: false, mangle: false });
       }
       try {
-        if (typeof window.marked.parse === 'function') return window.marked.parse(markdown || '');
-        if (typeof window.marked === 'function') return window.marked(markdown || '');
+        if (typeof window.marked.parse === 'function') return restoreMath(window.marked.parse(guarded));
+        if (typeof window.marked === 'function') return restoreMath(window.marked(guarded));
       } catch (err) {
         console.warn('[Converter] marked failed, using fallback:', err);
       }
     }
-    return escapeHtml(markdown).replace(/\n/g, '<br>');
+    return restoreMath(escapeHtml(guarded).replace(/\n/g, '<br>'));
+  },
+
+  /**
+   * Convert editor HTML (contenteditable) to Markdown for storage.
+   *
+   * Uses Turndown + the GFM plugin so headings, lists, tables, strikethrough
+   * and fenced code round-trip. Math spans are protected from Turndown's
+   * escaping so `$x_1$` does not become `$x\_1$`, and constructs Markdown has
+   * no syntax for (underline, alignment) are kept as inline HTML, which Marked
+   * passes through.
+   *
+   * @param {string} html
+   * @returns {string}
+   */
+  editorHtmlToMarkdown(html = '') {
+    const td = getTurndown();
+
+    // Pull math out before escaping, put it back afterwards.
+    const maths = [];
+    const token = `@@MATH${Math.random().toString(36).slice(2)}`;
+    const decodeMathEntities = str => str
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&');
+    const guarded = String(html ?? '').replace(/\$\$[^<]*?\$\$|\$[^<$\n]+?\$/g, match => {
+      maths.push(decodeMathEntities(match));
+      return `${token}${maths.length - 1}@@`;
+    });
+
+    const restoreMath = md => md.replace(
+      new RegExp(`${token}(\\d+)@@`, 'g'),
+      (_, i) => maths[Number(i)] ?? ''
+    );
+
+    if (td) {
+      try {
+        return restoreMath(td.turndown(guarded)).trim();
+      } catch (err) {
+        console.warn('[Converter] Turndown failed, using fallback:', err);
+      }
+    }
+
+    // Fallback: plain text, still no HTML shown to the user.
+    return restoreMath(guarded.replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim());
   },
 
   /**

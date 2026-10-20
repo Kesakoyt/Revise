@@ -2,6 +2,82 @@
 
 ---
 
+## v1.2.7 — Word-style rich-text editor
+**Date:** 2026-10-20
+**Scope:** The fiche editor becomes a WYSIWYG document editor; storage stays Markdown.
+
+### Changed
+- **The Markdown split pane is gone.** Opening a fiche now shows a **Word-like
+  document page** — never the Markdown source. The page has a title, subject and
+  topic header, generous margins and a subtle paper shadow on a grey canvas.
+- The top bar shows the document icon, its live title and the actions
+  (public toggle for admins, cancel, delete, save); the ribbon underneath stays
+  fixed while the page scrolls.
+- Shared and public fiches still open **read-only**; the save/delete buttons are
+  removed, the badge reads *Lecture seule*, and the ribbon is disabled — except
+  for the reading view.
+- The app is now labelled **« Éditeur de fiches »** in the navbar shortcuts and
+  window title (imports and explorer messages no longer mention Markdown).
+
+### Added
+- **Fluent ribbon** with six groups:
+  *Historique* (undo/redo), *Styles* (Normal, Titre 1–3, Citation, Code),
+  *Police* (bold, italic, underline, strikethrough), *Paragraphe* (bulleted /
+  numbered lists, quote, four alignments), *Insérer* (link, table, horizontal
+  rule, KaTeX formula) and *Édition* (clear formatting, reading view).
+- **Reading view (`Aperçu`)** — renders the document with KaTeX and returns to
+  editing with **Modifier**; no Markdown is displayed there either.
+- **Live status bar** — word and character counts, plus the save state
+  (*Prêt*, *Modifications non enregistrées*, *Enregistré*, *Lecture seule*).
+- **Insertion dialogs** (styled like the rest of the app) for links, tables and
+  formulas, with the current selection preserved across the dialog.
+- `Ctrl / Cmd + S` saves; `Ctrl + B / I / U` keep working natively.
+
+### Storage & round-trip
+- `notes.content` **remains Markdown** in Firestore, so quotas, search, imports,
+  public/shared content and existing fiches are untouched.
+- `ConverterService.editorHtmlToMarkdown()` converts the page back to Markdown on
+  save with **Turndown 7.2.0 + turndown-plugin-gfm 1.0.2** (headings, lists,
+  tables, strikethrough, fenced code).
+- Constructs Markdown has no syntax for (**underline**, **paragraph alignment**)
+  are stored as the raw HTML Marked passes through, so they survive a reload.
+- **Math is protected** from Turndown's escaping: `$x_1$` comes back as `$x_1$`,
+  not `$x\_1$`.
+- Loads are still Marked → HTML; imported PDF/DOCX content opens directly in the
+  new editor.
+
+### Files
+- `src/components/markdown-editor.js` — **rewritten** (WYSIWYG page + ribbon)
+- `src/services/converter-service.js` — added `editorHtmlToMarkdown()` + shared
+  Turndown instance; fixed `renderMathInElement` formatting
+- `index.html` — Turndown and GFM plugin CDN tags
+- `src/styles/style.css` — removed the split-pane styles, added the Word editor
+  (ribbon, paper page, status bar, responsive layout)
+- `firestore.rules` — `isPublic` changes are now admin-only (owners keep the
+  current value); README reference copy updated
+- `src/components/{workspace,navbar,file-explorer,admin-public-files}.js` —
+  user-facing labels no longer mention Markdown; the link dialog's *Public*
+  toggle is admin-only
+- `README.md`, `PATCH_NOTES.md` — documentation
+
+### Firestore
+- **Publishing is now enforced in the rules**, not just hidden in the UI: an
+  owner can create a fiche/link/folder only with `isPublic == false` (documents
+  without the field default to `false`), and can update it only while `isPublic`
+  keeps its current value. Admins can flip it, including through the folder
+  cascade.
+- **You must re-publish `firestore.rules`** (console → Firestore → Règles, or
+  `firebase deploy --only firestore:rules`) for this and the sharing/public
+  features to work.
+
+### Notes
+- The CDN scripts are pinned; an offline load falls back to plain text on save
+  rather than failing.
+- Data model unchanged (`notes.content` is still Markdown); no migration is
+  required.
+
+---
+
 ## v1.2.6 — Windows-style navigation pane + folder sharing
 **Date:** 2026-10-19
 **Scope:** File explorer layout, folder sharing between users, admin shares app.
@@ -383,6 +459,9 @@ specification (Windows 11 Fluent UI study workspace with Firebase backend).
 - No PDF/DOCX is ever uploaded. `converter-service.js` converts **client-side**:
   PDF.js extracts text into Markdown; Mammoth produces HTML that a bespoke
   reducer turns into GFM (headings, lists, tables, quotes, code, links).
+- The **Word-style editor** never shows that Markdown: the page HTML is converted
+  to Markdown with **Turndown + GFM** on save, and the stored Markdown is
+  rendered back with **Marked** on open (KaTeX runs in the *Aperçu* view).
 - This keeps documents tiny, diffable and directly editable — and makes the
   character quota meaningful.
 

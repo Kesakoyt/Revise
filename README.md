@@ -1,12 +1,14 @@
 # Fiches & Cloud
 
-> A minimalist, Windows 11 "Fluent" study workspace — Markdown notes, math
+> A minimalist, Windows 11 "Fluent" study workspace — rich-text notes, math
 > rendering and a hierarchical file manager, backed by Firebase. Zero build step.
 
 Fiches & Cloud is a single-page application built with plain **HTML5 / CSS3 /
-ES Modules**. It stores nothing but **Markdown**, **folder structure** and **link
-metadata** in Firestore: any PDF or DOCX you import is converted to Markdown *in
-the browser* before it is ever uploaded.
+ES Modules**. Notes are written in a **Word-style WYSIWYG editor** and stored as
+**Markdown** in Firestore, alongside the **folder structure** and **link
+metadata**. The Markdown is an implementation detail, never shown to the user.
+Any PDF or DOCX you import is converted *in the browser* before it is ever
+uploaded.
 
 ---
 
@@ -28,15 +30,19 @@ the browser* before it is ever uploaded.
 ## Features
 
 ### Core
-- **Markdown study notes** with a live split-pane editor (source ↔ preview).
-- **KaTeX math** — `$inline$`, `$$display$$`, `\(…\)` and `\[…\]`.
-- **PDF & DOCX import** — drag-and-drop, converted to clean Markdown client-side
-  (PDF.js + Mammoth.js).
+- **Word-style study notes** — a rich-text editor with a Fluent ribbon
+  (**Historique**, **Styles**, **Police**, **Paragraphe**, **Insérer**,
+  **Édition**), a paper-like page with title / subject / topic, and a reading
+  view. No Markdown source is ever shown.
+- **KaTeX math** — insert `$…$` / `$$…$$` formulas from the ribbon; they render
+  in the **Aperçu** reading view (plus `\(…\)` and `\[…\]`).
+- **PDF & DOCX import** — drag-and-drop, converted to editable fiches
+  client-side (PDF.js + Mammoth.js).
 - **File explorer** — a Windows-style file manager: a **navigation pane** on the
   left listing the places you can reach (**Mes fichiers**, **Fichiers partagés**,
   **Fiches publiques**) as an expandable folder tree, plus a breadcrumb, a
   command bar (new / search / filter / sort / view) and an icon+name list or
-  grid. Folders contain sub-folders, Markdown **fiches** and **links**; create,
+  grid. Folders contain sub-folders, rich-text **fiches** and **links**; create,
   rename, move, delete and — for anything you own — **share**. **Public links
   from everyone appear at the root**, mixed in with your own files.
 - **Folder sharing** — right-click a folder you own → **Partager…** and tick the
@@ -70,10 +76,10 @@ the browser* before it is ever uploaded.
 ### Admin (role `admin`)
 - **Database** — inspect and delete documents across `notes`, `links`, `folders`,
   `shortcuts` and `users`, with search, pagination and a JSON inspector. It also
-  ships a **Fichiers publics** tab: a file-explorer-style browser (folders,
+  ships a **Fichiers publics** section: a file-explorer-style browser (folders,
   breadcrumb, icon+name list/grid, Properties dialog, right-click menu) of
   **everybody's public fiches and links**, fully editable by the admin — open in
-  the Markdown editor, rename, move, unpublish, delete. Only branches holding
+  the document editor, rename, move, unpublish, delete. Only branches holding
   public content are shown; the panel is gated on `isAdmin` *and* on the
   Firestore rules.
 - **Users** — account list, role management, per-user document browsing and the
@@ -92,9 +98,9 @@ the browser* before it is ever uploaded.
 
 - **Zero build.** No bundler, no `package.json`, no transpilation. The browser
   loads the ES modules directly.
-- **CDN globals.** Firebase (compat), Marked, KaTeX, PDF.js and Mammoth are
-  loaded as `<script>` tags *before* the modules run, and consumed through
-  `window.*`.
+- **CDN globals.** Firebase (compat), Marked, Turndown (+ GFM plugin), KaTeX,
+  PDF.js and Mammoth are loaded as `<script>` tags *before* the modules run, and
+  consumed through `window.*`.
 - **Event bus.** Components are decoupled through a tiny
   `EventBus.on / off / emit` in `src/app.js` (`app:open`, `app:focus`,
   `panel:close`, `auth:login`, `auth:logout`, `profile:updated`, `note:saved`,
@@ -116,7 +122,7 @@ the browser* before it is ever uploaded.
 | `src/components/workspace.js` | `APP_REGISTRY`, `openPanel` / `closePanel`, panel chrome |
 | `src/components/split-screen.js` | 3-panel flex layout + draggable dividers |
 | `src/services/firestore-service.js` | All CRUD by collection, admin reads, stats |
-| `src/services/converter-service.js` | PDF/DOCX → Markdown, Markdown → HTML, KaTeX |
+| `src/services/converter-service.js` | PDF/DOCX → Markdown, Markdown ↔ editor HTML (Turndown + GFM), KaTeX |
 | `src/services/quota-manager.js` | Character accounting & enforcement |
 | `src/services/firebase-config.js` | Base64 decode + Firebase init |
 
@@ -144,7 +150,7 @@ the browser* before it is ever uploaded.
     │   ├── workspace.js        # Panel orchestration / APP_REGISTRY
     │   ├── split-screen.js     # 1–3 panel layout
     │   ├── file-explorer.js    # Folders + fiches + links, nav pane, sharing, import, quota
-    │   ├── markdown-editor.js  # Split editor + KaTeX preview (read-only on shared fiches)
+    │   ├── markdown-editor.js  # Word-style WYSIWYG editor + KaTeX reading view
     │   ├── user-profile.js     # Account profile: identity, storage, password
     │   ├── admin-database.js   # Collections inspector
     │   ├── admin-public-files.js # Public files browser (file-explorer style)
@@ -292,7 +298,7 @@ keys from placeholders so the UI can warn you.
 | --- | --- |
 | `users/{uid}` | `email`, `displayName`, `bio`, `avatarColor`, `role` (`user`\|`admin`), `createdAt`, `lastLogin`, `updatedAt`, `quotaUsed`, `quotaLimit`, `shortcuts[]` |
 | `directory/{uid}` | `uid`, `displayName`, `email`, `updatedAt` — the *only* user data any signed-in account may read, used to pick share recipients |
-| `folders/{id}` | `uid`, `name`, `parentId` (`null` = root), `sharedWith[]`, `ownerName`, `createdAt`, `updatedAt` |
+| `folders/{id}` | `uid`, `name`, `parentId` (`null` = root), `isPublic`, `hasPublic`, `sharedWith[]`, `ownerName`, `createdAt`, `updatedAt` |
 | `notes/{id}` | `uid`, `title`, `content`, `subject`, `topic`, `isPublic`, `parentId` (`null` = root), `sharedWith[]`, `ownerName`, `charCount`, `createdAt`, `updatedAt` |
 | `links/{id}` | `uid`, `title`, `url`, `description`, `subject`, `isPublic`, `parentId` (`null` = root), `sharedWith[]`, `ownerName`, `createdAt`, `updatedAt` |
 | `shortcuts/{id}` | `uid`, `label`, `icon`, `action`, `order`, `createdAt` |
@@ -322,6 +328,11 @@ sign-in/sign-up; the admin **Partages** app backfills existing accounts.
 `users/{uid}` document; `role` and `quotaLimit` stay admin-only, enforced by the
 rules below.
 
+**Publishing** — only admins may set `isPublic` on a fiche, link or folder. The
+rules let owners create documents with `isPublic == false` and update them only
+while the flag keeps its current value; admins flip it (including through the
+folder cascade, which also maintains the derived `hasPublic` flag).
+
 ---
 
 ## Security rules
@@ -337,8 +348,45 @@ Reference copy:
 
 ```js
 rules_version = '2';
+
+//
+//  Fiches & Cloud — Firestore security rules
+//
+//  HOW TO APPLY
+//  ------------
+//  1. Firebase console → Firestore Database → Rules
+//  2. Replace the whole editor content with this file, OR
+//     deploy it with the Firebase CLI:  firebase deploy --only firestore:rules
+//  3. Edit freely — this file is yours. Every change here is what actually runs.
+//
+//  A `match` with no matching `allow` is DENIED by default, so any new
+//  collection the app uses MUST have a block below (e.g. `folders`).
+//
+//  SHARING MODEL
+//  -------------
+//  A folder carries an explicit `sharedWith` list of recipient UIDs; every
+//  descendant folder, fiche and link inherits that list, so the client always
+//  queries shared content with `where(field, 'array-contains', myUid)` — the
+//  query constraint that provably matches the `in` check below.
+//
+//  PUBLIC BRANCHES
+//  ---------------
+//  Folders also carry `hasPublic`, true when the folder is explicitly public or
+//  when it or one of its descendants holds a public fiche/link. It lets any
+//  signed-in user list the branches of other users' trees that lead to public
+//  content, without exposing private folders. It is recomputed client-side on
+//  every publish, unpublish, move and delete.
+//
+//  Publishing is an ADMIN action: `isPublic` on a fiche/link, or on a folder —
+//  in which case the whole subtree is published along with it.
+//
+
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------
 
     function isSignedIn() {
       return request.auth != null;
@@ -354,7 +402,9 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // User profiles: owners edit themselves, admins manage everyone.
+    // ---------------------------------------------------------------------
+    // User profiles — owners edit themselves, admins manage everyone.
+    // ---------------------------------------------------------------------
     match /users/{userId} {
       allow read:   if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) && request.resource.data.role == 'user';
@@ -365,46 +415,74 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Directory: display name + email only — readable by every signed-in
-    // account so the share picker can list candidates.
+    // ---------------------------------------------------------------------
+    // Directory — display name + email only, so anyone signed in can pick a
+    // recipient in the share dialog. Deliberately separate from `users`, whose
+    // full profile (quota, role, …) stays private.
+    // ---------------------------------------------------------------------
     match /directory/{userId} {
       allow read:   if isSignedIn();
       allow create, update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }
 
-    // Notes: owners write; everyone reads public or shared fiches.
+    // ---------------------------------------------------------------------
+    // Notes (fiches) — owners write; everyone reads public or shared fiches.
+    // ---------------------------------------------------------------------
     match /notes/{noteId} {
       allow read:   if isAdmin()
                     || (resource.data.isPublic == true)
                     || (isSignedIn() && resource.data.uid == request.auth.uid)
                     || (isSignedIn() && request.auth.uid in resource.data.sharedWith);
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isAdmin()
+      // Publishing is an admin action: owners may edit a fiche but may not flip
+      // `isPublic` (legacy documents without the field default to false).
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid
+                    && (isAdmin() || request.resource.data.get('isPublic', false) == false);
+      allow update: if isAdmin()
+                    || (isSignedIn() && resource.data.uid == request.auth.uid
+                        && request.resource.data.get('isPublic', false) == resource.data.get('isPublic', false));
+      allow delete: if isAdmin()
                     || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
-    // Links: private to their owner, unless public or shared.
+    // ---------------------------------------------------------------------
+    // Links — private to their owner, unless shared or made public.
+    // ---------------------------------------------------------------------
     match /links/{linkId} {
       allow read:   if isAdmin()
                     || (resource.data.isPublic == true)
                     || (isSignedIn() && resource.data.uid == request.auth.uid)
                     || (isSignedIn() && request.auth.uid in resource.data.sharedWith);
-      allow create, update: if isAdmin()
-                    || (isSignedIn() && request.resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid
+                    && (isAdmin() || request.resource.data.get('isPublic', false) == false);
+      allow update: if isAdmin()
+                    || (isSignedIn() && resource.data.uid == request.auth.uid
+                        && request.resource.data.get('isPublic', false) == resource.data.get('isPublic', false));
       allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
-    // Folders: private to their owner, unless shared with the requester.
+    // ---------------------------------------------------------------------
+    // Folders — file-manager hierarchy. Private to their owner, unless the
+    // folder was shared with the requester or leads to public content
+    // (`hasPublic`, recomputed by the client whenever the tree changes).
+    // ---------------------------------------------------------------------
     match /folders/{folderId} {
       allow read:   if isAdmin()
                     || (isSignedIn() && resource.data.uid == request.auth.uid)
+                    || (resource.data.isPublic == true)
+                    || (resource.data.hasPublic == true)
                     || (isSignedIn() && request.auth.uid in resource.data.sharedWith);
-      allow create, update: if isAdmin()
-                    || (isSignedIn() && request.resource.data.uid == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid
+                    && (isAdmin() || request.resource.data.get('isPublic', false) == false);
+      allow update: if isAdmin()
+                    || (isSignedIn() && resource.data.uid == request.auth.uid
+                        && request.resource.data.get('isPublic', false) == resource.data.get('isPublic', false));
       allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
+    // ---------------------------------------------------------------------
+    // Shortcuts — nav-bar quick actions, private to their owner.
+    // ---------------------------------------------------------------------
     match /shortcuts/{shortcutId} {
       allow read:   if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
@@ -412,11 +490,16 @@ service cloud.firestore {
                     || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
-    // Audit log: append-only; admins read.
+    // ---------------------------------------------------------------------
+    // Access logs — append-only; admins read.
+    // ---------------------------------------------------------------------
     match /accessLogs/{logId} {
       allow create: if isSignedIn();
       allow read:   if isAdmin();
     }
+
+    // NOTE: anything not matched above is denied. If you add a new collection
+    // in the app, add a matching block here or reads/writes will fail.
   }
 }
 ```
